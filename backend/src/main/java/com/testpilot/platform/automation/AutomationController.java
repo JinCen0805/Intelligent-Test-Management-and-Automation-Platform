@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -43,6 +44,21 @@ public class AutomationController {
     ) {
         return ApiResponse.success(automationService.createAutomationProject(
                 projectId,
+                request,
+                authService.currentUser(authorization)
+        ));
+    }
+
+    @PutMapping("/automation-projects/{automationProjectId}")
+    public ApiResponse<AutomationDtos.AutomationProjectResponse> updateAutomationProject(
+            @PathVariable Long projectId,
+            @PathVariable Long automationProjectId,
+            @Valid @RequestBody AutomationDtos.AutomationProjectRequest request,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(automationService.updateAutomationProject(
+                projectId,
+                automationProjectId,
                 request,
                 authService.currentUser(authorization)
         ));

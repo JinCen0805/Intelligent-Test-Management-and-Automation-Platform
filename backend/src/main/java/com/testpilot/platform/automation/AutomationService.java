@@ -65,6 +65,30 @@ public class AutomationService {
         return AutomationDtos.AutomationProjectResponse.from(automationProjectRepository.save(project));
     }
 
+    @Transactional
+    public AutomationDtos.AutomationProjectResponse updateAutomationProject(
+            Long projectId,
+            Long automationProjectId,
+            AutomationDtos.AutomationProjectRequest request,
+            User user
+    ) {
+        projectAccessService.requireWrite(projectId, user);
+        AutomationProject project = automationProjectRepository
+                .findByIdAndProjectId(automationProjectId, projectId)
+                .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
+        project.setName(request.name().trim());
+        project.setAutomationType(request.automationType().trim().toUpperCase());
+        project.setRepositoryUrl(request.repositoryUrl().trim());
+        project.setBranch(request.branch().trim());
+        project.setCredentialRef(blankToNull(request.credentialRef()));
+        project.setFramework(request.framework().trim());
+        project.setTestPath(blankToNull(request.testPath()));
+        project.setExecuteCommand(blankToNull(request.executeCommand()));
+        project.setEnvironment(blankToNull(request.environment()));
+        project.setJenkinsJob(blankToNull(request.jenkinsJob()));
+        return AutomationDtos.AutomationProjectResponse.from(automationProjectRepository.save(project));
+    }
+
     public List<AutomationDtos.TestTaskResponse> listTasks(Long projectId, User user) {
         projectAccessService.requireRead(projectId, user);
         return testTaskRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)

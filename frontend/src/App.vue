@@ -219,6 +219,7 @@ const automationProjectForm = reactive({
   automationType: 'API',
   repositoryUrl: '',
   branch: 'main',
+  credentialRef: '',
   framework: 'pytest',
   testPath: '',
   executeCommand: '',
@@ -235,6 +236,7 @@ const taskForm = reactive({
   parametersJson: ''
 })
 const generatedCaseList = reactive<ApiGeneratedCase[]>([])
+const editingAutomationProjectId = ref<number | null>(null)
 const editingUserId = ref<number | null>(null)
 const userForm = reactive({
   username: '',
@@ -446,6 +448,10 @@ function applyUser(user: ApiUser) {
   localStorage.setItem('testpilot.userId', String(user.id))
   authState.displayName = user.displayName
   authState.role = user.role
+}
+
+function isCurrentUser(user: ApiUser) {
+  return user.id === Number(localStorage.getItem('testpilot.userId'))
 }
 
 async function loadProjects() {
@@ -755,6 +761,40 @@ async function updateProjectMemberRole(member: ApiProjectMember, event: Event) {
   }
 }
 
+function openNewAutomationProject() {
+  editingAutomationProjectId.value = null
+  Object.assign(automationProjectForm, {
+    name: '',
+    automationType: 'API',
+    repositoryUrl: '',
+    branch: 'main',
+    credentialRef: '',
+    framework: 'pytest',
+    testPath: '',
+    executeCommand: '',
+    environment: 'TEST',
+    jenkinsJob: ''
+  })
+  openModal('automationProject')
+}
+
+function editAutomationProject(project: ApiAutomationProject) {
+  editingAutomationProjectId.value = project.id
+  Object.assign(automationProjectForm, {
+    name: project.name,
+    automationType: project.automationType,
+    repositoryUrl: project.repositoryUrl,
+    branch: project.branch,
+    credentialRef: project.credentialRef || '',
+    framework: project.framework,
+    testPath: project.testPath || '',
+    executeCommand: project.executeCommand || '',
+    environment: project.environment || 'TEST',
+    jenkinsJob: project.jenkinsJob || ''
+  })
+  openModal('automationProject')
+}
+
 function openGenerationModal() {
   generationForm.requirementId = selectedRequirementId.value
   generationForm.modelId = aiModels[0]?.id ?? null
@@ -855,12 +895,24 @@ async function createAutomationProject() {
     return
   }
   try {
-    const saved = await api.automation.createProject(projectId, automationProjectForm)
-    automationProjects.unshift(saved)
+    const payload = { ...automationProjectForm }
+    const saved = editingAutomationProjectId.value
+      ? await api.automation.updateProject(projectId, editingAutomationProjectId.value, payload)
+      : await api.automation.createProject(projectId, payload)
+    const index = automationProjects.findIndex((item) => item.id === saved.id)
+    if (index >= 0) {
+      automationProjects[index] = saved
+    } else {
+      automationProjects.unshift(saved)
+    }
+    const wasEditing = Boolean(editingAutomationProjectId.value)
+    editingAutomationProjectId.value = null
     Object.assign(automationProjectForm, {
       name: '',
+      automationType: 'API',
       repositoryUrl: '',
       branch: 'main',
+      credentialRef: '',
       framework: 'pytest',
       testPath: '',
       executeCommand: '',
@@ -868,7 +920,7 @@ async function createAutomationProject() {
       jenkinsJob: ''
     })
     closeModal()
-    showToast('自动化项目已创建')
+    showToast(wasEditing ? '自动化项目已更新' : '自动化项目已创建')
   } catch (error) {
     showToast(error instanceof Error ? error.message : '自动化项目创建失败')
   }
@@ -1206,12 +1258,21 @@ onMounted(bootstrapAuth)
                 <div class="card api-bottom"><div class="card-body"><div class="subtabs"><button :class="{ active: activeApiTab === 'collections' }" @click="activeApiTab = 'collections'">集合执行</button><button :class="{ active: activeApiTab === 'variables' }" @click="activeApiTab = 'variables'">环境变量</button><button :class="{ active: activeApiTab === 'history' }" @click="activeApiTab = 'history'">执行历史</button></div><div v-if="activeApiTab === 'collections'" class="collection-grid"><div v-for="item in ['订单回归集合', '用户鉴权集合', '支付异常集合']" :key="item" class="collection-item"><span class="mini-icon">O</span><div><strong>{{ item }}</strong><small>12 个接口 · {{ item === '支付异常集合' ? '待补参数' : '可执行' }}</small></div><span class="tag" :class="item === '支付异常集合' ? 'orange' : 'green'">{{ item === '支付异常集合' ? '待补参数' : '可执行' }}</span></div></div><div v-else-if="activeApiTab === 'variables'" class="table-wrap"><table><thead><tr><th>变量名</th><th>TEST</th><th>来源</th><th>敏感</th></tr></thead><tbody><tr><td><strong>&#123;&#123;base_url&#125;&#125;</strong></td><td>https://test-api.xh-mall.cn</td><td>环境配置</td><td>否</td></tr><tr><td><strong>&#123;&#123;token&#125;&#125;</strong></td><td>••••••••</td><td>登录脚本提取</td><td><span class="tag red">是</span></td></tr></tbody></table></div><div v-else class="table-wrap"><table><thead><tr><th>执行时间</th><th>集合</th><th>环境</th><th>Passed</th><th>Failed</th><th>状态</th></tr></thead><tbody><tr><td>今天 10:24</td><td>订单回归集合</td><td>TEST</td><td>11</td><td class="danger-text">1</td><td><span class="status failed">FAILED</span></td></tr><tr><td>今天 08:42</td><td>用户鉴权集合</td><td>TEST</td><td>8</td><td>0</td><td><span class="status passed">PASSED</span></td></tr></tbody></table></div></div></div>
               </template>
               <template v-else-if="activeProjectTab === 'api-code'">
-                <div class="page-head compact"><div><h1>接口自动化代码</h1><p>管理 Git 仓库配置，平台通过 Jenkins 执行真实 pytest 项目。</p></div><div class="head-actions"><button class="btn" @click="openModal('automationProject')">＋ 新建自动化项目</button><button class="btn primary" @click="openModal('run')">▶ 立即执行</button></div></div>
-                <div class="card"><div class="card-body config-grid"><div class="field"><label>Git Repository</label><input value="git@gitlab.company.cn:qa/xh-mall-api.git" /></div><div class="field"><label>Branch</label><input value="main" /></div><div class="field"><label>Framework</label><input value="pytest + requests" /></div><div class="field"><label>Test Path</label><input value="tests/api" /></div><div class="field full"><label>Execute Command</label><input value="pytest tests/api --alluredir=allure-results --env=test" /></div><div class="field"><label>Jenkins Job</label><input value="xh-mall-api-pipeline" /></div><div class="field"><label>最近 Commit</label><input value="a83f2d1 · fix: order contract" /></div></div></div>
+                <div class="page-head compact"><div><h1>接口自动化代码</h1><p>管理 Git 仓库配置，平台通过 Jenkins 执行真实测试项目。</p></div><div class="head-actions"><button class="btn" @click="openNewAutomationProject">＋ 新建自动化项目</button><button class="btn primary" @click="openModal('run')">▶ 立即执行</button></div></div>
+                <div v-for="project in automationProjects.filter((item) => item.automationType === 'API')" :key="project.id" class="card">
+                  <div class="card-head"><div><h3>{{ project.name }}</h3><span class="muted">{{ project.framework }} · {{ project.status }}</span></div><button class="btn" @click="editAutomationProject(project)">编辑配置</button></div>
+                  <div class="card-body config-grid"><div class="field"><label>Git Repository</label><input :value="project.repositoryUrl" disabled /></div><div class="field"><label>Branch</label><input :value="project.branch" disabled /></div><div class="field"><label>Framework</label><input :value="project.framework" disabled /></div><div class="field"><label>Test Path</label><input :value="project.testPath || '--'" disabled /></div><div class="field full"><label>Execute Command</label><input :value="project.executeCommand || '--'" disabled /></div><div class="field"><label>Git Credentials</label><input :value="project.credentialRef || '未配置'" disabled /></div><div class="field"><label>Jenkins Job</label><input :value="project.jenkinsJob || '未配置'" disabled /></div></div>
+                </div>
+                <div v-if="automationProjects.filter((item) => item.automationType === 'API').length === 0" class="card"><div class="card-body muted">暂无接口自动化项目，请先创建配置。</div></div>
               </template>
               <template v-else-if="activeProjectTab === 'ui'">
-                <div class="page-head compact"><div><h1>UI 自动化</h1><p>管理 Playwright 项目、执行环境和失败资产。</p></div><button class="btn primary" @click="openModal('run')">▶ 立即执行</button></div>
-                <div class="card"><div class="card-body config-grid"><div class="field"><label>Git Repository</label><input value="git@gitlab.company.cn:qa/xh-mall-web.git" /></div><div class="field"><label>Framework</label><input value="Playwright" /></div><div class="field"><label>Branch</label><input value="release/1.8" /></div><div class="field"><label>Jenkins Job</label><input value="xh-mall-ui-pipeline" /></div><div class="field full"><label>Test Command</label><input value="npx playwright test --project=chromium --reporter=line,allure-playwright" /></div></div></div><div class="section-grid grid"><div class="card"><div class="card-head"><h3>失败资产</h3><span class="tag red">Run #103</span></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">≡</div><div><strong>Jenkins 日志</strong><small>checkout.spec.ts:42</small></div><button class="btn" @click="showToast('日志查看器将在后端接入后打开')">查看</button></div><div class="mini-item"><div class="mini-icon">▧</div><div><strong>Screenshot</strong><small>checkout_error.png</small></div><button class="btn" @click="showToast('截图预览将在后端接入后打开')">查看</button></div></div></div></div><div class="card"><div class="card-head"><h3>执行说明</h3></div><div class="card-body"><div class="ai-callout"><strong>Git 是自动化代码唯一事实来源</strong><p>平台保存仓库引用、分支、执行命令和 Jenkins Job，不直接保存测试代码。</p></div></div></div></div>
+                <div class="page-head compact"><div><h1>UI 自动化</h1><p>管理 Playwright 项目、执行环境和失败资产。</p></div><div class="head-actions"><button class="btn" @click="openNewAutomationProject">＋ 新建 UI 项目</button><button class="btn primary" @click="openModal('run')">▶ 立即执行</button></div></div>
+                <div v-for="project in automationProjects.filter((item) => item.automationType === 'UI')" :key="project.id" class="card">
+                  <div class="card-head"><div><h3>{{ project.name }}</h3><span class="muted">{{ project.framework }} · {{ project.status }}</span></div><button class="btn" @click="editAutomationProject(project)">编辑配置</button></div>
+                  <div class="card-body config-grid"><div class="field"><label>Git Repository</label><input :value="project.repositoryUrl" disabled /></div><div class="field"><label>Branch</label><input :value="project.branch" disabled /></div><div class="field"><label>Framework</label><input :value="project.framework" disabled /></div><div class="field"><label>运行环境</label><input :value="project.environment || '未配置'" disabled /></div><div class="field full"><label>Test Command</label><input :value="project.executeCommand || '--'" disabled /></div><div class="field"><label>Git Credentials</label><input :value="project.credentialRef || '未配置'" disabled /></div><div class="field"><label>Jenkins Job</label><input :value="project.jenkinsJob || '未配置'" disabled /></div></div>
+                </div>
+                <div v-if="automationProjects.filter((item) => item.automationType === 'UI').length === 0" class="card"><div class="card-body muted">暂无 UI 自动化项目，请先创建配置。</div></div>
+                <div class="section-grid grid"><div class="card"><div class="card-head"><h3>失败资产</h3><span class="muted">来自最近一次真实执行</span></div><div class="card-body"><div v-if="executionRecords[0]?.consoleLogRef" class="mini-item"><div class="mini-icon">≡</div><div><strong>Jenkins 日志</strong><small>{{ executionRecords[0].consoleLogRef }}</small></div><button class="btn" @click="openReference(executionRecords[0].consoleLogRef)">查看</button></div><div v-else class="muted">同步执行记录后显示日志引用。</div></div></div><div class="card"><div class="card-head"><h3>执行说明</h3></div><div class="card-body"><div class="ai-callout"><strong>Git 是自动化代码唯一事实来源</strong><p>平台保存仓库引用、分支、执行命令和 Jenkins Job，不直接保存测试代码。</p></div></div></div></div>
               </template>
               <template v-else-if="activeProjectTab === 'tasks'">
                 <div class="page-head compact"><div><h1>测试任务</h1><p>统一关联环境、Branch、Jenkins Job 和执行参数。</p></div><div class="head-actions"><button class="btn" @click="openModal('task')">＋ 新建测试任务</button><button class="btn primary" @click="openModal('run')">▶ 立即执行</button></div></div>
@@ -1247,7 +1308,7 @@ onMounted(bootstrapAuth)
         <section v-else class="view">
           <div class="page-head"><div><h1>系统管理</h1><p>管理员配置用户、AI 模型、Prompt 模板、Git Credentials 与 Jenkins。</p></div><button v-if="authState.role === 'ADMIN'" class="btn primary" @click="openNewUser">＋ 添加用户</button></div>
           <div v-if="authState.role !== 'ADMIN'" class="card"><div class="card-body"><p class="muted">当前账号没有系统管理权限。</p></div></div>
-          <div v-else class="section-grid grid"><div class="card"><div class="card-head"><h3>用户与角色</h3><span class="muted">{{ users.length }} 个账号</span></div><div class="card-body table-wrap"><table><thead><tr><th>用户</th><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th></th></tr></thead><tbody><tr v-for="user in users" :key="user.id"><td><strong>{{ user.displayName }}</strong><br><span class="muted">{{ user.username }}</span></td><td>{{ user.email || '--' }}</td><td><span class="role-chip">{{ user.role }}</span></td><td><span class="tag" :class="user.status === 'DISABLED' ? 'gray' : 'green'">{{ user.status === 'DISABLED' ? '已禁用' : '启用' }}</span></td><td>{{ user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('zh-CN') : '--' }}</td><td><div class="head-actions"><button class="btn" @click="editUser(user)">编辑</button><button class="btn" :disabled="user.id === Number(localStorage.getItem('testpilot.userId'))" :title="user.id === Number(localStorage.getItem('testpilot.userId')) ? '不能禁用当前登录用户' : ''" @click="toggleUserStatus(user)">{{ user.status === 'DISABLED' ? '启用' : '禁用' }}</button></div></td></tr><tr v-if="users.length === 0"><td colspan="6" class="muted">暂无用户</td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>集成与安全</h3><span class="muted">敏感配置由部署环境管理</span></div><div class="card-body"><div class="ai-callout"><strong>当前运行配置</strong><p>Jenkins、Git Credentials 和 AI API Key 通过后端环境变量注入，前端不保存敏感明文。</p></div></div></div></div>
+          <div v-else class="section-grid grid"><div class="card"><div class="card-head"><h3>用户与角色</h3><span class="muted">{{ users.length }} 个账号</span></div><div class="card-body table-wrap"><table><thead><tr><th>用户</th><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th></th></tr></thead><tbody><tr v-for="user in users" :key="user.id"><td><strong>{{ user.displayName }}</strong><br><span class="muted">{{ user.username }}</span></td><td>{{ user.email || '--' }}</td><td><span class="role-chip">{{ user.role }}</span></td><td><span class="tag" :class="user.status === 'DISABLED' ? 'gray' : 'green'">{{ user.status === 'DISABLED' ? '已禁用' : '启用' }}</span></td><td>{{ user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('zh-CN') : '--' }}</td><td><div class="head-actions"><button class="btn" @click="editUser(user)">编辑</button><button class="btn" :disabled="isCurrentUser(user)" :title="isCurrentUser(user) ? '不能禁用当前登录用户' : ''" @click="toggleUserStatus(user)">{{ user.status === 'DISABLED' ? '启用' : '禁用' }}</button></div></td></tr><tr v-if="users.length === 0"><td colspan="6" class="muted">暂无用户</td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>集成与安全</h3><span class="muted">敏感配置由部署环境管理</span></div><div class="card-body"><div class="ai-callout"><strong>当前运行配置</strong><p>Jenkins、Git Credentials 和 AI API Key 通过后端环境变量注入，前端不保存敏感明文。</p></div></div></div></div>
         </section>
       </div>
     </main>
@@ -1256,7 +1317,7 @@ onMounted(bootstrapAuth)
 
     <div v-if="modal" class="modal-backdrop" @click.self="closeModal">
       <div class="modal">
-        <div class="modal-head"><h3>{{ modal === 'quick' ? '快速创建' : modal === 'project' ? '创建项目' : modal === 'requirement' ? '上传需求文档' : modal === 'requirementDetail' ? '需求详情' : modal === 'run' ? '执行测试任务' : modal === 'case' ? 'AI 测试用例生成' : modal === 'caseEdit' ? (editingCaseId ? '编辑测试用例' : '新建测试用例') : modal === 'model' ? '管理 AI 模型' : modal === 'prompt' ? '新建 Prompt 模板' : modal === 'automationProject' ? '新建自动化项目' : modal === 'task' ? '新建测试任务' : modal === 'user' ? (editingUserId ? '编辑用户' : '新建用户') : modal === 'member' ? '添加项目成员' : 'AI 失败分析' }}</h3><button class="icon-btn" @click="closeModal">×</button></div>
+        <div class="modal-head"><h3>{{ modal === 'quick' ? '快速创建' : modal === 'project' ? '创建项目' : modal === 'requirement' ? '上传需求文档' : modal === 'requirementDetail' ? '需求详情' : modal === 'run' ? '执行测试任务' : modal === 'case' ? 'AI 测试用例生成' : modal === 'caseEdit' ? (editingCaseId ? '编辑测试用例' : '新建测试用例') : modal === 'model' ? '管理 AI 模型' : modal === 'prompt' ? '新建 Prompt 模板' : modal === 'automationProject' ? (editingAutomationProjectId ? '编辑自动化项目' : '新建自动化项目') : modal === 'task' ? '新建测试任务' : modal === 'user' ? (editingUserId ? '编辑用户' : '新建用户') : modal === 'member' ? '添加项目成员' : 'AI 失败分析' }}</h3><button class="icon-btn" @click="closeModal">×</button></div>
         <form v-if="modal === 'project'" class="modal-body" @submit.prevent="createProject"><div class="two-col"><div class="field"><label>项目名称 *</label><input v-model="newProject.name" placeholder="例如：星河电商平台" /></div><div class="field"><label>项目标识 *</label><input v-model="newProject.code" placeholder="例如：XH-MALL" /></div></div><div class="field"><label>项目描述</label><textarea v-model="newProject.description" placeholder="描述项目范围、业务目标与测试重点"></textarea></div><div class="field"><label>默认环境</label><select v-model="newProject.environment"><option>TEST</option><option>DEV</option><option>STAGING</option></select></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">创建项目</button></div></form>
         <div v-else-if="modal === 'quick'" class="modal-body quick-grid"><button class="btn" @click="openModal('project')">▣ 创建项目</button><button class="btn" @click="openModal('requirement')">◫ 上传需求</button><button class="btn" @click="openGenerationModal">▤ 生成用例</button><button class="btn" @click="openModal('run')">▶ 发起执行</button></div>
         <form v-else-if="modal === 'requirement'" class="modal-body" @submit.prevent="uploadRequirement"><div class="field"><label>上传到当前项目</label><input :value="currentProject.name" disabled /></div><div class="dropzone"><div class="upload-icon">⇧</div><strong>{{ requirementFile?.name || '选择需求文件' }}</strong><p>支持 Markdown、PDF、DOCX、TXT · 单文件不超过 10MB</p><label class="btn file-picker">选择文件<input type="file" accept=".md,.markdown,.pdf,.docx,.txt" @change="handleRequirementFile" /></label></div><div class="field"><label>文档版本说明</label><input v-model="requirementVersion" placeholder="例如：V1.2" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">上传并解析</button></div></form>
@@ -1266,7 +1327,7 @@ onMounted(bootstrapAuth)
         <form v-else-if="modal === 'case'" class="modal-body" @submit.prevent="generateTestCases"><div class="flow compact-flow"><span class="done">1 上传 PRD</span><i>→</i><span class="done">2 解析文档</span><i>→</i><span class="current">3 生成 Draft</span><i>→</i><span>4 Review</span></div><div class="two-col"><div class="field"><label>需求文档</label><select v-model.number="generationForm.requirementId"><option v-for="requirement in requirements.filter((item) => item.id && item.status === '已解析')" :key="requirement.id" :value="requirement.id">{{ requirement.name }} {{ requirement.version }}</option></select></div><div class="field"><label>AI 模型</label><select v-model.number="generationForm.modelId"><option v-for="model in aiModels" :key="model.id" :value="model.id">{{ model.name }} · {{ model.provider }}</option><option v-if="aiModels.length === 0" :value="null">使用项目默认模型</option></select></div></div><div class="field"><label>测试规则</label><input v-model="generationForm.rules" /></div><div class="draft-preview"><div class="card-head"><h3>生成结果 Draft</h3><span class="tag orange">{{ generatedCases ? `${generatedCaseList.length} 条待 Review` : '等待生成' }}</span></div><div class="card-body table-wrap"><table><thead><tr><th>编号</th><th>标题</th><th>状态</th></tr></thead><tbody><tr v-for="item in generatedCaseList" :key="item.id"><td>{{ item.caseNo }}</td><td>{{ item.title }}</td><td><span class="tag orange">{{ item.status }}</span></td></tr><tr v-if="generatedCaseList.length === 0"><td colspan="3" class="muted">生成后显示真实 Draft 结果</td></tr></tbody></table></div></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary" :disabled="isGenerating">{{ isGenerating ? '生成中...' : '生成并进入 Review' }}</button></div></form>
         <form v-else-if="modal === 'model'" class="modal-body" @submit.prevent="saveModel"><div class="two-col"><div class="field"><label>Provider</label><input v-model="modelForm.provider" placeholder="MOCK / OPENAI" /></div><div class="field"><label>模型名称</label><input v-model="modelForm.name" /></div></div><div class="field"><label>Endpoint</label><input v-model="modelForm.endpoint" placeholder="https://api.example.com/v1" /></div><div class="field"><label>API Key</label><input v-model="modelForm.apiKey" type="password" placeholder="可选" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">保存模型</button></div></form>
         <form v-else-if="modal === 'prompt'" class="modal-body" @submit.prevent="savePrompt"><div class="two-col"><div class="field"><label>Prompt 名称 *</label><input v-model="promptForm.name" /></div><div class="field"><label>任务类型</label><input v-model="promptForm.taskType" /></div></div><div class="field"><label>版本</label><input v-model="promptForm.version" /></div><div class="field"><label>Prompt 内容 *</label><textarea v-model="promptForm.content" rows="8"></textarea></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">保存 Prompt</button></div></form>
-        <form v-else-if="modal === 'automationProject'" class="modal-body" @submit.prevent="createAutomationProject"><div class="two-col"><div class="field"><label>名称 *</label><input v-model="automationProjectForm.name" /></div><div class="field"><label>类型</label><select v-model="automationProjectForm.automationType"><option>API</option><option>UI</option></select></div></div><div class="field"><label>Git 仓库地址 *</label><input v-model="automationProjectForm.repositoryUrl" /></div><div class="two-col"><div class="field"><label>Branch</label><input v-model="automationProjectForm.branch" /></div><div class="field"><label>Framework</label><input v-model="automationProjectForm.framework" /></div></div><div class="two-col"><div class="field"><label>Test Path</label><input v-model="automationProjectForm.testPath" /></div><div class="field"><label>Jenkins Job</label><input v-model="automationProjectForm.jenkinsJob" /></div></div><div class="field"><label>执行命令</label><input v-model="automationProjectForm.executeCommand" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">创建自动化项目</button></div></form>
+        <form v-else-if="modal === 'automationProject'" class="modal-body" @submit.prevent="createAutomationProject"><div class="two-col"><div class="field"><label>名称 *</label><input v-model="automationProjectForm.name" /></div><div class="field"><label>类型</label><select v-model="automationProjectForm.automationType"><option>API</option><option>UI</option></select></div></div><div class="field"><label>Git 仓库地址 *</label><input v-model="automationProjectForm.repositoryUrl" /></div><div class="two-col"><div class="field"><label>Branch</label><input v-model="automationProjectForm.branch" /></div><div class="field"><label>Framework</label><input v-model="automationProjectForm.framework" /></div></div><div class="two-col"><div class="field"><label>Test Path</label><input v-model="automationProjectForm.testPath" /></div><div class="field"><label>Git Credentials 引用</label><input v-model="automationProjectForm.credentialRef" placeholder="例如：gitlab-qa-credentials" /></div></div><div class="two-col"><div class="field"><label>运行环境</label><input v-model="automationProjectForm.environment" /></div><div class="field"><label>Jenkins Job</label><input v-model="automationProjectForm.jenkinsJob" /></div></div><div class="field"><label>执行命令</label><input v-model="automationProjectForm.executeCommand" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">{{ editingAutomationProjectId ? '保存配置' : '创建自动化项目' }}</button></div></form>
         <form v-else-if="modal === 'task'" class="modal-body" @submit.prevent="createTask"><div class="field"><label>任务名称 *</label><input v-model="taskForm.name" /></div><div class="two-col"><div class="field"><label>自动化项目 *</label><select v-model.number="taskForm.automationProjectId"><option :value="null" disabled>请选择项目</option><option v-for="project in automationProjects" :key="project.id" :value="project.id">{{ project.name }}</option></select></div><div class="field"><label>任务类型</label><input v-model="taskForm.taskType" /></div></div><div class="two-col"><div class="field"><label>环境</label><input v-model="taskForm.environment" /></div><div class="field"><label>Branch</label><input v-model="taskForm.branch" /></div></div><div class="field"><label>Jenkins Job</label><input v-model="taskForm.jenkinsJob" placeholder="留空使用自动化项目配置" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">创建测试任务</button></div></form>
         <form v-else-if="modal === 'user'" class="modal-body" @submit.prevent="saveUser"><div v-if="!editingUserId" class="field"><label>用户名 *</label><input v-model="userForm.username" autocomplete="off" /></div><div class="two-col"><div class="field"><label>显示名称 *</label><input v-model="userForm.displayName" /></div><div class="field"><label>角色</label><select v-model="userForm.role"><option value="TEST_DEVELOPER">测试开发</option><option value="ADMIN">管理员</option></select></div></div><div class="field"><label>邮箱</label><input v-model="userForm.email" type="email" /></div><div class="field"><label>{{ editingUserId ? '重置密码（可选）' : '初始密码 *' }}</label><input v-model="userForm.password" type="password" autocomplete="new-password" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">{{ editingUserId ? '保存用户' : '创建用户' }}</button></div></form>
         <form v-else-if="modal === 'member'" class="modal-body" @submit.prevent="addProjectMember"><div class="field"><label>用户</label><select v-model.number="memberForm.userId"><option :value="null" disabled>请选择启用用户</option><option v-for="user in users.filter((item) => item.status !== 'DISABLED' && !projectMembers.some((member) => member.userId === item.id))" :key="user.id" :value="user.id">{{ user.displayName }} · {{ user.username }}</option></select></div><div class="field"><label>项目角色</label><select v-model="memberForm.role"><option value="MANAGER">项目管理员</option><option value="TEST_DEVELOPER">测试开发</option><option value="VIEWER">只读成员</option></select></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">添加成员</button></div></form>

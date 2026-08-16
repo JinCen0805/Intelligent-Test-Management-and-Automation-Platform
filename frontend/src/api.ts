@@ -416,6 +416,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload)
     }),
+    updateProject: (projectId: number, automationProjectId: number, payload: {
+      name: string
+      automationType: string
+      repositoryUrl: string
+      branch: string
+      credentialRef?: string
+      framework: string
+      testPath?: string
+      executeCommand?: string
+      environment?: string
+      jenkinsJob?: string
+    }) => request<ApiAutomationProject>(
+      `/projects/${projectId}/automation-projects/${automationProjectId}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
     createTask: (projectId: number, payload: {
       name: string
       taskType: string

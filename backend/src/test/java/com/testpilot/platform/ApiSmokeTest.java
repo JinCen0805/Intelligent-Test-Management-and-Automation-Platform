@@ -3,6 +3,7 @@ package com.testpilot.platform;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -183,6 +184,34 @@ class ApiSmokeTest {
                 automationResult.getResponse().getContentAsString(),
                 "$.data.id"
         )).longValue();
+
+        mockMvc.perform(put(
+                        "/api/projects/{projectId}/automation-projects/{automationProjectId}",
+                        projectId,
+                        automationProjectId
+                )
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name":"Order API Updated",
+                                  "automationType":"API",
+                                  "repositoryUrl":"https://example.com/order-api.git",
+                                  "branch":"release/1.2",
+                                  "credentialRef":"gitlab-qa-credentials",
+                                  "framework":"pytest",
+                                  "testPath":"tests/api",
+                                  "executeCommand":"pytest tests/api --alluredir=allure-results",
+                                  "environment":"STAGING",
+                                  "jenkinsJob":"qa/order-api"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.name").value("Order API Updated"))
+                .andExpect(jsonPath("$.data.branch").value("release/1.2"))
+                .andExpect(jsonPath("$.data.credentialRef").value("gitlab-qa-credentials"))
+                .andExpect(jsonPath("$.data.environment").value("STAGING"))
+                .andExpect(jsonPath("$.data.jenkinsJob").value("qa/order-api"));
 
         MvcResult taskResult = mockMvc.perform(post(
                         "/api/projects/{projectId}/test-tasks",

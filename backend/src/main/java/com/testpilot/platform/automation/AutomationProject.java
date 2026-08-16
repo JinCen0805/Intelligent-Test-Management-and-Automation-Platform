@@ -115,4 +115,14 @@ public class AutomationProject {
     public String getEnvironment() { return environment; }
     public String getJenkinsJob() { return jenkinsJob; }
     public String getStatus() { return status; }
+    public void setName(String name) { this.name = name; }
+    public void setAutomationType(String automationType) { this.automationType = automationType; }
+    public void setRepositoryUrl(String repositoryUrl) { this.repositoryUrl = repositoryUrl; }
+    public void setBranch(String branch) { this.branch = branch; }
+    public void setCredentialRef(String credentialRef) { this.credentialRef = credentialRef; }
+    public void setFramework(String framework) { this.framework = framework; }
+    public void setTestPath(String testPath) { this.testPath = testPath; }
+    public void setExecuteCommand(String executeCommand) { this.executeCommand = executeCommand; }
+    public void setEnvironment(String environment) { this.environment = environment; }
+    public void setJenkinsJob(String jenkinsJob) { this.jenkinsJob = jenkinsJob; }
 }
