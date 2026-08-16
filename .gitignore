@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+backend/data/
+frontend/src/*.js
+frontend/*.js
+frontend/*.d.ts
+*.tsbuildinfo
+.idea/
+.vscode/
+*.log

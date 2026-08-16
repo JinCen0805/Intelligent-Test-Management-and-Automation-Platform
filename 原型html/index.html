@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TestPilot AI · 智能测试管理与自动化平台</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --ink: #172033;
+      --muted: #697386;
+      --line: #e6ebf2;
+      --primary: #2563eb;
+      --primary-2: #1d4ed8;
+      --cyan: #0891b2;
+      --green: #169b62;
+      --red: #d94b62;
+      --amber: #c57a14;
+      --purple: #7257cf;
+      --navy: #172033;
+      --shadow: 0 12px 30px rgba(24, 42, 76, 0.08);
+      --radius: 8px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app-shell { min-height: 100vh; display: flex; }
+    .sidebar {
+      width: 238px; background: var(--navy); color: #d8e0ef; display: flex;
+      flex-direction: column; position: fixed; inset: 0 auto 0 0; z-index: 10;
+    }
+    .brand { padding: 22px 20px 18px; border-bottom: 1px solid rgba(255,255,255,.08); }
+    .brand-mark { display: flex; gap: 10px; align-items: center; color: #fff; font-weight: 700; font-size: 17px; letter-spacing: .2px; }
+    .brand-dot { width: 29px; height: 29px; border-radius: 7px; background: linear-gradient(135deg, #3b82f6, #08a7bd); display: grid; place-items: center; color: #fff; font-weight: 800; }
+    .brand small { color: #91a0b9; display: block; margin-left: 39px; margin-top: 2px; font-size: 11px; }
+    .side-label { color: #8491a8; text-transform: uppercase; letter-spacing: .12em; font-size: 10px; padding: 20px 20px 8px; }
+    .nav { padding: 0 10px; }
+    .nav button {
+      border: 0; width: 100%; background: transparent; color: #b7c2d6; display: flex;
+      align-items: center; gap: 12px; padding: 11px 12px; margin: 2px 0; border-radius: 7px; text-align: left;
+    }
+    .nav button:hover, .nav button.active { background: #25314b; color: #fff; }
+    .nav-icon { width: 20px; text-align: center; opacity: .95; }
+    .nav-badge { margin-left: auto; background: #d94b62; color: #fff; padding: 1px 6px; border-radius: 10px; font-size: 11px; }
+    .sidebar-footer { margin-top: auto; padding: 14px; border-top: 1px solid rgba(255,255,255,.08); }
+    .account { display: flex; gap: 10px; align-items: center; padding: 8px; }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #dbeafe; color: #1d4ed8; font-weight: 700; }
+    .account strong { display: block; font-size: 12px; color: #fff; }
+    .account span { display: block; font-size: 11px; color: #98a6bc; }
+    .main { margin-left: 238px; width: calc(100% - 238px); min-width: 900px; }
+    .topbar { height: 66px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .crumb { display: flex; gap: 9px; align-items: center; color: var(--muted); }
+    .crumb strong { color: var(--ink); }
+    .top-actions { display: flex; align-items: center; gap: 12px; }
+    .search { position: relative; }
+    .search input { width: 220px; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px 8px 34px; outline: 0; background: #fbfcfe; }
+    .search span { position: absolute; left: 11px; top: 7px; color: #8c98aa; }
+    .icon-btn { width: 34px; height: 34px; border: 1px solid var(--line); background: #fff; color: var(--muted); border-radius: 6px; }
+    .icon-btn:hover { color: var(--primary); border-color: #b9cdf7; background: #f7faff; }
+    .content { padding: 26px 30px 42px; max-width: 1680px; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .page-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+    .page-head h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+    .page-head p { color: var(--muted); margin: 5px 0 0; }
+    .head-actions { display: flex; gap: 9px; align-items: center; }
+    .btn { border: 1px solid var(--line); background: #fff; color: #374151; border-radius: 6px; padding: 8px 13px; display: inline-flex; align-items: center; gap: 7px; }
+    .btn:hover { border-color: #aac2f6; color: var(--primary); }
+    .btn.primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+    .btn.primary:hover { background: var(--primary-2); }
+    .btn.ghost { background: transparent; }
+    .btn.danger { color: var(--red); }
+    .grid { display: grid; gap: 16px; }
+    .stats-grid { grid-template-columns: repeat(6, minmax(120px, 1fr)); }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(24,42,76,.03); }
+    .stat { padding: 17px; min-height: 105px; }
+    .stat-label { color: var(--muted); display: flex; justify-content: space-between; }
+    .stat-value { font-size: 25px; font-weight: 750; margin-top: 10px; }
+    .stat-foot { margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .trend-up { color: var(--green); }
+    .section-grid { grid-template-columns: 1.45fr 1fr; margin-top: 16px; }
+    .card-head { padding: 16px 18px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+    .card-head h3 { margin: 0; font-size: 15px; }
+    .card-head a { color: var(--primary); font-size: 12px; text-decoration: none; cursor: pointer; }
+    .card-body { padding: 17px 18px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid #eef1f5; vertical-align: middle; }
+    th { color: #7b8799; font-size: 12px; font-weight: 600; background: #fbfcfe; }
+    td { color: #344054; font-size: 13px; }
+    tr:last-child td { border-bottom: 0; }
+    .tag, .status { display: inline-flex; align-items: center; gap: 4px; border-radius: 4px; padding: 3px 7px; font-size: 11px; white-space: nowrap; }
+    .tag.blue { color: #1757c1; background: #e8f0ff; }
+    .tag.green, .status.passed { color: #137a4c; background: #e6f7ee; }
+    .tag.orange, .status.running { color: #9b5b08; background: #fff3df; }
+    .tag.red, .status.failed { color: #b2374c; background: #ffebef; }
+    .tag.gray, .status.pending { color: #667085; background: #eef1f5; }
+    .progress { height: 7px; background: #edf1f6; border-radius: 5px; overflow: hidden; }
+    .progress > i { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+    .mini-list { display: grid; gap: 12px; }
+    .mini-item { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; }
+    .mini-icon { width: 34px; height: 34px; border-radius: 7px; background: #edf4ff; color: var(--primary); display: grid; place-items: center; font-weight: 700; }
+    .mini-item strong { display: block; font-size: 13px; }
+    .mini-item small { color: var(--muted); font-size: 11px; }
+    .ai-callout { background: linear-gradient(100deg, #f1f7ff, #f8fbff); border: 1px solid #d6e5ff; border-radius: 7px; padding: 14px; }
+    .ai-callout strong { color: #184caa; display: block; margin-bottom: 6px; }
+    .ai-callout p { margin: 0; color: #4d6281; line-height: 1.7; }
+    .project-layout { display: grid; grid-template-columns: 205px 1fr; gap: 20px; align-items: start; }
+    .project-nav { padding: 9px; position: sticky; top: 86px; }
+    .project-nav button { display: flex; width: 100%; border: 0; padding: 9px 10px; gap: 9px; background: transparent; border-radius: 6px; color: #667085; text-align: left; }
+    .project-nav button:hover, .project-nav button.active { color: var(--primary); background: #edf4ff; font-weight: 600; }
+    .project-nav-group { margin: 2px 0; }
+    .project-nav-group > button { justify-content: flex-start; }
+    .project-nav-group > button .group-caret { margin-left: auto; color: #94a3b8; transition: transform .2s; }
+    .project-nav-group.open > button .group-caret { transform: rotate(180deg); color: var(--primary); }
+    .project-nav-children { display: none; padding-left: 18px; }
+    .project-nav-group.open .project-nav-children { display: block; }
+    .project-nav-children button { font-size: 12px; padding: 8px 10px; }
+    .project-title { display:flex; gap: 11px; align-items: center; }
+    .project-logo { width: 38px; height: 38px; border-radius: 9px; background: #e0ebff; color: #2563eb; display: grid; place-items: center; font-weight: 800; }
+    .project-title h2 { margin: 0; font-size: 20px; }
+    .project-title p { color: var(--muted); margin: 2px 0 0; font-size: 12px; }
+    .project-top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px; }
+    .subtabs { display: flex; gap: 3px; border-bottom: 1px solid var(--line); margin: -2px -18px 16px; padding: 0 18px; }
+    .subtabs button { border: 0; background: transparent; padding: 9px 13px; color: var(--muted); border-bottom: 2px solid transparent; }
+    .subtabs button.active { color: var(--primary); border-color: var(--primary); }
+    .filterbar { display:flex; gap: 8px; align-items:center; flex-wrap: wrap; margin-bottom: 14px; }
+    .filterbar input, .filterbar select, .field input, .field select, .field textarea { border: 1px solid var(--line); padding: 8px 10px; border-radius: 6px; outline: 0; background: #fff; color: #344054; }
+    .filterbar input { min-width: 220px; }
+    .field { display:grid; gap:6px; margin-bottom: 13px; }
+    .field label { color: #667085; font-size: 12px; }
+    .field textarea { min-height: 90px; resize: vertical; }
+    .two-col { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .flow { display:flex; align-items:center; gap: 0; margin: 18px 0 24px; overflow: auto; padding-bottom: 3px; }
+    .flow-step { min-width: 124px; text-align:center; position:relative; }
+    .flow-step:after { content:""; height:1px; width:38px; background:#ccd6e6; position:absolute; top:15px; right:-19px; }
+    .flow-step:last-child:after { display:none; }
+    .flow-circle { width: 30px; height: 30px; border-radius:50%; margin: 0 auto 7px; display:grid; place-items:center; background:#e8eef8; color:#64748b; font-size:12px; font-weight:700; }
+    .flow-step.done .flow-circle { background:#dff5e9; color:#158254; }
+    .flow-step.current .flow-circle { background:#dbeafe; color:#2563eb; box-shadow: 0 0 0 4px #eff6ff; }
+    .flow-step span { font-size: 11px; color: #748198; white-space:nowrap; }
+    .code-layout { display:grid; grid-template-columns: 195px 1fr; min-height: 350px; }
+    .file-tree { background:#f8fafc; border-right: 1px solid var(--line); padding: 12px; }
+    .file-tree div { padding: 7px 9px; border-radius: 5px; color: #667085; font-size: 12px; }
+    .file-tree div.active { background: #e8f0ff; color: var(--primary); font-weight:600; }
+    .code { background:#111827; color:#d7e3f6; padding: 18px; overflow:auto; font: 12px/1.8 Consolas, monospace; white-space: pre; }
+    .code .kw { color:#8bd5ff; } .code .fn { color:#b9f18d; } .code .str { color:#f4bf83; } .code .cm { color:#8290a5; }
+    .api-workbench { background: #f6f7f9; margin: -4px -2px -2px; border: 1px solid #e4e7ec; border-radius: 8px; overflow: hidden; }
+    .api-toolbar { background: #fff; border-bottom: 1px solid #e6e9ee; padding: 14px; }
+    .api-toolbar-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .api-toolbar-row:last-child { margin-bottom: 0; }
+    .api-title-input { flex: 1; border: 1px solid #dfe4eb; border-radius: 6px; padding: 9px 11px; color: #344054; }
+    .api-method { width: 90px; border: 1px solid #b9dec9; border-radius: 6px; padding: 9px 10px; color: #169b62; background: #f5fff8; font-weight: 700; }
+    .api-url { flex: 1; border: 1px solid #dfe4eb; border-radius: 6px; padding: 9px 11px; color: #667085; }
+    .api-send { min-width: 82px; justify-content: center; }
+    .api-tool-muted { color: #98a2b3; font-size: 12px; }
+    .api-main { display: grid; grid-template-columns: 238px 1fr; min-height: 650px; }
+    .api-collections { background: #fff; border-right: 1px solid #e5e7eb; padding: 15px; }
+    .api-collections-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px; }
+    .api-collections-head strong { font-size: 15px; }
+    .api-collection-card { border: 1px solid #e6eaf0; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+    .api-collection-card.active { border-color: #b8cdfc; background: #f7faff; }
+    .api-collection-title { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .api-collection-title strong { font-size: 13px; }
+    .api-request-list { display:grid; gap: 4px; margin-top: 10px; }
+    .api-request-item { display:flex; align-items:center; gap:7px; padding: 7px 6px; border-radius: 5px; color:#667085; cursor:pointer; font-size:12px; }
+    .api-request-item:hover, .api-request-item.active { background:#eaf2ff; color:#245fd7; }
+    .http-badge { width: 32px; font-size: 10px; font-weight: 700; color:#169b62; }
+    .http-badge.post { color:#2563eb; }
+    .api-editor { background:#fff; min-width:0; }
+    .api-editor-tabs { display:flex; gap: 4px; border-bottom: 1px solid #e6e9ee; padding: 0 16px; }
+    .api-editor-tabs button { border:0; background:transparent; padding: 12px 13px; color:#667085; border-bottom:2px solid transparent; }
+    .api-editor-tabs button.active { color:#2563eb; border-color:#2563eb; }
+    .api-editor-body { padding: 15px; }
+    .api-editor-grid { display:grid; gap: 14px; }
+    .api-param-table th, .api-param-table td { padding: 8px 8px; }
+    .api-param-table input { width:100%; border:1px solid #dfe4eb; border-radius:5px; padding:7px 8px; }
+    .api-add-row { border: 1px dashed #d6dce5; background:#fbfcfd; text-align:center; color:#2563eb; padding: 7px; margin-top: 8px; border-radius:5px; cursor:pointer; }
+    .api-code-editor { background:#f8fafc; border:1px solid #e5e7eb; border-radius:6px; min-height: 190px; padding: 14px; color:#344054; font: 12px/1.8 Consolas, monospace; white-space:pre-wrap; }
+    .api-response { border-top: 1px solid #e6e9ee; background:#fff; min-height: 230px; }
+    .api-response-head { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e6e9ee; padding: 12px 15px; }
+    .api-response-body { min-height: 180px; display:grid; place-items:center; color:#98a2b3; text-align:center; }
+    .api-response-body.loaded { display:block; padding: 15px; text-align:left; }
+    .api-response-meta { display:flex; gap: 15px; color:#667085; font-size:12px; margin-bottom: 10px; }
+    .api-response-json { background:#111827; color:#d7e3f6; border-radius:6px; padding: 12px; font: 12px/1.7 Consolas, monospace; white-space:pre-wrap; }
+    .chart { height: 170px; display:flex; align-items:end; gap: 13px; padding: 14px 8px 0; }
+    .bar { flex:1; position:relative; background: #dbeafe; border-radius: 4px 4px 0 0; min-width: 18px; }
+    .bar i { position:absolute; left:0; right:0; bottom:0; background:var(--primary); border-radius: inherit; }
+    .bar span { position:absolute; top: calc(100% + 7px); left:50%; transform:translateX(-50%); color:#8491a8; font-size:10px; }
+    .report-kpis { display:grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+    .report-kpi { padding: 13px; background:#fbfcfe; border:1px solid var(--line); border-radius:6px; }
+    .report-kpi span { display:block; color:var(--muted); font-size:11px; } .report-kpi strong { display:block; font-size:22px; margin-top:5px; }
+    .empty { text-align:center; padding: 38px 20px; color: var(--muted); }
+    .empty strong { display:block; color:var(--ink); margin-bottom:4px; }
+    .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(10,20,40,.42); z-index:30; align-items:center; justify-content:center; }
+    .modal-backdrop.open { display:flex; }
+    .modal { width: min(670px, calc(100vw - 40px)); max-height: calc(100vh - 50px); overflow:auto; background:#fff; border-radius:9px; box-shadow: 0 25px 60px rgba(0,0,0,.2); }
+    .modal-head { padding: 17px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+    .modal-head h3 { margin:0; font-size:16px; }
+    .modal-body { padding: 20px; } .modal-foot { display:flex; justify-content:flex-end; gap:8px; padding: 13px 20px; border-top:1px solid var(--line); }
+    .toast { position: fixed; right: 24px; bottom: 24px; background: #172033; color:#fff; padding: 11px 15px; border-radius: 6px; box-shadow:var(--shadow); transform: translateY(20px); opacity:0; pointer-events:none; transition:.25s; z-index:50; }
+    .toast.show { transform:translateY(0); opacity:1; }
+    .role-chip { color:#155db7; background:#e8f0ff; padding:4px 7px; border-radius:4px; font-size:11px; }
+    .switch { width:37px; height:20px; display:inline-flex; background:#cbd5e1; border-radius:12px; padding:2px; transition:.2s; }
+    .switch i { width:16px; height:16px; border-radius:50%; background:#fff; transition:.2s; } .switch.on { background:#2563eb; justify-content:flex-end; }
+    .muted { color:var(--muted); } .right { text-align:right; } .nowrap { white-space:nowrap; }
+    @media (max-width: 1180px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } .section-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><div class="brand-dot">T</div> TestPilot AI</div>
+        <small>智能测试管理与自动化平台</small>
+      </div>
+      <div class="side-label">工作台</div>
+      <nav class="nav">
+        <button class="active" data-view="home"><span class="nav-icon">⌂</span>首页</button>
+        <button data-view="projects"><span class="nav-icon">▣</span>项目</button>
+        <button data-view="ai"><span class="nav-icon">✦</span>AI 能力</button>
+        <button data-view="reports"><span class="nav-icon">▤</span>测试报告 <span class="nav-badge">3</span></button>
+      </nav>
+      <div class="side-label">平台</div>
+      <nav class="nav">
+        <button data-view="admin"><span class="nav-icon">⚙</span>系统管理</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="account"><div class="avatar">林</div><div><strong>林晓 · 测试开发</strong><span>星河电商平台</span></div><button class="icon-btn" title="切换角色" style="margin-left:auto;background:transparent;border-color:transparent;color:#9aa8bd;">⋮</button></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="crumb"><span>TestPilot AI</span><b>/</b><strong id="crumbText">平台首页</strong></div>
+        <div class="top-actions">
+          <div class="search"><span>⌕</span><input placeholder="搜索项目、用例、执行记录..." /></div>
+          <button class="icon-btn" title="通知">♢</button>
+          <button class="icon-btn" title="快捷创建" data-modal="quickModal">＋</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="home">
+          <div class="page-head"><div><h1>早上好，林晓</h1><p>今天是 2026 年 8 月 16 日，继续完成你的测试闭环。</p></div><div class="head-actions"><button class="btn" data-modal="quickModal">＋ 快速创建</button><button class="btn primary" data-modal="runModal">▶ 发起执行</button></div></div>
+          <div class="grid stats-grid">
+            <div class="card stat"><div class="stat-label">项目数量 <span>▣</span></div><div class="stat-value">12</div><div class="stat-foot trend-up">↑ 2 个本月新增</div></div>
+            <div class="card stat"><div class="stat-label">测试用例 <span>▤</span></div><div class="stat-value">1,280</div><div class="stat-foot trend-up">↑ 86 个待 Review</div></div>
+            <div class="card stat"><div class="stat-label">接口自动化 <span>⇄</span></div><div class="stat-value">426</div><div class="stat-foot">8 个项目已接入 Git</div></div>
+            <div class="card stat"><div class="stat-label">UI 自动化 <span>⌗</span></div><div class="stat-value">86</div><div class="stat-foot">Playwright 64 · Selenium 22</div></div>
+            <div class="card stat"><div class="stat-label">今日执行 <span>▶</span></div><div class="stat-value">53</div><div class="stat-foot trend-up">↑ 12 次较昨日</div></div>
+            <div class="card stat"><div class="stat-label">今日通过率 <span>✓</span></div><div class="stat-value">94.2%</div><div class="stat-foot trend-up">↑ 2.1% 较昨日</div></div>
+          </div>
+          <div class="grid section-grid">
+            <div class="card"><div class="card-head"><h3>我的项目</h3><a data-view-link="projects">查看全部项目 →</a></div><div class="card-body"><table><thead><tr><th>项目名称</th><th>状态</th><th>最近执行</th><th>通过率</th><th></th></tr></thead><tbody>
+              <tr><td><strong>星河电商平台</strong><br><span class="muted">XH-MALL</span></td><td><span class="tag green">● 运行中</span></td><td>今天 10:24</td><td><div style="min-width:110px"><b>94.2%</b><div class="progress"><i style="width:94.2%"></i></div></div></td><td><button class="btn" data-enter-project>进入 →</button></td></tr>
+              <tr><td><strong>供应链中台</strong><br><span class="muted">SC-CORE</span></td><td><span class="tag green">● 运行中</span></td><td>今天 09:18</td><td><div style="min-width:110px"><b>97.6%</b><div class="progress"><i style="width:97.6%;background:#16a36c"></i></div></div></td><td><button class="btn" data-enter-project>进入 →</button></td></tr>
+              <tr><td><strong>会员中心重构</strong><br><span class="muted">MEMBER-V2</span></td><td><span class="tag orange">● 测试中</span></td><td>昨天 18:02</td><td><div style="min-width:110px"><b>88.9%</b><div class="progress"><i style="width:88.9%;background:#c57a14"></i></div></div></td><td><button class="btn" data-enter-project>进入 →</button></td></tr>
+            </tbody></table></div></div>
+            <div class="card"><div class="card-head"><h3>AI 测试分析</h3><a data-view-link="project">打开项目 AI 工作流 →</a></div><div class="card-body"><div class="ai-callout"><strong>✦ 最近一次分析 · Run #104</strong><p>本次执行失败 7 个测试，其中 5 个疑似由于接口响应字段变更导致。建议优先检查 <b>orderStatus</b> 字段类型及订单创建接口契约。</p><button class="btn" style="margin-top:12px" data-modal="analysisModal">查看完整分析</button></div><div class="mini-list" style="margin-top:16px"><div class="mini-item"><div class="mini-icon">AI</div><div><strong>需求转测试用例</strong><small>DeepSeek · 节省 42% 编写时间</small></div><span class="tag green">可执行</span></div><div class="mini-item"><div class="mini-icon">AI</div><div><strong>失败结果分析</strong><small>GPT · 已关联 Run #104</small></div><span class="tag green">可追溯</span></div></div></div></div>
+          </div>
+          <div class="grid section-grid">
+            <div class="card"><div class="card-head"><h3>最近执行</h3><a data-view-link="reports">查看执行中心 →</a></div><div class="card-body"><table><thead><tr><th>项目</th><th>类型</th><th>执行时间</th><th>状态</th><th>通过率</th></tr></thead><tbody>
+              <tr><td>星河电商平台</td><td><span class="tag blue">接口自动化</span></td><td>今天 10:24</td><td><span class="status passed">● PASSED</span></td><td>97.4%</td></tr>
+              <tr><td>星河电商平台</td><td><span class="tag blue">UI 自动化</span></td><td>今天 09:46</td><td><span class="status failed">● FAILED</span></td><td>82.1%</td></tr>
+              <tr><td>供应链中台</td><td><span class="tag blue">接口自动化</span></td><td>今天 09:18</td><td><span class="status passed">● PASSED</span></td><td>97.6%</td></tr>
+              <tr><td>会员中心重构</td><td><span class="tag blue">UI 自动化</span></td><td>昨天 18:02</td><td><span class="status running">● RUNNING</span></td><td>--</td></tr>
+            </tbody></table></div></div>
+            <div class="card"><div class="card-head"><h3>Jenkins 状态</h3><a data-view-link="reports">查看构建 →</a></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon" style="background:#e6f7ee;color:#168553">✓</div><div><strong>xh-mall-api #104</strong><small>main · 12 分钟前</small></div><span class="tag green">成功</span></div><div class="mini-item"><div class="mini-icon" style="background:#ffebef;color:#b2374c">!</div><div><strong>xh-mall-ui #76</strong><small>release/1.8 · 34 分钟前</small></div><span class="tag red">失败</span></div><div class="mini-item"><div class="mini-icon" style="background:#fff3df;color:#9b5b08">…</div><div><strong>member-v2 #42</strong><small>develop · 构建中</small></div><span class="tag orange">运行中</span></div></div></div></div>
+          </div>
+        </section>
+
+        <section class="view" id="projects">
+          <div class="page-head"><div><h1>项目</h1><p>以项目为中心统一管理需求、用例、自动化、执行与报告。</p></div><div class="head-actions"><button class="btn" data-modal="joinModal">＋ 加入项目</button><button class="btn primary" data-modal="projectModal">＋ 创建项目</button></div></div>
+          <div class="card"><div class="card-body"><div class="filterbar"><input placeholder="搜索项目名称或标识" /><select><option>全部状态</option><option>运行中</option><option>测试中</option><option>已归档</option></select><select><option>我的项目</option><option>全部项目</option></select><button class="btn">筛选</button></div><table><thead><tr><th>项目</th><th>负责人</th><th>成员</th><th>默认环境</th><th>最近执行</th><th>通过率</th><th>状态</th><th></th></tr></thead><tbody>
+            <tr><td><div class="project-title"><div class="project-logo">星</div><div><strong>星河电商平台</strong><p>XH-MALL · 电商核心交易链路</p></div></div></td><td>林晓</td><td>8 人</td><td><span class="tag blue">TEST</span></td><td>今天 10:24</td><td>94.2%</td><td><span class="tag green">运行中</span></td><td><button class="btn" data-enter-project>打开</button></td></tr>
+            <tr><td><div class="project-title"><div class="project-logo" style="background:#e6f7ee;color:#168553">供</div><div><strong>供应链中台</strong><p>SC-CORE · 采购与库存协同</p></div></div></td><td>王敏</td><td>12 人</td><td><span class="tag blue">STAGING</span></td><td>今天 09:18</td><td>97.6%</td><td><span class="tag green">运行中</span></td><td><button class="btn" data-enter-project>打开</button></td></tr>
+            <tr><td><div class="project-title"><div class="project-logo" style="background:#fff3df;color:#a5630d">会</div><div><strong>会员中心重构</strong><p>MEMBER-V2 · 会员权益体系</p></div></div></td><td>赵然</td><td>5 人</td><td><span class="tag blue">DEV</span></td><td>昨天 18:02</td><td>88.9%</td><td><span class="tag orange">测试中</span></td><td><button class="btn" data-enter-project>打开</button></td></tr>
+          </tbody></table></div></div>
+        </section>
+
+        <section class="view" id="project">
+          <div class="project-top"><div class="project-title"><div class="project-logo">星</div><div><h2>星河电商平台 <span class="role-chip">XH-MALL</span></h2><p>负责人 林晓 · 8 位项目成员 · 创建于 2026-05-12</p></div></div><div class="head-actions"><button class="btn">⋯ 项目操作</button><button class="btn primary" data-modal="runModal">▶ 发起执行</button></div></div>
+          <div class="project-layout">
+          <div class="card project-nav">
+              <button class="active" data-project-tab="overview">▦ 项目概览</button><button data-project-tab="requirements">◫ 需求管理</button><button data-project-tab="cases">▤ 测试用例</button>
+              <div class="project-nav-group open" data-project-group="api">
+                <button data-project-expand="api">⇄ 接口自动化 <span class="group-caret">⌄</span></button>
+                <div class="project-nav-children">
+                  <button data-project-tab="api-workbench">接口测试工作台</button>
+                  <button data-project-tab="api-code">接口自动化代码</button>
+                </div>
+              </div>
+              <button data-project-tab="ui">⌗ UI 自动化</button><button data-project-tab="tasks">▶ 测试任务</button><button data-project-tab="reports">▤ 测试报告</button><button data-project-tab="settings">⚙ 项目设置</button>
+            </div>
+            <div id="projectContent"></div>
+          </div>
+        </section>
+
+        <section class="view" id="ai">
+          <div class="page-head"><div><h1>AI 能力</h1><p>管理模型与 Prompt 模板，AI 主要服务于需求用例生成和测试失败分析。</p></div><div class="head-actions"><button class="btn" data-view-link="project">进入项目 AI 工作流 →</button><button class="btn" data-modal="promptModal">＋ 管理 Prompt</button><button class="btn primary" data-modal="modelModal">＋ 管理模型</button></div></div>
+          <div class="card"><div class="card-body"><div class="subtabs"><button class="active" data-ai-tab="models">模型管理</button><button data-ai-tab="prompts">Prompt 模板</button><button data-ai-tab="logs">调用记录</button></div><div id="aiContent"></div></div></div>
+        </section>
+
+        <section class="view" id="reports">
+          <div class="page-head"><div><h1>测试报告中心</h1><p>跨项目查看 Jenkins 构建、Allure 报告、日志、截图、视频与 AI 分析。</p></div><div class="head-actions"><button class="btn primary" data-modal="runModal">▶ 发起执行</button></div></div>
+          <div class="card"><div class="card-body"><div class="filterbar"><input placeholder="搜索项目或 Jenkins Build" /><select><option>全部项目</option><option>星河电商平台</option><option>供应链中台</option></select><select><option>全部类型</option><option>接口自动化</option><option>UI 自动化</option></select><select><option>全部状态</option><option>PASSED</option><option>FAILED</option><option>RUNNING</option></select><button class="btn">筛选</button></div><table><thead><tr><th>Run</th><th>项目 / 类型</th><th>Branch / Commit</th><th>环境</th><th>Jenkins Build</th><th>执行时间</th><th>状态</th><th>报告</th></tr></thead><tbody>
+            <tr><td><strong>#104</strong><br><span class="muted">今天 10:24</span></td><td>星河电商平台<br><span class="tag blue">接口自动化</span></td><td>main<br><span class="muted">a83f2d1</span></td><td>TEST</td><td>xh-mall-api #104</td><td>08m 42s</td><td><span class="status passed">PASSED</span></td><td><button class="btn" data-report-detail>Allure</button></td></tr>
+            <tr><td><strong>#103</strong><br><span class="muted">今天 09:46</span></td><td>星河电商平台<br><span class="tag blue">UI 自动化</span></td><td>release/1.8<br><span class="muted">9d22a6c</span></td><td>STAGING</td><td>xh-mall-ui #76</td><td>14m 18s</td><td><span class="status failed">FAILED</span></td><td><button class="btn" data-report-detail>Allure</button></td></tr>
+            <tr><td><strong>#102</strong><br><span class="muted">今天 09:18</span></td><td>供应链中台<br><span class="tag blue">接口自动化</span></td><td>develop<br><span class="muted">3c0a8be</span></td><td>STAGING</td><td>sc-core-api #88</td><td>06m 31s</td><td><span class="status passed">PASSED</span></td><td><button class="btn" data-report-detail>Allure</button></td></tr>
+          </tbody></table></div></div>
+          <div class="grid section-grid" style="margin-top:16px"><div class="card"><div class="card-head"><h3>失败分类 · Run #103</h3><span class="muted">AI 辅助分析</span></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon" style="background:#ffebef;color:#b2374c">3</div><div><strong>代码问题</strong><small>建议检查 locator 与等待机制</small></div><span>43%</span></div><div class="mini-item"><div class="mini-icon" style="background:#fff3df;color:#9b5b08">2</div><div><strong>环境问题</strong><small>STAGING 图片服务响应超时</small></div><span>29%</span></div><div class="mini-item"><div class="mini-icon" style="background:#e8f0ff;color:#1757c1">1</div><div><strong>接口变更</strong><small>orderStatus 类型不一致</small></div><span>14%</span></div></div><button class="btn" data-modal="analysisModal" style="margin-top:12px">查看 AI 分析</button></div></div></div>
+        </section>
+
+        <section class="view" id="admin">
+          <div class="page-head"><div><h1>系统管理</h1><p>管理员配置用户、AI 模型、Prompt 模板、Git Credentials 与 Jenkins。</p></div><div class="head-actions"><button class="btn" data-modal="userModal">＋ 添加用户</button><button class="btn primary">保存配置</button></div></div>
+          <div class="grid section-grid"><div class="card"><div class="card-head"><h3>用户与角色</h3><span class="muted">管理员 / 测试开发</span></div><div class="card-body"><table><thead><tr><th>用户</th><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th></th></tr></thead><tbody><tr><td><strong>林晓</strong></td><td>lin.xiao@company.cn</td><td><span class="role-chip">测试开发</span></td><td><span class="tag green">启用</span></td><td>今天 08:51</td><td><button class="btn">编辑</button></td></tr><tr><td><strong>陈宇</strong></td><td>chen.yu@company.cn</td><td><span class="role-chip">管理员</span></td><td><span class="tag green">启用</span></td><td>今天 08:12</td><td><button class="btn">编辑</button></td></tr><tr><td><strong>周宁</strong></td><td>zhou.ning@company.cn</td><td><span class="role-chip">测试开发</span></td><td><span class="tag gray">禁用</span></td><td>2026-08-02</td><td><button class="btn">启用</button></td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>集成与安全</h3><span class="muted">敏感配置加密存储</span></div><div class="card-body"><div class="field"><label>Jenkins 默认地址</label><input value="https://jenkins.company.cn" /></div><div class="field"><label>Git Credentials</label><input value="gitlab-qa-credentials · 已加密" /></div><div class="field"><label>AI API Key</label><input value="••••••••••••" type="password" /></div><div class="field"><label>日志脱敏策略</label><div style="display:flex;gap:10px;align-items:center"><span class="switch on"><i></i></span><span class="muted">启用 Token / 密码脱敏</span></div></div></div></div></div>
+        </section>
+
+        <section class="view" id="help">
+          <div class="page-head"><div><h1>测试闭环</h1><p>从需求到自动化执行和失败分析的完整工作流。</p></div></div>
+          <div class="card"><div class="card-body"><div class="flow"><div class="flow-step done"><div class="flow-circle">1</div><span>创建项目</span></div><div class="flow-step done"><div class="flow-circle">2</div><span>上传 PRD</span></div><div class="flow-step done"><div class="flow-circle">3</div><span>AI 生成用例</span></div><div class="flow-step done"><div class="flow-circle">4</div><span>人工 Review</span></div><div class="flow-step current"><div class="flow-circle">5</div><span>本地开发并提交 Git</span></div><div class="flow-step"><div class="flow-circle">6</div><span>测试任务 / Jenkins</span></div><div class="flow-step"><div class="flow-circle">7</div><span>Allure 报告</span></div><div class="flow-step"><div class="flow-circle">8</div><span>AI 失败分析</span></div></div><div class="grid two-col"><div><h3>需求与用例</h3><p>上传 PDF、DOCX、Markdown 或 TXT，选择模型和 Prompt 模板，生成结构化测试用例并完成 Review。</p><div class="tag green">已覆盖</div></div><div><h3>自动化项目</h3><p>管理接口和 UI 自动化项目的 Git Repository、Branch、测试路径、执行命令、环境和 Jenkins Job。</p><div class="tag green">已覆盖</div></div><div><h3>测试执行</h3><p>测试开发工程师在本地维护 pytest 或 Playwright 代码，平台通过 Jenkins 触发执行并保存历史。</p><div class="tag green">已覆盖</div></div><div><h3>报告与 AI</h3><p>查看 Allure、日志、截图、视频和错误信息，使用 AI 辅助分析失败原因和修复方向。</p><div class="tag green">已覆盖</div></div></div></div></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="quickModal"><div class="modal"><div class="modal-head"><h3>快速创建</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="grid two-col"><button class="btn" data-modal="projectModal">▣ 创建项目</button><button class="btn" data-modal="requirementModal">◫ 上传需求</button><button class="btn" data-modal="caseModal">▤ 新建用例</button><button class="btn" data-modal="runModal">▶ 发起执行</button></div></div></div></div>
+  <div class="modal-backdrop" id="projectModal"><div class="modal"><div class="modal-head"><h3>创建项目</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>项目名称 *</label><input placeholder="例如：星河电商平台" /></div><div class="field"><label>项目标识 *</label><input placeholder="例如：XH-MALL" /></div></div><div class="field"><label>项目描述</label><textarea placeholder="描述项目范围、业务目标与测试重点"></textarea></div><div class="two-col"><div class="field"><label>项目负责人</label><select><option>林晓</option><option>王敏</option><option>赵然</option></select></div><div class="field"><label>默认环境</label><select><option>TEST</option><option>DEV</option><option>STAGING</option></select></div></div><div class="field"><label>项目成员</label><input value="林晓, 陈宇, 周宁" /></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="项目创建成功">创建项目</button></div></div></div>
+  <div class="modal-backdrop" id="requirementModal"><div class="modal"><div class="modal-head"><h3>上传需求文档</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="field"><label>上传到项目</label><select><option>星河电商平台</option><option>供应链中台</option></select></div><div style="border:1px dashed #b9c8df;border-radius:8px;padding:28px;text-align:center;background:#fbfdff"><div style="font-size:29px;color:#2563eb">⇧</div><strong>拖拽 PRD 到这里，或点击选择文件</strong><p class="muted">支持 Markdown、PDF、DOCX、TXT · 自动保存文档版本</p><button class="btn">选择文件</button></div><div class="field" style="margin-top:14px"><label>文档版本说明</label><input placeholder="例如：登录与订单模块需求" /></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="需求已上传，正在解析">上传并解析</button></div></div></div>
+  <div class="modal-backdrop" id="runModal"><div class="modal"><div class="modal-head"><h3>执行测试任务</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="field"><label>测试任务</label><select><option>订单接口回归</option><option>Web UI Smoke</option><option>用户接口 Smoke</option></select></div><div class="two-col"><div class="field"><label>自动化项目</label><select><option>订单 API 自动化</option><option>用户 API 自动化</option><option>Web UI 自动化</option></select></div><div class="field"><label>测试类型</label><select><option>Regression Test</option><option>Smoke Test</option></select></div></div><div class="two-col"><div class="field"><label>执行环境</label><select><option>TEST</option><option>STAGING</option><option>DEV</option></select></div><div class="field"><label>Branch</label><select><option>main</option><option>develop</option><option>release/1.8</option></select></div></div><div class="two-col"><div class="field"><label>Jenkins Job</label><select><option>xh-mall-api-pipeline</option><option>xh-mall-ui-pipeline</option></select></div><div class="field"><label>执行参数</label><input value="--alluredir=allure-results --env=test" /></div></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="已触发 Jenkins Build #105">立即执行</button></div></div></div>
+  <div class="modal-backdrop" id="caseModal"><div class="modal"><div class="modal-head"><h3>AI 测试用例生成</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="flow" style="margin-top:0"><div class="flow-step done"><div class="flow-circle">1</div><span>上传 PRD</span></div><div class="flow-step done"><div class="flow-circle">2</div><span>解析文档</span></div><div class="flow-step current"><div class="flow-circle">3</div><span>选择模型与 Prompt</span></div><div class="flow-step"><div class="flow-circle">4</div><span>生成 Draft</span></div><div class="flow-step"><div class="flow-circle">5</div><span>人工 Review</span></div><div class="flow-step"><div class="flow-circle">6</div><span>保存用例</span></div></div><div class="two-col"><div class="field"><label>需求文档</label><select><option>订单中心 PRD V1.2</option><option>会员权益需求 V0.9</option></select></div><div class="field"><label>AI 模型</label><select><option>DeepSeek · 测试用例生成</option><option>GPT-4.1</option><option>GLM-4</option></select></div></div><div class="two-col"><div class="field"><label>Prompt 模板</label><select><option>测试用例生成规范 v2.1</option><option>边界测试补充规范 v1.0</option><option>异常测试规范 v1.0</option></select></div><div class="field"><label>测试规则</label><input value="覆盖正向、异常、边界场景；输出结构化字段" /></div></div><div class="field"><label>测试用例模板</label><select><option>公司标准模板：编号 / 标题 / 模块 / 前置 / 步骤 / 数据 / 预期 / 优先级 / 类型 / 标签</option></select></div><div class="card" style="box-shadow:none"><div class="card-head"><h3>AI 生成结果 Draft</h3><span class="tag orange">86 条待 Review</span></div><div class="card-body"><table><thead><tr><th>编号</th><th>标题</th><th>模块</th><th>优先级</th><th>类型</th><th>Review</th></tr></thead><tbody><tr><td>TC-ORD-001</td><td>创建订单成功</td><td>订单中心</td><td><span class="tag red">P0</span></td><td>功能</td><td><span class="tag orange">待确认</span></td></tr><tr><td>TC-ORD-002</td><td>库存不足时创建订单</td><td>订单中心</td><td><span class="tag orange">P1</span></td><td>异常</td><td><span class="tag orange">待确认</span></td></tr></tbody></table></div></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn" data-toast="AI 已重新生成测试场景">重新生成</button><button class="btn primary" data-toast="Review 通过，测试用例已保存到项目">Review 并保存</button></div></div></div>
+  <div class="modal-backdrop" id="apiModal"><div class="modal"><div class="modal-head"><h3>AI 生成接口自动化代码</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>API 文档</label><select><option>OpenAPI · xh-mall-api.yaml</option><option>Swagger · order-service.json</option></select></div><div class="field"><label>AI 模型</label><select><option>GPT-4.1 · 代码生成</option><option>DeepSeek</option></select></div></div><div class="two-col"><div class="field"><label>关联 PRD</label><select><option>订单中心 PRD V1.2</option><option>支付接口说明 V2.0</option></select></div><div class="field"><label>测试规范</label><select><option>接口自动化生成 Skill v1.0</option><option>接口异常测试 Skill v1.1</option></select></div></div><div class="field"><label>生成目标</label><select><option>pytest + requests · fixture / 参数化 / Assertion / 日志 / 配置 / 环境变量 / 测试数据</option></select></div><div class="field"><label>目标分支</label><input value="ai-generated/order-tests" /></div><div class="ai-callout"><strong>生成策略</strong><p>代码会先进入平台预览区，测试开发可人工修改，确认后提交到 Git Repository，再触发 Jenkins 执行。</p></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="接口自动化代码已生成，请在预览区 Review">开始生成</button></div></div></div>
+  <div class="modal-backdrop" id="uiDetailModal"><div class="modal"><div class="modal-head"><h3>UI 自动化项目管理 · xh-mall-web</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>Git Repository</label><input value="git@gitlab.company.cn:qa/xh-mall-web.git" /></div><div class="field"><label>Framework</label><select><option>Playwright</option><option>Selenium</option></select></div></div><div class="two-col"><div class="field"><label>Branch</label><select><option>release/1.8</option><option>main</option><option>develop</option></select></div><div class="field"><label>Jenkins Job</label><input value="xh-mall-ui-pipeline" /></div></div><div class="field"><label>Test Command</label><input value="npx playwright test --project=chromium --reporter=line,allure-playwright" /></div><div class="card" style="box-shadow:none"><div class="card-head"><h3>最近一次失败资产</h3><span class="tag red">Run #103</span></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">≡</div><div><strong>Jenkins 日志</strong><small>定位到 checkout.spec.ts:42</small></div><button class="btn">查看</button></div><div class="mini-item"><div class="mini-icon">▧</div><div><strong>Screenshot</strong><small>checkout_error.png</small></div><button class="btn">查看</button></div><div class="mini-item"><div class="mini-icon">▶</div><div><strong>Video</strong><small>test_create_order.webm</small></div><button class="btn">播放</button></div></div></div></div></div><div class="modal-foot"><button class="btn close-modal">关闭</button><button class="btn primary" data-toast="UI 项目配置已保存">保存配置</button></div></div></div>
+  <div class="modal-backdrop" id="apiWorkbenchModal"><div class="modal"><div class="modal-head"><h3>接口自动化工作台配置</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>默认环境</label><select><option>TEST</option><option>STAGING</option><option>DEV</option></select></div><div class="field"><label>默认接口集合</label><select><option>订单回归集合</option><option>用户鉴权集合</option><option>支付异常集合</option></select></div></div><div class="field"><label>变量替换语法</label><input value="{{variable_name}}" /></div><div class="field"><label>执行前置逻辑</label><textarea>登录获取 token；创建用户；生成订单测试数据；将变量写入当前执行上下文。</textarea></div><div class="field"><label>失败处理</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="switch on"><i></i></span><span>失败后继续执行</span><span class="switch on"><i></i></span><span>保留请求与响应日志</span><span class="switch on"><i></i></span><span>失败后交给 AI 归因</span></div></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="接口自动化工作台配置已保存">保存配置</button></div></div></div>
+  <div class="modal-backdrop" id="traceModal"><div class="modal"><div class="modal-head"><h3>AI 结果追溯链 · test_create_order</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="flow"><div class="flow-step done"><div class="flow-circle">1</div><span>需求 PRD V1.2</span></div><div class="flow-step done"><div class="flow-circle">2</div><span>TC-ORD-001</span></div><div class="flow-step done"><div class="flow-circle">3</div><span>自动化项目</span></div><div class="flow-step done"><div class="flow-circle">4</div><span>Commit a83f2d1</span></div><div class="flow-step current"><div class="flow-circle">5</div><span>Run #104</span></div><div class="flow-step"><div class="flow-circle">6</div><span>AI 失败分析</span></div></div><div class="grid two-col"><div class="card" style="box-shadow:none"><div class="card-body"><strong>执行证据</strong><p>Git Commit：<b>a83f2d1</b></p><p>Jenkins Build：<b>xh-mall-api #104</b></p><p>Allure：199 条测试，187 Passed</p></div></div><div class="card" style="box-shadow:none"><div class="card-body"><strong>分析证据</strong><p>AI 置信度：<b style="color:var(--primary)">87%</b></p><p>匹配错误栈：5 / 7</p><p>关联响应字段：<b>orderStatus</b></p></div></div></div></div><div class="modal-foot"><button class="btn close-modal">关闭</button><button class="btn primary" data-modal="analysisModal">查看失败分析</button></div></div></div>
+  <div class="modal-backdrop" id="defectModal"><div class="modal"><div class="modal-head"><h3>创建缺陷 / 风险记录</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>缺陷标题</label><input value="[AI] orderStatus 字段类型变更导致订单用例失败" /></div><div class="field"><label>风险等级</label><select><option>高</option><option>中</option><option>低</option></select></div></div><div class="two-col"><div class="field"><label>外部系统</label><select><option>Jira</option><option>禅道</option><option>TAPD</option><option>仅平台风险记录</option></select></div><div class="field"><label>缺陷责任人</label><select><option>陈宇</option><option>王敏</option><option>林晓</option></select></div></div><div class="two-col"><div class="field"><label>外部项目 / 产品</label><input value="XH-MALL / 订单中心" /></div><div class="field"><label>外部 Issue Key</label><input placeholder="创建后自动回填，例如：XHM-1284" /></div></div><div class="field"><label>AI 归因与证据</label><textarea>疑似接口契约变更：orderStatus 从 String 修改为 Integer。关联 PRD：订单中心 PRD V1.2；关联用例：TC-ORD-001；关联 Commit：a83f2d1；置信度 87%。</textarea></div><div class="field"><label>闭环策略</label><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="switch on"><i></i></span><span>修复后自动重跑</span><span class="switch"><i></i></span><span>标记为历史已知问题</span><span class="switch"><i></i></span><span>加入 Flaky 隔离队列</span></div></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn" data-toast="已保存为平台风险记录">仅保存风险</button><button class="btn primary" data-toast="缺陷已同步 Jira，修复后将自动重跑 Run #104">创建并同步缺陷</button></div></div></div>
+  <div class="modal-backdrop" id="analysisModal"><div class="modal"><div class="modal-head"><h3>AI 测试结果分析 · Run #104</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="ai-callout"><strong>结论：疑似接口契约变更</strong><p>7 个失败中，有 5 个失败的错误栈均指向订单响应解析。AI 判断 <b>orderStatus</b> 可能从 String 修改为 Integer，置信度 87%。该结论属于辅助分析，需要人工确认。</p></div><div class="grid two-col" style="margin-top:16px"><div class="card" style="box-shadow:none"><div class="card-body"><strong>失败分类</strong><p>接口变更　5</p><p>测试数据问题　1</p><p>环境问题　1</p></div></div><div class="card" style="box-shadow:none"><div class="card-body"><strong>修复建议</strong><p>检查订单接口 OpenAPI Schema 与序列化逻辑。</p><p>更新 `test_create_order` 断言与测试数据。</p></div></div></div></div><div class="modal-foot"><button class="btn close-modal">关闭</button><button class="btn primary" data-toast="已创建分析任务">继续分析</button></div></div></div>
+  <div class="modal-backdrop" id="modelModal"><div class="modal"><div class="modal-head"><h3>添加 AI 模型</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>Provider</label><select><option>OpenAI / GPT</option><option>DeepSeek</option><option>GLM</option></select></div><div class="field"><label>Model Name</label><input placeholder="gpt-4.1 / deepseek-chat" /></div></div><div class="field"><label>API Endpoint</label><input placeholder="https://api.example.com/v1" /></div><div class="field"><label>API Key（加密存储）</label><input type="password" placeholder="sk-••••••••••••" /></div><div class="two-col"><div class="field"><label>Temperature</label><input value="0.2" /></div><div class="field"><label>Max Tokens</label><input value="4096" /></div></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="模型配置已保存">保存模型</button></div></div></div>
+  <div class="modal-backdrop" id="promptModal"><div class="modal"><div class="modal-head"><h3>新建 Prompt 模板</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>Prompt 名称</label><input placeholder="测试用例生成规范" /></div><div class="field"><label>任务类型</label><select><option>测试用例生成</option><option>边界值测试</option><option>异常测试</option><option>测试结果分析</option></select></div></div><div class="field"><label>Prompt 内容</label><textarea style="min-height:140px" placeholder="根据 PRD 识别功能模块、业务场景、测试风险，并生成符合公司测试用例规范的结果。"></textarea></div><div class="field"><label>测试规则</label><input placeholder="覆盖正向、异常、边界场景，输出结构化字段" /></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="Prompt 模板已创建">创建模板</button></div></div></div>
+  <div class="modal-backdrop" id="compareModal"><div class="modal"><div class="modal-head"><h3>报告对比</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>基准报告</label><select><option>Run #103 · 2026-08-16 09:46</option><option>Run #102 · 2026-08-16 09:18</option></select></div><div class="field"><label>对比报告</label><select><option>Run #104 · 2026-08-16 10:24</option><option>Run #103 · 2026-08-16 09:46</option></select></div></div><div class="ai-callout"><strong>对比结论</strong><p>本次失败 7 个，上次失败 3 个；新增失败测试 5 个；平均执行时间减少 21%。建议关注订单模块响应结构变化。</p></div></div><div class="modal-foot"><button class="btn close-modal">关闭</button><button class="btn primary" data-toast="报告对比已生成">生成对比</button></div></div></div>
+  <div class="modal-backdrop" id="userModal"><div class="modal"><div class="modal-head"><h3>添加用户</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="two-col"><div class="field"><label>姓名</label><input placeholder="输入姓名" /></div><div class="field"><label>邮箱</label><input placeholder="name@company.cn" /></div></div><div class="two-col"><div class="field"><label>角色</label><select><option>测试开发</option><option>管理员</option></select></div><div class="field"><label>初始状态</label><select><option>启用</option><option>禁用</option></select></div></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="用户已添加">添加用户</button></div></div></div>
+  <div class="modal-backdrop" id="joinModal"><div class="modal"><div class="modal-head"><h3>加入项目</h3><button class="icon-btn close-modal">×</button></div><div class="modal-body"><div class="field"><label>项目邀请码</label><input placeholder="输入项目邀请码" /></div></div><div class="modal-foot"><button class="btn close-modal">取消</button><button class="btn primary" data-toast="加入项目申请已提交">申请加入</button></div></div></div>
+
+  <div class="toast" id="toast"></div>
+  <script>
+    const projectContent = document.getElementById('projectContent');
+    const aiContent = document.getElementById('aiContent');
+    const crumbText = document.getElementById('crumbText');
+    const toast = document.getElementById('toast');
+
+    const projectTemplates = {
+      overview: `
+        <div class="page-head"><div><h1>项目概览</h1><p>统一查看星河电商平台的测试资产、执行状态和 AI 分析。</p></div><div class="head-actions"><button class="btn" data-modal="requirementModal">⇧ 上传需求</button><button class="btn primary" data-modal="caseModal">✦ AI 生成用例</button></div></div>
+        <div class="grid stats-grid" style="grid-template-columns:repeat(5,1fr)"><div class="card stat"><div class="stat-label">测试用例</div><div class="stat-value">328</div><div class="stat-foot">86 个待 Review</div></div><div class="card stat"><div class="stat-label">接口自动化</div><div class="stat-value">126</div><div class="stat-foot">3 个 Git Repository</div></div><div class="card stat"><div class="stat-label">UI 自动化</div><div class="stat-value">43</div><div class="stat-foot">Playwright 31 · Selenium 12</div></div><div class="card stat"><div class="stat-label">最近执行</div><div class="stat-value">156</div><div class="stat-foot">今日 12 次</div></div><div class="card stat"><div class="stat-label">通过率</div><div class="stat-value">94.2%</div><div class="stat-foot trend-up">↑ 2.1% 较上周</div></div></div>
+        <div class="grid section-grid"><div class="card"><div class="card-head"><h3>最近执行</h3><a data-project-tab="tasks">查看测试任务 →</a></div><div class="card-body"><table><thead><tr><th>执行时间</th><th>测试类型</th><th>环境</th><th>总用例</th><th>Passed</th><th>Failed</th><th>Skipped</th><th>耗时</th></tr></thead><tbody><tr><td>今天 10:24</td><td><span class="tag blue">接口自动化</span></td><td>TEST</td><td>156</td><td class="trend-up">152</td><td class="nowrap" style="color:var(--red)">4</td><td>0</td><td>08m 42s</td></tr><tr><td>今天 09:46</td><td><span class="tag blue">UI 自动化</span></td><td>STAGING</td><td>43</td><td class="trend-up">35</td><td style="color:var(--red)">7</td><td>1</td><td>14m 18s</td></tr><tr><td>昨天 18:02</td><td><span class="tag blue">接口自动化</span></td><td>DEV</td><td>126</td><td class="trend-up">124</td><td>2</td><td>0</td><td>06m 31s</td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>项目基本信息</h3><button class="btn">编辑</button></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">▣</div><div><strong>项目标识</strong><small>XH-MALL</small></div></div><div class="mini-item"><div class="mini-icon">人</div><div><strong>项目负责人</strong><small>林晓</small></div></div><div class="mini-item"><div class="mini-icon">群</div><div><strong>项目成员</strong><small>8 位 · 林晓、陈宇、周宁等</small></div></div><div class="mini-item"><div class="mini-icon">日</div><div><strong>创建时间</strong><small>2026-05-12 14:20</small></div></div></div></div></div></div>
+        <div class="card" style="margin-top:16px"><div class="card-head"><h3>AI 测试分析</h3><span class="tag blue">GPT · Run #104</span></div><div class="card-body"><div class="ai-callout"><strong>本次执行失败 7 个测试，其中 5 个疑似由于接口响应字段变更导致。</strong><p>相关模块：订单创建、订单详情、订单状态流转。建议检查 OpenAPI 文档、后端 DTO 序列化及测试断言。AI 输出为辅助分析结果，仅供测试开发人员参考。</p><button class="btn" data-modal="analysisModal" style="margin-top:10px">查看失败分析与修复建议</button></div></div></div>`,
+      requirements: `<div class="page-head"><div><h1>需求管理</h1><p>保存 PRD、Markdown、PDF、DOCX、TXT 文档版本，为 AI 测试用例生成提供项目上下文。</p></div><div class="head-actions"><button class="btn primary" data-modal="requirementModal">⇧ 上传需求</button></div></div><div class="card"><div class="card-body"><table><thead><tr><th>文档名称</th><th>类型</th><th>版本</th><th>上传人</th><th>更新时间</th><th>解析状态</th><th></th></tr></thead><tbody><tr><td><strong>订单中心 PRD</strong></td><td><span class="tag red">PDF</span></td><td>V1.2</td><td>林晓</td><td>今天 09:12</td><td><span class="tag green">已解析</span></td><td><button class="btn" data-modal="caseModal">AI 生成用例</button></td></tr><tr><td><strong>会员权益需求</strong></td><td><span class="tag blue">Markdown</span></td><td>V0.9</td><td>赵然</td><td>昨天 17:40</td><td><span class="tag green">已解析</span></td><td><button class="btn">查看版本</button></td></tr><tr><td><strong>支付接口说明</strong></td><td><span class="tag orange">DOCX</span></td><td>V2.0</td><td>陈宇</td><td>2026-08-13</td><td><span class="tag gray">解析中</span></td><td><button class="btn">查看</button></td></tr></tbody></table></div></div>`,
+      cases: `<div class="page-head"><div><h1>测试用例</h1><p>统一管理 AI 生成与人工设计的功能、异常、边界测试用例。</p></div><div class="head-actions"><button class="btn" data-modal="caseModal">＋ 新建用例</button><button class="btn primary" data-modal="caseModal">✦ AI 生成用例</button></div></div><div class="card"><div class="card-body"><div class="filterbar"><input placeholder="搜索用例编号、标题、标签" /><select><option>全部模块</option><option>订单中心</option><option>用户中心</option><option>支付中心</option></select><select><option>全部优先级</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select><select><option>全部状态</option><option>待 Review</option><option>已通过</option><option>已废弃</option></select><button class="btn">批量操作</button><button class="btn">导出</button></div><table><thead><tr><th><input type="checkbox" /></th><th>用例编号</th><th>用例标题</th><th>所属模块</th><th>优先级</th><th>类型</th><th>状态</th><th>版本</th></tr></thead><tbody><tr><td><input type="checkbox" /></td><td>TC-ORD-001</td><td><strong>创建订单成功</strong><br><span class="muted">验证正常商品下单链路</span></td><td>订单中心</td><td><span class="tag red">P0</span></td><td>功能</td><td><span class="tag orange">待 Review</span></td><td>v1.0</td></tr><tr><td><input type="checkbox" /></td><td>TC-ORD-002</td><td><strong>库存不足时创建订单</strong><br><span class="muted">验证异常提示与库存回滚</span></td><td>订单中心</td><td><span class="tag orange">P1</span></td><td>异常</td><td><span class="tag green">已通过</span></td><td>v1.0</td></tr><tr><td><input type="checkbox" /></td><td>TC-PAY-006</td><td><strong>支付超时重试</strong><br><span class="muted">验证幂等与重试策略</span></td><td>支付中心</td><td><span class="tag orange">P1</span></td><td>边界</td><td><span class="tag orange">待 Review</span></td><td>v0.9</td></tr></tbody></table></div></div>`,
+      api: `<div class="page-head"><div><h1>pytest + requests 代码项目</h1><p>从 Swagger / OpenAPI、PRD、测试规范与测试数据生成可维护的 pytest + requests 工程代码。</p></div><div class="head-actions"><button class="btn">⇧ 导入 Swagger</button><button class="btn primary" data-modal="apiModal">✦ AI 生成代码</button></div></div><div class="grid section-grid"><div class="card"><div class="card-head"><h3>API 文档与接口树</h3><span class="tag green">OpenAPI 3.0</span></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">U</div><div><strong>User</strong><small>GET /users · POST /users</small></div><span>2</span></div><div class="mini-item"><div class="mini-icon">O</div><div><strong>Order</strong><small>GET /orders · POST /orders · PUT /orders/{id}</small></div><span>6</span></div><div class="mini-item"><div class="mini-icon">P</div><div><strong>Payment</strong><small>POST /payments · GET /payments/{id}</small></div><span>4</span></div></div></div></div><div class="card"><div class="card-head"><h3>代码仓库</h3><button class="btn">仓库设置</button></div><div class="card-body"><div class="field"><label>Git Repository</label><input value="git@gitlab.company.cn:qa/xh-mall-api.git" /></div><div class="two-col"><div class="field"><label>Branch</label><select><option>main</option><option>develop</option></select></div><div class="field"><label>最近 Commit</label><input value="a83f2d1 · 12 分钟前" /></div></div><span class="tag green">已连接 GitLab</span></div></div></div><div class="card" style="margin-top:16px"><div class="card-head"><h3>AI 生成代码预览</h3><div class="head-actions"><span class="tag blue">GPT · pytest + requests</span><button class="btn">下载</button><button class="btn primary" data-toast="代码已提交到 Git 分支 ai-generated/order-tests">提交到 Git</button></div></div><div class="code-layout"><div class="file-tree"><div class="active">tests/test_order.py</div><div>tests/test_user.py</div><div>conftest.py</div><div>config/settings.py</div><div>data/order_cases.json</div><div>requirements.txt</div></div><div class="code"><span class="cm"># AI generated · review before commit</span>\n<span class="kw">import</span> pytest\n<span class="kw">import</span> requests\n\n<span class="kw">@pytest.fixture</span>\n<span class="kw">def</span> <span class="fn">api_client</span>(base_url):\n    <span class="kw">return</span> requests.Session()\n\n<span class="kw">@pytest.mark.parametrize</span>(<span class="str">"case"</span>, load_cases(<span class="str">"order_cases.json"</span>))\n<span class="kw">def</span> <span class="fn">test_create_order</span>(api_client, base_url, case):\n    response = api_client.post(\n        <span class="str">f"{base_url}/orders"</span>, json=case[<span class="str">"payload"</span>]\n    )\n    <span class="kw">assert</span> response.status_code == case[<span class="str">"expected_status"</span>]\n    <span class="kw">assert</span> response.json()[<span class="str">"orderStatus"</span>] == <span class="str">"CREATED"</span></div></div></div>`,
+      ui: `<div class="page-head"><div><h1>UI 自动化</h1><p>管理已有 Playwright / Selenium 项目，配置 Git、Branch、Jenkins 与执行资产。</p></div><div class="head-actions"><button class="btn">＋ 添加 UI 项目</button><button class="btn primary" data-modal="runModal">▶ 执行 UI 测试</button></div></div><div class="card"><div class="card-body"><table><thead><tr><th>项目</th><th>Framework</th><th>Git Repository</th><th>Branch</th><th>Test Suite</th><th>Jenkins Job</th><th>最近状态</th><th></th></tr></thead><tbody><tr><td><strong>xh-mall-web</strong><br><span class="muted">电商 Web 回归</span></td><td><span class="tag blue">Playwright</span></td><td>qa/xh-mall-web.git</td><td>release/1.8</td><td>smoke, checkout</td><td>xh-mall-ui-pipeline</td><td><span class="tag red">失败</span></td><td><button class="btn" data-modal="uiDetailModal">管理</button></td></tr><tr><td><strong>admin-console</strong><br><span class="muted">运营后台回归</span></td><td><span class="tag blue">Selenium</span></td><td>qa/admin-console.git</td><td>main</td><td>regression</td><td>admin-ui-pipeline</td><td><span class="tag green">通过</span></td><td><button class="btn">管理</button></td></tr></tbody></table></div></div><div class="grid section-grid" style="margin-top:16px"><div class="card"><div class="card-head"><h3>最近失败附件</h3><span class="muted">Run #103</span></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">▧</div><div><strong>checkout_error.png</strong><small>test_create_order · 2.4 MB</small></div><button class="btn">查看</button></div><div class="mini-item"><div class="mini-icon">▶</div><div><strong>test_create_order.webm</strong><small>test_create_order · 18.2 MB</small></div><button class="btn">播放</button></div><div class="mini-item"><div class="mini-icon">≡</div><div><strong>execution.log</strong><small>Jenkins #76 · 32 KB</small></div><button class="btn">查看</button></div></div></div></div><div class="card"><div class="card-head"><h3>执行配置</h3><button class="btn">编辑</button></div><div class="card-body"><div class="field"><label>Test Command</label><input value="npx playwright test --project=chromium" /></div><div class="field"><label>Environment</label><select><option>STAGING</option><option>TEST</option></select></div><div class="field"><label>Jenkins Pipeline</label><input value="xh-mall-ui-pipeline" /></div></div></div></div>`,
+      performance: `<div class="page-head"><div><h1>性能测试</h1><p>V1 预留性能测试入口、数据模型与执行 / 报告接口，暂不提供复杂编排。</p></div><div class="head-actions"><button class="btn" data-toast="性能测试数据模型已预留">查看数据模型</button></div></div><div class="card"><div class="empty"><div style="font-size:32px;color:#7b8aa2">↗</div><strong>性能测试能力即将开放</strong><span>后续支持 JMeter、Locust、k6，并统一进入执行中心与报告中心。</span></div></div>`,
+      executions: `<div class="page-head"><div><h1>测试执行</h1><p>接口、UI 与未来性能测试统一进入执行中心。</p></div><div class="head-actions"><button class="btn primary" data-modal="runModal">▶ 发起执行</button></div></div><div class="card"><div class="card-body"><table><thead><tr><th>Run</th><th>测试类型</th><th>Branch / Commit</th><th>Environment</th><th>Jenkins Build</th><th>开始时间</th><th>状态</th><th>耗时</th></tr></thead><tbody><tr><td>#104</td><td>接口自动化</td><td>main / a83f2d1</td><td>TEST</td><td>#104</td><td>10:15:42</td><td><span class="status passed">PASSED</span></td><td>08m 42s</td></tr><tr><td>#103</td><td>UI 自动化</td><td>release/1.8 / 9d22a6c</td><td>STAGING</td><td>#76</td><td>09:32:11</td><td><span class="status failed">FAILED</span></td><td>14m 18s</td></tr><tr><td>#102</td><td>接口自动化</td><td>develop / 3c0a8be</td><td>STAGING</td><td>#88</td><td>09:12:08</td><td><span class="status running">RUNNING</span></td><td>--</td></tr></tbody></table></div></div>`,
+      cicd: `<div class="page-head"><div><h1>CI/CD</h1><p>查看 Jenkins 构建、手动触发 Pipeline、构建日志与回传结果。</p></div><div class="head-actions"><button class="btn">配置 Jenkins</button><button class="btn primary" data-modal="runModal">▶ 手动触发</button></div></div><div class="card"><div class="card-body"><div class="flow"><div class="flow-step done"><div class="flow-circle">1</div><span>Git Push</span></div><div class="flow-step done"><div class="flow-circle">2</div><span>Jenkins</span></div><div class="flow-step done"><div class="flow-circle">3</div><span>Checkout</span></div><div class="flow-step done"><div class="flow-circle">4</div><span>pytest / Playwright</span></div><div class="flow-step current"><div class="flow-circle">5</div><span>Allure Results</span></div><div class="flow-step"><div class="flow-circle">6</div><span>平台报告</span></div></div><table><thead><tr><th>Job</th><th>Branch</th><th>触发方式</th><th>Build</th><th>状态</th><th>构建时间</th><th></th></tr></thead><tbody><tr><td>xh-mall-api-pipeline</td><td>main</td><td>手动</td><td>#104</td><td><span class="status passed">SUCCESS</span></td><td>08m 42s</td><td><button class="btn">查看日志</button></td></tr><tr><td>xh-mall-ui-pipeline</td><td>release/1.8</td><td>Git Push</td><td>#76</td><td><span class="status failed">FAILURE</span></td><td>14m 18s</td><td><button class="btn">查看日志</button></td></tr></tbody></table></div></div>`,
+      reports: `<div class="page-head"><div><h1>项目测试报告</h1><p>查看 Allure 详情、历史执行、失败日志、Screenshot、Video 与 AI 分析。</p></div><div class="head-actions"><button class="btn primary">打开 Allure</button></div></div><div class="card"><div class="card-body"><div class="report-kpis"><div class="report-kpi"><span>Total</span><strong>199</strong></div><div class="report-kpi"><span>Passed</span><strong class="trend-up">187</strong></div><div class="report-kpi"><span>Failed</span><strong style="color:var(--red)">7</strong></div><div class="report-kpi"><span>Broken</span><strong style="color:var(--amber)">3</strong></div><div class="report-kpi"><span>Skipped</span><strong>2</strong></div></div><div class="ai-callout" style="margin-top:18px"><strong>✦ AI 失败分析已生成</strong><p><code>test_create_order</code> 失败，可能由于 API 返回字段 <code>orderStatus</code> 类型从 String 修改为 Integer。</p><button class="btn" data-modal="analysisModal" style="margin-top:8px">查看分析</button></div></div></div><div class="card" style="margin-top:16px"><div class="card-head"><h3>历史报告</h3><span class="muted">每次执行独立沉淀</span></div><div class="card-body"><table><thead><tr><th>Run</th><th>执行时间</th><th>结果</th><th>Duration</th><th>附件</th><th></th></tr></thead><tbody><tr><td>#104</td><td>2026-08-16 10:24</td><td><span class="tag red">7 Failed</span></td><td>08m 42s</td><td>Log · Screenshot</td><td><button class="btn">详情</button></td></tr><tr><td>#103</td><td>2026-08-16 09:46</td><td><span class="tag red">3 Failed</span></td><td>14m 18s</td><td>Log · Screenshot · Video</td><td><button class="btn">详情</button></td></tr></tbody></table></div></div>`,
+      environments: `<div class="page-head"><div><h1>环境管理</h1><p>维护 DEV、TEST、STAGING 的服务地址、变量与安全配置。</p></div><div class="head-actions"><button class="btn primary">＋ 新建环境</button></div></div><div class="grid section-grid"><div class="card"><div class="card-head"><h3>环境列表</h3><span class="muted">敏感值已脱敏</span></div><div class="card-body"><table><thead><tr><th>环境</th><th>Base URL</th><th>服务数</th><th>变量</th><th>最近验证</th><th>状态</th></tr></thead><tbody><tr><td><span class="tag blue">DEV</span></td><td>https://dev-api.xh-mall.cn</td><td>12</td><td>32</td><td>今天 08:20</td><td><span class="tag green">可用</span></td></tr><tr><td><span class="tag blue">TEST</span></td><td>https://test-api.xh-mall.cn</td><td>12</td><td>36</td><td>今天 08:22</td><td><span class="tag green">可用</span></td></tr><tr><td><span class="tag blue">STAGING</span></td><td>https://staging-api.xh-mall.cn</td><td>15</td><td>41</td><td>今天 07:52</td><td><span class="tag orange">部分异常</span></td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>测试数据</h3><button class="btn">管理数据</button></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">U</div><div><strong>用户账号</strong><small>测试账号 28 个 · Token 自动刷新</small></div><span class="tag green">已配置</span></div><div class="mini-item"><div class="mini-icon">▦</div><div><strong>商品数据</strong><small>商品模板 6 个 · 库存场景 12 个</small></div><span class="tag green">已配置</span></div><div class="mini-item"><div class="mini-icon">O</div><div><strong>订单数据</strong><small>订单模板 4 个 · 支付场景 8 个</small></div><span class="tag orange">待补充</span></div></div></div></div></div>`,
+      settings: `<div class="page-head"><div><h1>项目设置</h1><p>管理项目成员、权限、Git 仓库、Jenkins、测试用例字段与项目上下文。</p></div><div class="head-actions"><button class="btn danger">删除项目</button><button class="btn primary" data-toast="项目设置已保存">保存设置</button></div></div><div class="grid section-grid"><div class="card"><div class="card-head"><h3>基本信息</h3></div><div class="card-body"><div class="field"><label>项目名称</label><input value="星河电商平台" /></div><div class="field"><label>项目标识</label><input value="XH-MALL" /></div><div class="field"><label>项目描述</label><textarea>电商核心交易链路，覆盖用户、商品、订单、支付与售后。</textarea></div></div></div><div class="card"><div class="card-head"><h3>测试用例字段规范</h3><button class="btn">＋ 添加字段</button></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">#</div><div><strong>用例编号</strong><small>唯一编号 · 必填</small></div><span class="switch on"><i></i></span></div><div class="mini-item"><div class="mini-icon">T</div><div><strong>用例标题</strong><small>测试目标 · 必填</small></div><span class="switch on"><i></i></span></div><div class="mini-item"><div class="mini-icon">P</div><div><strong>前置条件 / 测试步骤 / 测试数据 / 预期结果</strong><small>文本字段 · 必填</small></div><span class="switch on"><i></i></span></div><div class="mini-item"><div class="mini-icon">L</div><div><strong>优先级 / 测试类型 / 标签</strong><small>枚举与自定义标签</small></div><span class="switch on"><i></i></span></div></div></div></div></div>`
+    };
+
+    function renderProjectTab(tab = 'overview') {
+      const aiOutcome = `
+        <div class="card" style="margin-bottom:16px;border-color:#d6e5ff;background:#fbfdff">
+          <div class="card-body" style="padding:13px 16px">
+            <div style="display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap">
+              <div><strong style="color:#184caa">✦ AI 测试工作流</strong><span class="muted" style="margin-left:10px">当前操作都可追溯到需求、Prompt、模型、代码变更与执行结果</span></div>
+              <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+                <span><b style="color:var(--green)">42%</b> 编写时间节省</span>
+        <span><b style="color:var(--green)">91%</b> 用例结构通过校验</span>
+                <span><b style="color:var(--primary)">87%</b> 分析置信度</span>
+                <button class="btn" data-modal="traceModal">查看追溯链</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      const apiTemplate = `
+        <div class="page-head"><div><h1>接口自动化项目</h1><p>管理由测试开发工程师在本地 IDE 维护的 pytest + requests 项目，通过 Git 与 Jenkins 执行。</p></div><div class="head-actions"><button class="btn">＋ 新建自动化项目</button><button class="btn primary" data-modal="runModal">▶ 立即执行</button></div></div>
+        <div class="grid section-grid">
+          <div class="card"><div class="card-head"><h3>接口自动化项目</h3><span class="tag green">3 个项目</span></div><div class="card-body"><div class="mini-list"><div class="mini-item"><div class="mini-icon">U</div><div><strong>用户 API 自动化</strong><small>pytest + requests · main · TEST</small></div><span class="tag green">Ready</span><button class="btn">管理</button></div><div class="mini-item"><div class="mini-icon">O</div><div><strong>订单 API 自动化</strong><small>pytest + requests · develop · TEST</small></div><span class="tag green">Ready</span><button class="btn">管理</button></div><div class="mini-item"><div class="mini-icon">P</div><div><strong>支付 API 自动化</strong><small>pytest + requests · release/1.8 · STAGING</small></div><span class="tag orange">待配置</span><button class="btn">管理</button></div></div></div></div>
+          <div class="card"><div class="card-head"><h3>当前项目配置</h3><span class="tag blue">Git Source of Truth</span></div><div class="card-body"><div class="field"><label>Git Repository</label><input value="git@gitlab.company.cn:qa/xh-mall-api.git" /></div><div class="two-col"><div class="field"><label>Branch</label><select><option>main</option><option>develop</option><option>release/1.8</option></select></div><div class="field"><label>Framework</label><input value="pytest + requests" /></div></div><div class="field"><label>Test Path</label><input value="tests/api" /></div><div class="field"><label>Execute Command</label><input value="pytest tests/api --alluredir=allure-results" /></div><div class="two-col"><div class="field"><label>Environment</label><select><option>TEST</option><option>STAGING</option><option>DEV</option></select></div><div class="field"><label>Jenkins Job</label><input value="xh-mall-api-pipeline" /></div></div><span class="muted">代码在本地 IDE 开发并提交 Git，平台保存仓库引用和执行配置。</span></div></div>
+        </div>
+        <div class="card" style="margin-top:16px"><div class="card-head"><h3>最近执行</h3><span class="muted">Jenkins Build 与 Allure 结果</span></div><div class="card-body"><table><thead><tr><th>测试任务</th><th>Branch / Commit</th><th>Environment</th><th>Jenkins Build</th><th>状态</th><th>报告</th></tr></thead><tbody><tr><td><strong>订单接口回归</strong></td><td>develop / a83f2d1</td><td>TEST</td><td>xh-mall-api #104</td><td><span class="status passed">PASSED</span></td><td><button class="btn" data-project-tab="reports">查看 Allure</button></td></tr><tr><td><strong>用户接口 Smoke</strong></td><td>main / 3c0a8be</td><td>TEST</td><td>xh-mall-api #103</td><td><span class="status failed">FAILED</span></td><td><button class="btn" data-project-tab="reports">查看结果</button></td></tr></tbody></table></div></div>`;
+      const apiWorkbenchTemplate = `
+        <div class="page-head"><div><h1>接口测试工作台</h1><p>轻量接口调试与请求集合执行，适合验证接口、编排依赖和沉淀可复用请求。</p></div><div class="head-actions"><span class="tag blue">工具用例集合</span><button class="btn" data-modal="apiWorkbenchModal">工作台设置</button><button class="btn primary" data-project-tab="api-code">进入接口自动化代码 →</button></div></div>
+        <div class="ai-callout" style="margin-bottom:16px"><strong>工作台与正式自动化代码边界</strong><p>工作台用于请求调试、集合编排和快速验证；正式的 pytest + requests 自动化代码由测试开发工程师在本地 IDE 维护，并以 Git Repository 作为唯一事实来源。</p></div>
+        <div class="api-workbench">
+          <div class="api-toolbar">
+            <div class="api-toolbar-row"><select class="api-method"><option>POST</option><option>GET</option><option>PUT</option><option>DELETE</option></select><input class="api-url" value="{{base_url}}/orders" /><button class="btn primary api-send" data-api-send>发送</button><button class="btn" data-toast="请求已保存到订单回归集合">保存请求</button></div>
+            <div class="api-toolbar-row"><input class="api-title-input" value="创建订单 · 正常下单" /><span class="api-tool-muted">环境</span><select><option>TEST</option><option>STAGING</option><option>DEV</option></select><span class="api-tool-muted">集合</span><select><option>订单回归集合</option><option>用户鉴权集合</option><option>支付异常集合</option></select></div>
+          </div>
+          <div class="api-main">
+            <aside class="api-collections">
+              <div class="api-collections-head"><strong>接口集合</strong><button class="btn" data-toast="已创建接口集合">＋</button></div>
+              <div class="api-collection-card active"><div class="api-collection-title"><strong>订单回归集合</strong><span class="tag green">12</span></div><div class="api-request-list"><div class="api-request-item active"><span class="http-badge post">POST</span><span>/orders</span></div><div class="api-request-item"><span class="http-badge">GET</span><span>/orders/{id}</span></div><div class="api-request-item"><span class="http-badge post">PUT</span><span>/orders/{id}</span></div></div></div>
+              <div class="api-collection-card"><div class="api-collection-title"><strong>用户鉴权集合</strong><span class="tag gray">8</span></div><div class="api-request-list"><div class="api-request-item"><span class="http-badge post">POST</span><span>/login</span></div><div class="api-request-item"><span class="http-badge">GET</span><span>/users/me</span></div></div></div>
+              <div class="api-collection-card"><div class="api-collection-title"><strong>支付异常集合</strong><span class="tag orange">6</span></div><small class="muted">2 个请求待补参数</small></div>
+            </aside>
+            <div class="api-editor">
+              <div class="api-editor-tabs"><button class="active" data-api-request-tab="params">参数</button><button data-api-request-tab="headers">Headers</button><button data-api-request-tab="body">Body</button><button data-api-request-tab="pre">前置脚本</button><button data-api-request-tab="post">后置脚本</button><button data-api-request-tab="assertions">断言</button></div>
+              <div class="api-editor-body" id="apiRequestContent"></div>
+              <div class="api-response"><div class="api-response-head"><strong>响应</strong><span class="muted">最近一次请求 · TEST</span></div><div class="api-response-body" id="apiResponseBody"><div><div style="font-size:28px;margin-bottom:8px">↗</div><strong>发送请求后查看响应</strong><div class="muted">响应状态、耗时、响应体和断言结果会显示在这里</div></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px"><div class="card-body"><div class="subtabs"><button class="active" data-api-tab="collections">集合执行</button><button data-api-tab="variables">环境变量</button><button data-api-tab="params">参数模板</button><button data-api-tab="assertions">断言规则</button><button data-api-tab="scripts">脚本执行</button><button data-api-tab="history">执行历史</button></div><div id="apiWorkbenchContent"></div></div></div>`;
+      const baseTemplate = tab === 'api-workbench'
+        ? apiWorkbenchTemplate
+        : tab === 'api-code'
+        ? apiTemplate
+        : tab === 'tasks'
+        ? `<div class="page-head"><div><h1>测试任务</h1><p>组织一次具体的接口或 UI 自动化执行，统一关联环境、Branch、Jenkins Job 和执行参数。</p></div><div class="head-actions"><button class="btn" data-toast="测试任务已创建">＋ 新建测试任务</button><button class="btn primary" data-modal="runModal">▶ 立即执行</button></div></div><div class="card"><div class="card-body"><div class="filterbar"><input placeholder="搜索测试任务名称" /><select><option>全部类型</option><option>Smoke Test</option><option>Regression Test</option></select><select><option>全部状态</option><option>READY</option><option>RUNNING</option><option>PASSED</option><option>FAILED</option></select><button class="btn">筛选</button></div><table><thead><tr><th>测试任务</th><th>类型</th><th>自动化项目</th><th>Environment</th><th>Branch</th><th>Jenkins Job</th><th>状态</th><th></th></tr></thead><tbody><tr><td><strong>订单接口回归</strong><br><span class="muted">回归测试 · 最近 10:24</span></td><td><span class="tag blue">Regression Test</span></td><td>订单 API 自动化</td><td>TEST</td><td>develop</td><td>xh-mall-api-pipeline</td><td><span class="tag green">READY</span></td><td><button class="btn" data-modal="runModal">执行</button></td></tr><tr><td><strong>Web UI Smoke</strong><br><span class="muted">冒烟测试 · 最近 09:46</span></td><td><span class="tag blue">Smoke Test</span></td><td>Web UI 自动化</td><td>STAGING</td><td>release/1.8</td><td>xh-mall-ui-pipeline</td><td><span class="tag red">FAILED</span></td><td><button class="btn" data-project-tab="reports">报告</button></td></tr></tbody></table></div></div>`
+        : (projectTemplates[tab] || projectTemplates.overview);
+      projectContent.innerHTML = aiOutcome + baseTemplate;
+      document.querySelectorAll('[data-project-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.projectTab === tab));
+      bindDynamic();
+      if (tab === 'api-workbench') {
+        renderApiRequestTab('params');
+        renderApiTab('collections');
+      }
+    }
+    function renderApiRequestTab(tab = 'params') {
+      const content = document.getElementById('apiRequestContent');
+      if (!content) return;
+      const templates = {
+        params: `<div class="api-editor-grid"><div class="card" style="box-shadow:none"><div class="card-head"><h3>请求参数</h3><span class="muted">支持引用环境变量与测试数据模板</span></div><div class="card-body"><table class="api-param-table"><thead><tr><th style="width:42px">序号</th><th>参数名</th><th>参数值</th><th style="width:80px">来源</th><th style="width:60px">操作</th></tr></thead><tbody><tr><td>1</td><td><input value="userId" /></td><td><input value="{{user_id}}" /></td><td><span class="tag blue">变量</span></td><td style="color:var(--red)">♙</td></tr><tr><td>2</td><td><input value="skuId" /></td><td><input value="{{sku_id}}" /></td><td><span class="tag blue">变量</span></td><td style="color:var(--red)">♙</td></tr><tr><td>3</td><td><input placeholder="参数名" /></td><td><input placeholder="参数值" /></td><td><span class="tag gray">手填</span></td><td style="color:var(--red)">♙</td></tr></tbody></table><div class="api-add-row" data-toast="已添加请求参数">＋ 添加参数</div></div></div><div class="card" style="box-shadow:none"><div class="card-head"><h3>参数替换预览</h3><span class="tag green">TEST 环境</span></div><div class="card-body"><div class="two-col"><div class="field"><label>{{base_url}}</label><input value="https://test-api.xh-mall.cn" /></div><div class="field"><label>{{token}}</label><input value="••••••••••••" /></div></div><span class="muted">敏感变量只在执行上下文中解密，日志与报告自动脱敏。</span></div></div></div>`,
+        headers: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>请求头</h3><span class="muted">Header 值可绑定环境变量</span></div><div class="card-body"><table class="api-param-table"><thead><tr><th style="width:42px">序号</th><th>Header 名</th><th>Header 值</th><th>敏感</th><th>操作</th></tr></thead><tbody><tr><td>1</td><td><input value="Authorization" /></td><td><input value="Bearer {{token}}" /></td><td><span class="tag red">是</span></td><td style="color:var(--red)">♙</td></tr><tr><td>2</td><td><input value="Content-Type" /></td><td><input value="application/json" /></td><td><span class="tag gray">否</span></td><td style="color:var(--red)">♙</td></tr></tbody></table><div class="api-add-row" data-toast="已添加请求头">＋ 添加请求头</div></div></div>`,
+        body: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>Body</h3><select style="border:1px solid var(--line);padding:6px 8px;border-radius:5px"><option>JSON</option><option>Form Data</option><option>Raw</option></select></div><div class="card-body"><div class="api-code-editor">{\n  <span style="color:#2563eb">"userId"</span>: <span style="color:#c57a14">"{{user_id}}"</span>,\n  <span style="color:#2563eb">"skuId"</span>: <span style="color:#c57a14">"{{sku_id}}"</span>,\n  <span style="color:#2563eb">"couponCode"</span>: <span style="color:#c57a14">"NEW_USER_20"</span>\n}</div></div></div>`,
+        pre: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>前置脚本</h3><span class="tag blue">Python</span></div><div class="card-body"><div class="api-code-editor">token = login_and_get_token()\ncontext.set(<span style="color:#c57a14">"token"</span>, token)\ncontext.set(<span style="color:#c57a14">"user_id"</span>, create_test_user())</div><p class="muted">执行前自动获取 Token、创建测试账号并写入上下文。</p></div></div>`,
+        post: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>后置脚本</h3><span class="tag blue">Python</span></div><div class="card-body"><div class="api-code-editor">assert response.elapsed.total_seconds() &lt; 2\ncontext.set(<span style="color:#c57a14">"order_id"</span>, response.json()[<span style="color:#c57a14">"orderId"</span>])\ncleanup_order(context.get(<span style="color:#c57a14">"order_id"</span>))</div><p class="muted">执行后提取订单 ID 并清理测试数据。</p></div></div>`,
+        assertions: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>断言规则</h3><button class="btn" data-toast="已添加断言">＋ 添加断言</button></div><div class="card-body"><table class="api-param-table"><thead><tr><th>断言类型</th><th>表达式</th><th>期望值</th><th>失败消息</th><th>状态</th></tr></thead><tbody><tr><td>Status Code</td><td>response.status_code</td><td>200</td><td>创建订单 HTTP 状态异常</td><td><span class="tag green">启用</span></td></tr><tr><td>JSON Path</td><td>$.orderStatus</td><td>CREATED</td><td>订单状态不是 CREATED</td><td><span class="tag green">启用</span></td></tr><tr><td>Schema</td><td>$.orderId</td><td>String</td><td>订单 ID 类型变更</td><td><span class="tag green">启用</span></td></tr></tbody></table></div></div>`
+      };
+      content.innerHTML = templates[tab] || templates.params;
+      document.querySelectorAll('[data-api-request-tab]').forEach(el => el.classList.toggle('active', el.dataset.apiRequestTab === tab));
+      bindDynamic();
+    }
+    function renderApiTab(tab = 'collections') {
+      const content = document.getElementById('apiWorkbenchContent');
+      if (!content) return;
+      const templates = {
+        collections: `<div class="grid section-grid"><div><div class="mini-list"><div class="mini-item"><div class="mini-icon">O</div><div><strong>订单回归集合</strong><small>12 个接口 · P0 · main</small></div><span class="tag green">可执行</span></div><div class="mini-item"><div class="mini-icon">U</div><div><strong>用户鉴权集合</strong><small>8 个接口 · P1 · develop</small></div><span class="tag green">可执行</span></div><div class="mini-item"><div class="mini-icon">P</div><div><strong>支付异常集合</strong><small>6 个接口 · P1 · release/1.8</small></div><span class="tag orange">待补参数</span></div></div></div><div class="card" style="box-shadow:none"><div class="card-head"><h3>集合运行配置</h3><button class="btn" data-toast="接口集合配置已保存">保存</button></div><div class="card-body"><div class="field"><label>执行顺序</label><select><option>按接口树顺序</option><option>按依赖关系</option></select></div><div class="field"><label>失败策略</label><select><option>失败后继续执行并汇总</option><option>失败立即停止</option></select></div><div class="field"><label>报告输出</label><div><span class="tag blue">Allure</span> <span class="tag blue">Junit XML</span> <span class="tag blue">请求日志</span></div></div></div></div></div>`,
+        variables: `<table><thead><tr><th>变量名</th><th>TEST</th><th>STAGING</th><th>来源</th><th>敏感</th><th>最近更新</th></tr></thead><tbody><tr><td><strong>{{base_url}}</strong></td><td>https://test-api.xh-mall.cn</td><td>https://staging-api.xh-mall.cn</td><td>环境配置</td><td>否</td><td>今天 08:22</td></tr><tr><td><strong>{{token}}</strong></td><td>••••••••</td><td>••••••••</td><td>登录脚本提取</td><td><span class="tag red">是</span></td><td>自动刷新</td></tr><tr><td><strong>{{order_id}}</strong></td><td>动态生成</td><td>动态生成</td><td>前置脚本</td><td>否</td><td>Run #104</td></tr></tbody></table><button class="btn" style="margin-top:12px" data-toast="环境变量已保存">＋ 添加环境变量</button>`,
+        params: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>POST /orders · 请求参数管理</h3><span class="tag blue">JSON</span></div><div class="card-body"><table><thead><tr><th>参数</th><th>位置</th><th>类型</th><th>必填</th><th>默认值 / 数据</th><th>引用变量</th></tr></thead><tbody><tr><td>userId</td><td>Body</td><td>String</td><td>是</td><td>100238</td><td>{{user_id}}</td></tr><tr><td>skuId</td><td>Body</td><td>String</td><td>是</td><td>SKU-1001</td><td>{{sku_id}}</td></tr><tr><td>couponCode</td><td>Body</td><td>String</td><td>否</td><td>NEW_USER_20</td><td>测试数据模板</td></tr></tbody></table><button class="btn" style="margin-top:12px" data-toast="参数模板已保存">保存参数模板</button></div></div>`,
+        assertions: `<div class="card" style="box-shadow:none"><div class="card-head"><h3>响应断言 · POST /orders</h3><button class="btn">＋ 添加断言</button></div><div class="card-body"><table><thead><tr><th>断言类型</th><th>表达式</th><th>期望值</th><th>失败消息</th><th>状态</th></tr></thead><tbody><tr><td>Status Code</td><td>response.status_code</td><td>200</td><td>创建订单 HTTP 状态异常</td><td><span class="tag green">启用</span></td></tr><tr><td>JSON Path</td><td>$.orderStatus</td><td>CREATED</td><td>订单状态不是 CREATED</td><td><span class="tag green">启用</span></td></tr><tr><td>Schema</td><td>$.orderId</td><td>String</td><td>订单 ID 类型变更</td><td><span class="tag green">启用</span></td></tr></tbody></table></div></div>`,
+        scripts: `<div class="grid section-grid"><div class="card" style="box-shadow:none"><div class="card-head"><h3>前置脚本</h3><span class="tag blue">Python</span></div><div class="card-body"><div class="code" style="min-height:160px;border-radius:6px">token = login_and_get_token()\ncontext.set(<span class="str">"token"</span>, token)\ncontext.set(<span class="str">"user_id"</span>, create_test_user())</div></div></div><div class="card" style="box-shadow:none"><div class="card-head"><h3>后置脚本</h3><span class="tag blue">Python</span></div><div class="card-body"><div class="code" style="min-height:160px">assert response.elapsed.total_seconds() &lt; 2\ncleanup_order(context.get(<span class="str">"order_id"</span>))</div></div></div></div><button class="btn primary" data-modal="runModal">▶ 运行当前接口</button>`,
+        history: `<table><thead><tr><th>执行时间</th><th>集合</th><th>环境</th><th>接口数</th><th>Passed</th><th>Failed</th><th>触发方式</th><th>状态</th><th></th></tr></thead><tbody><tr><td>今天 10:24</td><td>订单回归集合</td><td>TEST</td><td>12</td><td>11</td><td style="color:var(--red)">1</td><td>Jenkins</td><td><span class="status failed">FAILED</span></td><td><button class="btn" data-project-tab="defects">失败归因</button></td></tr><tr><td>今天 08:42</td><td>用户鉴权集合</td><td>TEST</td><td>8</td><td>8</td><td>0</td><td>手动</td><td><span class="status passed">PASSED</span></td><td><button class="btn">报告</button></td></tr><tr><td>昨天 18:10</td><td>订单回归集合</td><td>STAGING</td><td>12</td><td>12</td><td>0</td><td>Git Push</td><td><span class="status passed">PASSED</span></td><td><button class="btn">报告</button></td></tr></tbody></table>`
+      };
+      content.innerHTML = templates[tab] || templates.collections;
+      document.querySelectorAll('[data-api-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.apiTab === tab));
+      bindDynamic();
+    }
+    function renderAiTab(tab = 'models') {
+      const templates = {
+        models: `<div class="filterbar"><select><option>全部 Provider</option><option>OpenAI / GPT</option><option>DeepSeek</option><option>GLM</option></select><button class="btn">筛选</button></div><table><thead><tr><th>模型</th><th>Provider</th><th>Endpoint</th><th>任务偏好</th><th>Temperature</th><th>状态</th><th></th></tr></thead><tbody><tr><td><strong>GPT-4.1</strong></td><td>OpenAI / GPT</td><td>api.openai.com/v1</td><td>失败结果分析</td><td>0.2</td><td><span class="tag green">启用</span></td><td><button class="btn">编辑</button></td></tr><tr><td><strong>deepseek-chat</strong></td><td>DeepSeek</td><td>api.deepseek.com/v1</td><td>测试用例生成</td><td>0.3</td><td><span class="tag green">启用</span></td><td><button class="btn">编辑</button></td></tr><tr><td><strong>GLM-4</strong></td><td>GLM</td><td>open.bigmodel.cn/api</td><td>测试用例生成</td><td>0.1</td><td><span class="tag gray">禁用</span></td><td><button class="btn">启用</button></td></tr></tbody></table>`,
+        prompts: `<table><thead><tr><th>Prompt 名称</th><th>任务类型</th><th>版本</th><th>使用模型</th><th>更新人</th><th>状态</th><th></th></tr></thead><tbody><tr><td><strong>测试用例生成规范</strong></td><td>测试用例生成</td><td>v2.1</td><td>DeepSeek</td><td>林晓</td><td><span class="tag green">启用</span></td><td><button class="btn" data-modal="promptModal">编辑</button></td></tr><tr><td><strong>边界值测试规范</strong></td><td>边界值测试</td><td>v1.0</td><td>GPT-4.1</td><td>陈宇</td><td><span class="tag green">启用</span></td><td><button class="btn">版本</button></td></tr><tr><td><strong>失败分析输出规范</strong></td><td>测试结果分析</td><td>v1.0</td><td>GPT-4.1</td><td>林晓</td><td><span class="tag gray">禁用</span></td><td><button class="btn">启用</button></td></tr></tbody></table>`,
+        skills: `<table><thead><tr><th>Skill 名称</th><th>专业行为</th><th>版本</th><th>适用任务</th><th>状态</th><th></th></tr></thead><tbody><tr><td><strong>测试用例设计 Skill</strong></td><td>识别模块、场景、风险并覆盖正负边界</td><td>v1.2</td><td>用例生成</td><td><span class="tag green">启用</span></td><td><button class="btn">编辑</button></td></tr><tr><td><strong>接口自动化生成 Skill</strong></td><td>生成 fixture、参数化、断言、日志与配置</td><td>v1.0</td><td>代码生成</td><td><span class="tag green">启用</span></td><td><button class="btn">编辑</button></td></tr><tr><td><strong>测试结果分析 Skill</strong></td><td>失败分类、原因推断、修复建议与风险等级</td><td>v1.1</td><td>结果分析</td><td><span class="tag green">启用</span></td><td><button class="btn">编辑</button></td></tr></tbody></table>`,
+        logs: `<table><thead><tr><th>用户</th><th>项目</th><th>模型</th><th>任务类型</th><th>请求时间</th><th>响应时间</th><th>状态</th></tr></thead><tbody><tr><td>林晓</td><td>星河电商平台</td><td>DeepSeek</td><td>测试用例生成</td><td>今天 10:02</td><td>14.8s</td><td><span class="tag green">成功</span></td></tr><tr><td>林晓</td><td>星河电商平台</td><td>GPT-4.1</td><td>测试结果分析</td><td>今天 09:35</td><td>21.2s</td><td><span class="tag green">成功</span></td></tr><tr><td>赵然</td><td>会员中心重构</td><td>GLM-4</td><td>测试结果分析</td><td>昨天 18:10</td><td>--</td><td><span class="tag red">失败</span></td></tr></tbody></table>`
+      };
+      aiContent.innerHTML = templates[tab] || templates.models;
+      document.querySelectorAll('[data-ai-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.aiTab === tab));
+      bindDynamic();
+    }
+
+    function openModal(id) { const el = document.getElementById(id); if (el) el.classList.add('open'); }
+    function closeModal(el) { el.closest('.modal-backdrop')?.classList.remove('open'); }
+    function showToast(message) { toast.textContent = message; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 2400); }
+    function activateView(view) {
+      document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === view));
+      document.querySelectorAll('.nav button[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+      const names = { home:'平台首页', projects:'项目列表', project:'星河电商平台', ai:'AI 能力', reports:'测试报告', admin:'系统管理', help:'测试闭环' };
+      crumbText.textContent = names[view] || '平台首页';
+      if (view === 'project') renderProjectTab('overview');
+      if (view === 'ai') renderAiTab('models');
+    }
+    function bindDynamic() {
+      document.querySelectorAll('[data-modal]').forEach(el => el.onclick = () => openModal(el.dataset.modal));
+      document.querySelectorAll('[data-toast]').forEach(el => el.onclick = () => { closeModal(el); showToast(el.dataset.toast); });
+      document.querySelectorAll('[data-project-tab]').forEach(el => el.onclick = () => renderProjectTab(el.dataset.projectTab));
+      document.querySelectorAll('[data-project-expand]').forEach(el => el.onclick = () => el.closest('[data-project-group]')?.classList.toggle('open'));
+      document.querySelectorAll('[data-report-detail]').forEach(el => el.onclick = () => { activateView('project'); renderProjectTab('reports'); });
+      document.querySelectorAll('[data-view-link]').forEach(el => el.onclick = () => activateView(el.dataset.viewLink));
+      document.querySelectorAll('[data-enter-project]').forEach(el => el.onclick = () => activateView('project'));
+      document.querySelectorAll('[data-ai-tab]').forEach(el => el.onclick = () => renderAiTab(el.dataset.aiTab));
+      document.querySelectorAll('[data-api-tab]').forEach(el => el.onclick = () => renderApiTab(el.dataset.apiTab));
+      document.querySelectorAll('[data-api-request-tab]').forEach(el => el.onclick = () => renderApiRequestTab(el.dataset.apiRequestTab));
+      document.querySelectorAll('[data-api-send]').forEach(el => el.onclick = () => {
+        const response = document.getElementById('apiResponseBody');
+        if (!response) return;
+        response.classList.add('loaded');
+        response.innerHTML = `<div class="api-response-meta"><span class="tag green">200 OK</span><span>耗时 246 ms</span><span>响应体 1.2 KB</span><span>Run #105 · TEST</span></div><div class="api-response-json">{\n  "code": 0,\n  "message": "success",\n  "data": {\n    "orderId": "ORD-20260816-0042",\n    "orderStatus": "CREATED"\n  }\n}</div>`;
+        showToast('请求已发送，断言全部通过');
+      });
+    }
+    document.querySelectorAll('.nav button[data-view]').forEach(el => el.onclick = () => activateView(el.dataset.view));
+    document.querySelectorAll('.close-modal').forEach(el => el.onclick = () => closeModal(el));
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(el => el.classList.remove('open')); });
+    document.querySelectorAll('[data-modal]').forEach(el => el.onclick = () => openModal(el.dataset.modal));
+    document.querySelectorAll('[data-toast]').forEach(el => el.onclick = () => { closeModal(el); showToast(el.dataset.toast); });
+    renderProjectTab('overview');
+    renderAiTab('models');
+  </script>
+</body>
+</html>
