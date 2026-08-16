@@ -1135,6 +1135,18 @@ async function syncExecution(execution: ApiExecution) {
   }
 }
 
+async function retryExecution(execution: ApiExecution) {
+  const projectId = currentProject.value?.id
+  if (!projectId) return
+  try {
+    await api.automation.retry(projectId, execution.id)
+    await loadAutomationData()
+    showToast('已重新触发 Jenkins 执行')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '执行重试失败')
+  }
+}
+
 function sendApiRequest() {
   responseVisible.value = true
   showToast('请求已发送，断言全部通过')
@@ -1282,7 +1294,7 @@ onMounted(bootstrapAuth)
                 <div class="page-head compact"><div><h1>项目测试报告</h1><p>查看 Allure 详情、历史执行、失败日志与 AI 分析。</p></div><button class="btn primary" @click="openReference(executionRecords[0]?.report?.allureUrl)">打开 Allure</button></div>
                 <div class="report-kpis"><div class="card report-kpi"><span>Total</span><strong>{{ reportSummary.total }}</strong></div><div class="card report-kpi"><span>Passed</span><strong class="trend-up">{{ reportSummary.passed }}</strong></div><div class="card report-kpi"><span>Failed</span><strong class="danger-text">{{ reportSummary.failed }}</strong></div><div class="card report-kpi"><span>Broken</span><strong class="warning-text">{{ reportSummary.broken }}</strong></div><div class="card report-kpi"><span>Skipped</span><strong>{{ reportSummary.skipped }}</strong></div></div>
                 <div class="card report-callout"><div class="card-body"><div class="ai-callout"><strong>AI 失败分析</strong><p class="muted">当前没有持久化的 AI 分析结果。请先同步执行记录，再进入 AI 分析流程。</p></div></div></div>
-                <div class="card"><div class="card-head"><h3>历史报告</h3><span class="muted">每次执行独立沉淀</span></div><div class="card-body table-wrap"><table><thead><tr><th>Execution</th><th>Build</th><th>结果</th><th>Duration</th><th>Allure</th><th></th></tr></thead><tbody><tr v-for="execution in executionRecords" :key="execution.id"><td>#{{ execution.id }}</td><td>{{ execution.buildNumber || '队列中' }}</td><td><span class="tag" :class="execution.status === 'PASSED' ? 'green' : execution.status === 'FAILED' ? 'red' : 'orange'">{{ execution.status }}</span></td><td>{{ execution.durationMs ? `${Math.round(execution.durationMs / 1000)}s` : '--' }}</td><td>{{ execution.report?.allureUrl || '--' }}</td><td><button class="btn" @click="syncExecution(execution)">同步</button></td></tr><tr v-if="executionRecords.length === 0"><td colspan="6" class="muted">暂无执行记录</td></tr></tbody></table></div></div>
+                <div class="card"><div class="card-head"><h3>历史报告</h3><span class="muted">每次执行独立沉淀</span></div><div class="card-body table-wrap"><table><thead><tr><th>Execution</th><th>Build</th><th>结果</th><th>Duration</th><th>Allure</th><th></th></tr></thead><tbody><tr v-for="execution in executionRecords" :key="execution.id"><td>#{{ execution.id }}</td><td>{{ execution.buildNumber || '队列中' }}</td><td><span class="tag" :class="execution.status === 'PASSED' ? 'green' : execution.status === 'FAILED' ? 'red' : 'orange'">{{ execution.status }}</span></td><td>{{ execution.durationMs ? `${Math.round(execution.durationMs / 1000)}s` : '--' }}</td><td>{{ execution.report?.allureUrl || '--' }}</td><td><div class="head-actions"><button class="btn" @click="syncExecution(execution)">同步</button><button v-if="execution.status === 'FAILED' || execution.status === 'ABORTED'" class="btn" @click="retryExecution(execution)">重试</button></div></td></tr><tr v-if="executionRecords.length === 0"><td colspan="6" class="muted">暂无执行记录</td></tr></tbody></table></div></div>
               </template>
               <template v-else>
                 <div class="page-head compact"><div><h1>项目设置</h1><p>管理项目成员、权限、代码仓库和测试用例字段规范。</p></div><div v-if="canManageCurrentProject" class="head-actions"><button class="btn" @click="deleteCurrentProject">删除项目</button><button class="btn primary" @click="saveProjectSettings">保存设置</button></div></div>
@@ -1301,7 +1313,7 @@ onMounted(bootstrapAuth)
         <section v-else-if="activeView === 'reports'" class="view">
           <div class="page-head"><div><h1>测试报告中心</h1><p>跨项目查看 Jenkins 构建、Allure 报告、日志、截图、视频与 AI 分析。</p></div><button class="btn primary" @click="openModal('run')">▶ 发起执行</button></div>
           <div class="report-kpis"><div class="card report-kpi"><span>Total</span><strong>{{ reportSummary.total }}</strong></div><div class="card report-kpi"><span>Passed</span><strong class="trend-up">{{ reportSummary.passed }}</strong></div><div class="card report-kpi"><span>Failed</span><strong class="danger-text">{{ reportSummary.failed }}</strong></div><div class="card report-kpi"><span>Broken</span><strong class="warning-text">{{ reportSummary.broken }}</strong></div><div class="card report-kpi"><span>Skipped</span><strong>{{ reportSummary.skipped }}</strong></div></div>
-          <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>Execution</th><th>Jenkins Job</th><th>Build</th><th>Commit</th><th>状态</th><th>报告</th><th></th></tr></thead><tbody><tr v-for="execution in executionRecords" :key="execution.id"><td><strong>#{{ execution.id }}</strong><br><span class="muted">{{ execution.startedAt ? new Date(execution.startedAt).toLocaleString('zh-CN') : '--' }}</span></td><td>{{ execution.jenkinsJob || '--' }}</td><td>{{ execution.buildNumber || '队列中' }}</td><td>{{ execution.commitSha || '--' }}</td><td><span class="status" :class="execution.status.toLowerCase()">{{ execution.status }}</span></td><td>{{ execution.report?.allureUrl || '--' }}</td><td><button class="btn" @click="syncExecution(execution)">同步</button></td></tr><tr v-if="executionRecords.length === 0"><td colspan="7" class="muted">暂无执行记录</td></tr></tbody></table></div></div>
+          <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>Execution</th><th>Jenkins Job</th><th>Build</th><th>Commit</th><th>状态</th><th>报告</th><th></th></tr></thead><tbody><tr v-for="execution in executionRecords" :key="execution.id"><td><strong>#{{ execution.id }}</strong><br><span class="muted">{{ execution.startedAt ? new Date(execution.startedAt).toLocaleString('zh-CN') : '--' }}</span></td><td>{{ execution.jenkinsJob || '--' }}</td><td>{{ execution.buildNumber || '队列中' }}</td><td>{{ execution.commitSha || '--' }}</td><td><span class="status" :class="execution.status.toLowerCase()">{{ execution.status }}</span></td><td>{{ execution.report?.allureUrl || '--' }}</td><td><div class="head-actions"><button class="btn" @click="syncExecution(execution)">同步</button><button v-if="execution.status === 'FAILED' || execution.status === 'ABORTED'" class="btn" @click="retryExecution(execution)">重试</button></div></td></tr><tr v-if="executionRecords.length === 0"><td colspan="7" class="muted">暂无执行记录</td></tr></tbody></table></div></div>
           <div class="section-grid grid report-bottom"><div class="card"><div class="card-head"><h3>AI 失败分析</h3><span class="muted">真实分析结果</span></div><div class="card-body"><p class="muted">当前还没有持久化的 AI 失败分析结果。执行日志和报告同步完成后再生成分析。</p></div></div></div>
         </section>
 

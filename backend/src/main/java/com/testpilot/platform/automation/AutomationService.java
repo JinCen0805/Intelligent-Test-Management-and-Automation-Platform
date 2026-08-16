@@ -157,6 +157,37 @@ public class AutomationService {
     }
 
     @Transactional
+    public AutomationDtos.TestExecutionResponse retry(
+            Long projectId,
+            Long executionId,
+            User user
+    ) {
+        projectAccessService.requireWrite(projectId, user);
+        TestExecution previous = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
+                .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
+        if (!List.of("FAILED", "ABORTED").contains(previous.getStatus())) {
+            throw new BusinessException(40018, "只有失败或中止的执行可以重试");
+        }
+        TestTask task = testTaskRepository.findByIdAndProjectId(previous.getTestTaskId(), projectId)
+                .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
+        AutomationProject automationProject = automationProjectRepository
+                .findByIdAndProjectId(previous.getAutomationProjectId(), projectId)
+                .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
+        JenkinsClient.TriggerResult trigger = jenkinsClient.trigger(automationProject, task);
+        TestExecution retry = new TestExecution(
+                projectId,
+                task.getId(),
+                automationProject.getId(),
+                task.getJenkinsJob(),
+                trigger.queueUrl(),
+                trigger.buildNumber(),
+                "QUEUED",
+                LocalDateTime.now()
+        );
+        return toExecutionResponse(testExecutionRepository.save(retry));
+    }
+
+    @Transactional
     public AutomationDtos.TestExecutionResponse updateResult(
             Long projectId,
             Long executionId,

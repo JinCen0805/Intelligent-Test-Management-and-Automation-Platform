@@ -139,4 +139,17 @@ public class AutomationController {
                 authService.currentUser(authorization)
         ));
     }
+
+    @PostMapping("/test-executions/{executionId}/retry")
+    public ApiResponse<AutomationDtos.TestExecutionResponse> retry(
+            @PathVariable Long projectId,
+            @PathVariable Long executionId,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(automationService.retry(
+                projectId,
+                executionId,
+                authService.currentUser(authorization)
+        ));
+    }
 }

@@ -451,6 +451,10 @@ export const api = {
     sync: (projectId: number, executionId: number) => request<ApiExecution>(
       `/projects/${projectId}/test-executions/${executionId}/sync`,
       { method: 'POST' }
+    ),
+    retry: (projectId: number, executionId: number) => request<ApiExecution>(
+      `/projects/${projectId}/test-executions/${executionId}/retry`,
+      { method: 'POST' }
     )
   }
 }

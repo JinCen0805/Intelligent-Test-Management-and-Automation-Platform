@@ -321,6 +321,47 @@ class ApiSmokeTest {
                 ).header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PASSED"));
+
+        MvcResult failedExecutionResult = mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-tasks/{taskId}/execute",
+                        projectId,
+                        taskId
+                ).header("Authorization", auth))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long failedExecutionId = ((Number) JsonPath.read(
+                failedExecutionResult.getResponse().getContentAsString(),
+                "$.data.id"
+        )).longValue();
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-executions/{executionId}/result",
+                        projectId,
+                        failedExecutionId
+                )
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status":"FAILED",
+                                  "totalCount":1,
+                                  "passedCount":0,
+                                  "failedCount":1,
+                                  "brokenCount":0,
+                                  "skippedCount":0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-executions/{executionId}/retry",
+                        projectId,
+                        failedExecutionId
+                ).header("Authorization", auth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.id").value(Matchers.not(failedExecutionId)));
     }
 
     @Test
