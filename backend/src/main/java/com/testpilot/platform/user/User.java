@@ -38,6 +38,12 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
     protected User() {
     }
 
@@ -51,10 +57,18 @@ public class User {
     }
 
     @PrePersist
-    void initializeLoginTime() {
+    void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
         if (lastLoginAt == null) {
-            lastLoginAt = LocalDateTime.now();
+            lastLoginAt = now;
         }
+    }
+
+    @jakarta.persistence.PreUpdate
+    void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
     public Long getId() { return id; }
@@ -65,5 +79,12 @@ public class User {
     public String getRole() { return role; }
     public String getStatus() { return status; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public void setEmail(String email) { this.email = email; }
+    public void setRole(String role) { this.role = role; }
+    public void setStatus(String status) { this.status = status; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 }

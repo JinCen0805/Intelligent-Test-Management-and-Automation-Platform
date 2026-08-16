@@ -3,6 +3,7 @@ package com.testpilot.platform;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -319,12 +320,108 @@ class ApiSmokeTest {
                 .andExpect(jsonPath("$.code").value(40301));
     }
 
+    @Test
+    void p1AdminUserAndProjectMemberManagement() throws Exception {
+        String adminAuth = "Bearer " + loginToken("chen.yu", "demo123");
+        MvcResult projectsResult = mockMvc.perform(get("/api/projects")
+                        .header("Authorization", adminAuth))
+                .andExpect(status().isOk())
+                .andReturn();
+        Long projectId = ((Number) JsonPath.read(
+                projectsResult.getResponse().getContentAsString(),
+                "$.data[0].id"
+        )).longValue();
+
+        String username = "p1.user." + System.nanoTime();
+        MvcResult userResult = mockMvc.perform(post("/api/users")
+                        .header("Authorization", adminAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "username":"%s",
+                                  "password":"demo123",
+                                  "displayName":"P1 测试用户",
+                                  "email":"p1@example.com",
+                                  "role":"TEST_DEVELOPER"
+                                }
+                                """.formatted(username)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ENABLED"))
+                .andReturn();
+        Long userId = ((Number) JsonPath.read(
+                userResult.getResponse().getContentAsString(),
+                "$.data.id"
+        )).longValue();
+        String userAuth = "Bearer " + loginToken(username, "demo123");
+
+        mockMvc.perform(post("/api/users/{userId}/status", userId)
+                        .header("Authorization", adminAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"DISABLED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DISABLED"));
+
+        mockMvc.perform(get("/api/auth/me").header("Authorization", userAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(40100));
+
+        mockMvc.perform(post("/api/users/{userId}/status", userId)
+                        .header("Authorization", adminAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"ENABLED\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/projects/{projectId}/members", projectId)
+                        .header("Authorization", adminAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":%d,"role":"VIEWER"}
+                                """.formatted(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.role").value("VIEWER"));
+
+        mockMvc.perform(post("/api/projects/{projectId}/members", projectId)
+                        .header("Authorization", adminAuth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":%d,"role":"VIEWER"}
+                                """.formatted(userId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(40904));
+
+        mockMvc.perform(delete("/api/projects/{projectId}/members/{userId}", projectId, userId)
+                        .header("Authorization", adminAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+
+        Long ownerId = ((Number) JsonPath.read(
+                projectsResult.getResponse().getContentAsString(),
+                "$.data[0].ownerId"
+        )).longValue();
+        mockMvc.perform(delete("/api/projects/{projectId}/members/{userId}", projectId, ownerId)
+                        .header("Authorization", adminAuth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(40016));
+    }
+
+    @Test
+    void nonAdminCannotManageUsers() throws Exception {
+        mockMvc.perform(get("/api/users")
+                        .header("Authorization", "Bearer " + loginToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(40303));
+    }
+
     private String loginToken() throws Exception {
+        return loginToken("lin.xiao", "demo123");
+    }
+
+    private String loginToken(String username, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"username":"lin.xiao","password":"demo123"}
-                                """))
+                                {"username":"%s","password":"%s"}
+                                """.formatted(username, password)))
                 .andExpect(status().isOk())
                 .andReturn();
         return JsonPath.read(

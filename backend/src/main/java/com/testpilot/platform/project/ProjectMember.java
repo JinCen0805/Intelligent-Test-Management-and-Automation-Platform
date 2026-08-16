@@ -42,4 +42,6 @@ public class ProjectMember {
     public Long getProjectId() { return projectId; }
     public Long getUserId() { return userId; }
     public String getRole() { return role; }
+    public LocalDateTime getJoinedAt() { return joinedAt; }
+    public void setRole(String role) { this.role = role; }
 }

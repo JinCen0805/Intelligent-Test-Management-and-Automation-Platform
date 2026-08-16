@@ -45,6 +45,7 @@ public final class ProjectDtos {
             String ownerName,
             String defaultEnvironment,
             String status,
+            long memberCount,
             LocalDateTime createdAt,
             LocalDateTime updatedAt
     ) {

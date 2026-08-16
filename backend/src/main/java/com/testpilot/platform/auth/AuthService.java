@@ -15,7 +15,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final Map<String, User> sessions = new ConcurrentHashMap<>();
+    private final Map<String, Long> sessions = new ConcurrentHashMap<>();
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
@@ -31,7 +31,7 @@ public class AuthService {
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         String token = UUID.randomUUID().toString();
-        sessions.put(token, user);
+        sessions.put(token, user.getId());
         return new AuthDtos.LoginResponse(token, AuthDtos.UserResponse.from(user));
     }
 
@@ -39,11 +39,12 @@ public class AuthService {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new BusinessException(40100, "未登录");
         }
-        User user = sessions.get(authorization.substring("Bearer ".length()).trim());
-        if (user == null) {
+        Long userId = sessions.get(authorization.substring("Bearer ".length()).trim());
+        if (userId == null) {
             throw new BusinessException(40100, "登录已失效");
         }
-        return user;
+        return userRepository.findByIdAndStatus(userId, "ENABLED")
+                .orElseThrow(() -> new BusinessException(40100, "登录已失效"));
     }
 
     public void logout(String authorization) {

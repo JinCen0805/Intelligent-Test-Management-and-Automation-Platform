@@ -6,6 +6,7 @@ import {
   type ApiAutomationProject,
   type ApiExecution,
   type ApiGeneratedCase,
+  type ApiProjectMember,
   type ApiPromptTemplate,
   type ApiProject,
   type ApiRequirement,
@@ -25,12 +26,13 @@ type ProjectTab =
   | 'tasks'
   | 'reports'
   | 'settings'
-type ModalName = 'quick' | 'project' | 'requirement' | 'requirementDetail' | 'run' | 'case' | 'caseEdit' | 'analysis' | 'model' | 'prompt' | 'automationProject' | 'task'
+type ModalName = 'quick' | 'project' | 'requirement' | 'requirementDetail' | 'run' | 'case' | 'caseEdit' | 'analysis' | 'model' | 'prompt' | 'automationProject' | 'task' | 'user' | 'member'
 
 interface Project {
   id?: number
   name: string
   code: string
+  ownerId?: number
   owner: string
   members: number
   environment: string
@@ -148,6 +150,9 @@ const projects = reactive<Project[]>([
     description: '会员权益、积分和成长体系重构。'
   }
 ])
+const selectedProjectId = ref<number | null>(
+  Number(localStorage.getItem('testpilot.projectId')) || null
+)
 
 const requirements = reactive<Requirement[]>([
   { name: '订单中心 PRD', version: 'V1.2', type: 'Markdown', status: '已解析', cases: 86, updated: '今天 09:58' },
@@ -167,8 +172,11 @@ const automationProjects = reactive<ApiAutomationProject[]>([])
 const executionRecords = reactive<ApiExecution[]>([])
 const aiModels = reactive<ApiAiModel[]>([])
 const promptTemplates = reactive<ApiPromptTemplate[]>([])
+const users = reactive<ApiUser[]>([])
+const projectMembers = reactive<ApiProjectMember[]>([])
 
 const newProject = reactive({ name: '', code: '', description: '', environment: 'TEST' })
+const projectForm = reactive({ name: '', description: '', defaultEnvironment: 'TEST', status: 'RUNNING' })
 const runForm = reactive({ taskId: null as number | null, environment: 'TEST', branch: 'main' })
 const requirementFile = ref<File | null>(null)
 const requirementVersion = ref('V1.0')
@@ -227,6 +235,15 @@ const taskForm = reactive({
   parametersJson: ''
 })
 const generatedCaseList = reactive<ApiGeneratedCase[]>([])
+const editingUserId = ref<number | null>(null)
+const userForm = reactive({
+  username: '',
+  password: '',
+  displayName: '',
+  email: '',
+  role: 'TEST_DEVELOPER'
+})
+const memberForm = reactive({ userId: null as number | null, role: 'TEST_DEVELOPER' })
 
 const navItems: { key: View; label: string; icon: string; badge?: string }[] = [
   { key: 'home', label: '首页', icon: '⌂' },
@@ -235,6 +252,18 @@ const navItems: { key: View; label: string; icon: string; badge?: string }[] = [
   { key: 'reports', label: '测试报告', icon: '▤', badge: '3' },
   { key: 'admin', label: '系统管理', icon: '⚙' }
 ]
+
+const emptyProject: Project = {
+  name: '未选择项目',
+  code: '--',
+  owner: '--',
+  members: 0,
+  environment: 'TEST',
+  lastRun: '--',
+  passRate: 0,
+  status: '测试中',
+  description: '当前账号还没有可访问的项目。'
+}
 
 const projectTabs: { key: ProjectTab; label: string; icon: string }[] = [
   { key: 'overview', label: '项目概览', icon: '▦' },
@@ -248,7 +277,15 @@ const projectTabs: { key: ProjectTab; label: string; icon: string }[] = [
   { key: 'settings', label: '项目设置', icon: '⚙' }
 ]
 
-const currentProject = computed(() => projects.find((project) => project.code === 'XH-MALL') ?? projects[0])
+const currentProject = computed<Project>(() => {
+  return projects.find((project) => project.id === selectedProjectId.value)
+    ?? projects[0]
+    ?? emptyProject
+})
+const canManageCurrentProject = computed(() => {
+  const userId = Number(localStorage.getItem('testpilot.userId'))
+  return authState.role === 'ADMIN' || currentProject.value.ownerId === userId
+})
 const visibleProjects = computed(() => {
   const term = search.value.trim().toLowerCase()
   if (!term) return projects
@@ -312,14 +349,24 @@ function fromApiProject(project: ApiProject): Project {
     id: project.id,
     name: project.name,
     code: project.code,
+    ownerId: project.ownerId,
     owner: project.ownerName,
-    members: 1,
+    members: project.memberCount ?? 1,
     environment: project.defaultEnvironment,
     lastRun: '尚未执行',
     passRate: 0,
     status: project.status === 'RUNNING' ? '运行中' : '测试中',
     description: project.description || '新建测试项目'
   }
+}
+
+function syncProjectForm() {
+  const project = currentProject.value
+  if (!project) return
+  projectForm.name = project.name
+  projectForm.description = project.description
+  projectForm.defaultEnvironment = project.environment
+  projectForm.status = project.status === '运行中' ? 'RUNNING' : 'TESTING'
 }
 
 function fromApiRequirement(requirement: ApiRequirement): Requirement {
@@ -396,13 +443,33 @@ async function loadAiConfig() {
 }
 
 function applyUser(user: ApiUser) {
+  localStorage.setItem('testpilot.userId', String(user.id))
   authState.displayName = user.displayName
   authState.role = user.role
 }
 
 async function loadProjects() {
   const apiProjects = await api.projects.list()
-  projects.splice(0, projects.length, ...apiProjects.map(fromApiProject))
+  const nextProjects = apiProjects.map(fromApiProject)
+  projects.splice(0, projects.length, ...nextProjects)
+  const selected = nextProjects.find((project) => project.id === selectedProjectId.value)
+    ?? nextProjects[0]
+  selectedProjectId.value = selected?.id ?? null
+  if (selected?.id) {
+    localStorage.setItem('testpilot.projectId', String(selected.id))
+  } else {
+    localStorage.removeItem('testpilot.projectId')
+  }
+  syncProjectForm()
+}
+
+async function loadCurrentProjectData() {
+  await Promise.all([
+    loadRequirements(),
+    loadTestCases(),
+    loadAutomationData(),
+    loadProjectMembers()
+  ])
 }
 
 async function loadRequirements() {
@@ -438,6 +505,24 @@ async function loadAutomationData() {
   }
 }
 
+async function loadProjectMembers() {
+  const projectId = currentProject.value?.id
+  if (!projectId) return
+  const members = await api.projects.members(projectId)
+  projectMembers.splice(0, projectMembers.length, ...members)
+  const project = projects.find((item) => item.id === projectId)
+  if (project) project.members = members.length
+}
+
+async function loadUsers() {
+  if (authState.role !== 'ADMIN') return
+  try {
+    users.splice(0, users.length, ...(await api.users.list()))
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '用户列表加载失败')
+  }
+}
+
 async function bootstrapAuth() {
   const token = localStorage.getItem('testpilot.accessToken')
   if (!token) {
@@ -451,6 +536,8 @@ async function bootstrapAuth() {
     await loadRequirements()
     await loadTestCases()
     await loadAutomationData()
+    await loadProjectMembers()
+    await loadUsers()
     authState.authenticated = true
   } catch {
     localStorage.removeItem('testpilot.accessToken')
@@ -470,6 +557,8 @@ async function login() {
     await loadRequirements()
     await loadTestCases()
     await loadAutomationData()
+    await loadProjectMembers()
+    await loadUsers()
     authState.authenticated = true
     activeView.value = 'home'
   } catch (error) {
@@ -487,6 +576,7 @@ async function logout() {
     // Token cleanup still happens when the backend is unavailable.
   }
   localStorage.removeItem('testpilot.accessToken')
+  localStorage.removeItem('testpilot.userId')
   authState.authenticated = false
   authState.error = ''
 }
@@ -497,12 +587,172 @@ function navigate(view: View) {
   if (view === 'ai') void loadAiConfig()
 }
 
-function openProject() {
+function openProject(project?: Project) {
+  const nextProject = project ?? currentProject.value
+  if (nextProject.id) {
+    selectedProjectId.value = nextProject.id
+    localStorage.setItem('testpilot.projectId', String(nextProject.id))
+  }
   navigate('project')
+  syncProjectForm()
+  void loadCurrentProjectData()
 }
 
 function openModal(name: ModalName) {
   modal.value = name
+}
+
+function openNewUser() {
+  editingUserId.value = null
+  Object.assign(userForm, {
+    username: '',
+    password: '',
+    displayName: '',
+    email: '',
+    role: 'TEST_DEVELOPER'
+  })
+  openModal('user')
+}
+
+function openAddMember() {
+  memberForm.userId = null
+  memberForm.role = 'TEST_DEVELOPER'
+  openModal('member')
+}
+
+function editUser(user: ApiUser) {
+  editingUserId.value = user.id
+  Object.assign(userForm, {
+    username: user.username,
+    password: '',
+    displayName: user.displayName,
+    email: user.email || '',
+    role: user.role
+  })
+  openModal('user')
+}
+
+async function saveUser() {
+  if (authState.role !== 'ADMIN' || !userForm.displayName.trim()) {
+    showToast('请填写用户显示名称')
+    return
+  }
+  try {
+    if (editingUserId.value) {
+      const saved = await api.users.update(editingUserId.value, {
+        displayName: userForm.displayName,
+        email: userForm.email,
+        role: userForm.role
+      })
+      const index = users.findIndex((item) => item.id === saved.id)
+      if (index >= 0) users[index] = saved
+      if (userForm.password.trim()) {
+        await api.users.resetPassword(saved.id, userForm.password)
+      }
+      showToast('用户信息已更新')
+    } else {
+      if (!userForm.username.trim() || !userForm.password.trim()) {
+        showToast('新建用户需要填写用户名和初始密码')
+        return
+      }
+      const saved = await api.users.create(userForm)
+      users.unshift(saved)
+      showToast('用户已创建')
+    }
+    closeModal()
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '用户保存失败')
+  }
+}
+
+async function toggleUserStatus(user: ApiUser) {
+  if (user.id === Number(localStorage.getItem('testpilot.userId'))) return
+  try {
+    const saved = await api.users.changeStatus(user.id, user.status === 'DISABLED' ? 'ENABLED' : 'DISABLED')
+    const index = users.findIndex((item) => item.id === saved.id)
+    if (index >= 0) users[index] = saved
+    showToast(saved.status === 'DISABLED' ? '用户已禁用' : '用户已启用')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '用户状态更新失败')
+  }
+}
+
+async function saveProjectSettings() {
+  const projectId = currentProject.value?.id
+  if (!projectId || !projectForm.name.trim()) {
+    showToast('请填写项目名称')
+    return
+  }
+  try {
+    const saved = await api.projects.update(projectId, projectForm)
+    const index = projects.findIndex((item) => item.id === saved.id)
+    if (index >= 0) projects[index] = fromApiProject(saved)
+    syncProjectForm()
+    showToast('项目设置已保存')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '项目设置保存失败')
+  }
+}
+
+async function deleteCurrentProject() {
+  const projectId = currentProject.value?.id
+  if (!projectId || !window.confirm(`确认删除项目“${currentProject.value.name}”吗？`)) return
+  try {
+    await api.projects.remove(projectId)
+    await loadProjects()
+    navigate('projects')
+    showToast('项目已删除')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '项目删除失败')
+  }
+}
+
+async function addProjectMember() {
+  const projectId = currentProject.value?.id
+  if (!projectId || !memberForm.userId) {
+    showToast('请选择项目成员')
+    return
+  }
+  try {
+    const saved = await api.projects.addMember(projectId, {
+      userId: memberForm.userId,
+      role: memberForm.role
+    })
+    projectMembers.push(saved)
+    memberForm.userId = null
+    closeModal()
+    showToast('项目成员已添加')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '项目成员添加失败')
+  }
+}
+
+async function removeProjectMember(member: ApiProjectMember) {
+  const projectId = currentProject.value?.id
+  if (!projectId || !window.confirm(`确认移除成员“${member.displayName}”吗？`)) return
+  try {
+    await api.projects.removeMember(projectId, member.userId)
+    const index = projectMembers.findIndex((item) => item.userId === member.userId)
+    if (index >= 0) projectMembers.splice(index, 1)
+    showToast('项目成员已移除')
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '项目成员移除失败')
+  }
+}
+
+async function updateProjectMemberRole(member: ApiProjectMember, event: Event) {
+  const projectId = currentProject.value?.id
+  const role = (event.target as HTMLSelectElement | null)?.value
+  if (!projectId || !role || role === member.role) return
+  try {
+    const saved = await api.projects.updateMember(projectId, member.userId, { role })
+    const index = projectMembers.findIndex((item) => item.userId === saved.userId)
+    if (index >= 0) projectMembers[index] = saved
+    showToast('成员角色已更新')
+  } catch (error) {
+    await loadProjectMembers()
+    showToast(error instanceof Error ? error.message : '成员角色更新失败')
+  }
 }
 
 function openGenerationModal() {
@@ -657,6 +907,8 @@ async function createProject() {
       defaultEnvironment: newProject.environment
     })
     projects.unshift(fromApiProject(created))
+    selectedProjectId.value = created.id
+    localStorage.setItem('testpilot.projectId', String(created.id))
     newProject.name = ''
     newProject.code = ''
     newProject.description = ''
@@ -907,7 +1159,7 @@ onMounted(bootstrapAuth)
             <div class="card">
               <div class="card-head"><h3>我的项目</h3><button class="link-btn" @click="navigate('projects')">查看全部项目 →</button></div>
               <div class="card-body table-wrap"><table><thead><tr><th>项目名称</th><th>状态</th><th>最近执行</th><th>通过率</th><th></th></tr></thead><tbody>
-                <tr v-for="project in projects" :key="project.code"><td><strong>{{ project.name }}</strong><br><span class="muted">{{ project.code }}</span></td><td><span class="tag" :class="project.status === '运行中' ? 'green' : 'orange'">{{ project.status }}</span></td><td>{{ project.lastRun }}</td><td><div class="rate"><b>{{ project.passRate }}%</b><div class="progress"><i :style="{ width: `${project.passRate}%` }"></i></div></div></td><td><button class="btn" @click="openProject">进入 →</button></td></tr>
+                <tr v-for="project in projects" :key="project.code"><td><strong>{{ project.name }}</strong><br><span class="muted">{{ project.code }}</span></td><td><span class="tag" :class="project.status === '运行中' ? 'green' : 'orange'">{{ project.status }}</span></td><td>{{ project.lastRun }}</td><td><div class="rate"><b>{{ project.passRate }}%</b><div class="progress"><i :style="{ width: `${project.passRate}%` }"></i></div></div></td><td><button class="btn" @click="openProject(project)">进入 →</button></td></tr>
               </tbody></table></div>
             </div>
             <div class="card">
@@ -923,7 +1175,7 @@ onMounted(bootstrapAuth)
 
         <section v-else-if="activeView === 'projects'" class="view">
           <div class="page-head"><div><h1>项目</h1><p>以项目为中心统一管理需求、用例、自动化、执行与报告。</p></div><div class="head-actions"><button class="btn" @click="showToast('加入项目功能将在后端接入后开放')">＋ 加入项目</button><button class="btn primary" @click="openModal('project')">＋ 创建项目</button></div></div>
-          <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>项目名称</th><th>负责人</th><th>成员</th><th>环境</th><th>最近执行</th><th>通过率</th><th>状态</th><th></th></tr></thead><tbody><tr v-for="project in visibleProjects" :key="project.code"><td><div class="project-title"><div class="project-logo">{{ project.name.slice(0, 1) }}</div><div><strong>{{ project.name }}</strong><p>{{ project.code }} · {{ project.description }}</p></div></div></td><td>{{ project.owner }}</td><td>{{ project.members }} 人</td><td><span class="tag blue">{{ project.environment }}</span></td><td>{{ project.lastRun }}</td><td>{{ project.passRate ? `${project.passRate}%` : '--' }}</td><td><span class="tag" :class="project.status === '运行中' ? 'green' : 'orange'">{{ project.status }}</span></td><td><button class="btn" @click="openProject">打开</button></td></tr></tbody></table></div></div>
+          <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>项目名称</th><th>负责人</th><th>成员</th><th>环境</th><th>最近执行</th><th>通过率</th><th>状态</th><th></th></tr></thead><tbody><tr v-for="project in visibleProjects" :key="project.code"><td><div class="project-title"><div class="project-logo">{{ project.name.slice(0, 1) }}</div><div><strong>{{ project.name }}</strong><p>{{ project.code }} · {{ project.description }}</p></div></div></td><td>{{ project.owner }}</td><td>{{ project.members }} 人</td><td><span class="tag blue">{{ project.environment }}</span></td><td>{{ project.lastRun }}</td><td>{{ project.passRate ? `${project.passRate}%` : '--' }}</td><td><span class="tag" :class="project.status === '运行中' ? 'green' : 'orange'">{{ project.status }}</span></td><td><button class="btn" @click="openProject(project)">打开</button></td></tr></tbody></table></div></div>
         </section>
 
         <section v-else-if="activeView === 'project'" class="view">
@@ -972,8 +1224,8 @@ onMounted(bootstrapAuth)
                 <div class="card"><div class="card-head"><h3>历史报告</h3><span class="muted">每次执行独立沉淀</span></div><div class="card-body table-wrap"><table><thead><tr><th>Execution</th><th>Build</th><th>结果</th><th>Duration</th><th>Allure</th><th></th></tr></thead><tbody><tr v-for="execution in executionRecords" :key="execution.id"><td>#{{ execution.id }}</td><td>{{ execution.buildNumber || '队列中' }}</td><td><span class="tag" :class="execution.status === 'PASSED' ? 'green' : execution.status === 'FAILED' ? 'red' : 'orange'">{{ execution.status }}</span></td><td>{{ execution.durationMs ? `${Math.round(execution.durationMs / 1000)}s` : '--' }}</td><td>{{ execution.report?.allureUrl || '--' }}</td><td><button class="btn" @click="syncExecution(execution)">同步</button></td></tr><tr v-if="executionRecords.length === 0"><td colspan="6" class="muted">暂无执行记录</td></tr></tbody></table></div></div>
               </template>
               <template v-else>
-                <div class="page-head compact"><div><h1>项目设置</h1><p>管理项目成员、权限、代码仓库和测试用例字段规范。</p></div><button class="btn primary" @click="showToast('项目设置已保存')">保存设置</button></div>
-                <div class="section-grid grid"><div class="card"><div class="card-head"><h3>基本信息</h3></div><div class="card-body"><div class="field"><label>项目名称</label><input value="星河电商平台" /></div><div class="field"><label>项目标识</label><input value="XH-MALL" /></div><div class="field"><label>项目描述</label><textarea>{{ currentProject.description }}</textarea></div></div></div><div class="card"><div class="card-head"><h3>测试用例字段规范</h3><button class="btn" @click="showToast('字段已添加')">＋ 添加字段</button></div><div class="card-body"><div class="mini-list"><div v-for="field in ['用例编号', '用例标题', '前置条件 / 测试步骤 / 测试数据 / 预期结果', '优先级 / 测试类型 / 标签']" :key="field" class="mini-item"><div class="mini-icon">✓</div><div><strong>{{ field }}</strong><small>必填字段</small></div><span class="switch on"><i></i></span></div></div></div></div></div>
+                <div class="page-head compact"><div><h1>项目设置</h1><p>管理项目成员、权限、代码仓库和测试用例字段规范。</p></div><div v-if="canManageCurrentProject" class="head-actions"><button class="btn" @click="deleteCurrentProject">删除项目</button><button class="btn primary" @click="saveProjectSettings">保存设置</button></div></div>
+                <div class="section-grid grid"><div class="card"><div class="card-head"><h3>基本信息</h3></div><div class="card-body"><div class="field"><label>项目名称</label><input v-model="projectForm.name" :disabled="!canManageCurrentProject" /></div><div class="field"><label>项目标识</label><input :value="currentProject.code" disabled /></div><div class="two-col"><div class="field"><label>默认环境</label><select v-model="projectForm.defaultEnvironment" :disabled="!canManageCurrentProject"><option>DEV</option><option>TEST</option><option>STAGING</option></select></div><div class="field"><label>项目状态</label><select v-model="projectForm.status" :disabled="!canManageCurrentProject"><option value="RUNNING">运行中</option><option value="TESTING">测试中</option></select></div></div><div class="field"><label>项目描述</label><textarea v-model="projectForm.description" :disabled="!canManageCurrentProject"></textarea></div></div></div><div class="card"><div class="card-head"><h3>项目成员</h3><button v-if="canManageCurrentProject" class="btn" @click="openAddMember">＋ 添加成员</button></div><div class="card-body table-wrap"><table><thead><tr><th>成员</th><th>邮箱</th><th>角色</th><th></th></tr></thead><tbody><tr v-for="member in projectMembers" :key="member.userId"><td><strong>{{ member.displayName }}</strong><br><span class="muted">{{ member.username }}</span></td><td>{{ member.email || '--' }}</td><td><select v-if="member.role !== 'OWNER' && canManageCurrentProject" :value="member.role" @change="updateProjectMemberRole(member, $event)" class="role-select"><option value="MANAGER">项目管理员</option><option value="TEST_DEVELOPER">测试开发</option><option value="VIEWER">只读成员</option></select><span v-else class="role-chip">{{ member.role }}</span></td><td><button v-if="member.role !== 'OWNER' && canManageCurrentProject" class="btn" @click="removeProjectMember(member)">移除</button></td></tr><tr v-if="projectMembers.length === 0"><td colspan="4" class="muted">暂无成员</td></tr></tbody></table></div></div></div>
               </template>
             </div>
           </div>
@@ -993,8 +1245,9 @@ onMounted(bootstrapAuth)
         </section>
 
         <section v-else class="view">
-          <div class="page-head"><div><h1>系统管理</h1><p>管理员配置用户、AI 模型、Prompt 模板、Git Credentials 与 Jenkins。</p></div><div class="head-actions"><button class="btn" @click="showToast('用户创建向导将在后端接入后开放')">＋ 添加用户</button><button class="btn primary" @click="showToast('系统配置已保存')">保存配置</button></div></div>
-          <div class="section-grid grid"><div class="card"><div class="card-head"><h3>用户与角色</h3><span class="muted">管理员 / 测试开发</span></div><div class="card-body table-wrap"><table><thead><tr><th>用户</th><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th></th></tr></thead><tbody><tr><td><strong>林晓</strong></td><td>lin.xiao@company.cn</td><td><span class="role-chip">测试开发</span></td><td><span class="tag green">启用</span></td><td>今天 08:51</td><td><button class="btn" @click="showToast('用户编辑器已打开')">编辑</button></td></tr><tr><td><strong>陈宇</strong></td><td>chen.yu@company.cn</td><td><span class="role-chip">管理员</span></td><td><span class="tag green">启用</span></td><td>今天 08:12</td><td><button class="btn" @click="showToast('用户编辑器已打开')">编辑</button></td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>集成与安全</h3><span class="muted">敏感配置加密存储</span></div><div class="card-body"><div class="field"><label>Jenkins 默认地址</label><input value="https://jenkins.company.cn" /></div><div class="field"><label>Git Credentials</label><input value="gitlab-qa-credentials · 已加密" /></div><div class="field"><label>AI API Key</label><input value="••••••••••••" type="password" /></div><div class="switch-row"><span class="switch on"><i></i></span><span>启用 Token / 密码脱敏</span></div></div></div></div>
+          <div class="page-head"><div><h1>系统管理</h1><p>管理员配置用户、AI 模型、Prompt 模板、Git Credentials 与 Jenkins。</p></div><button v-if="authState.role === 'ADMIN'" class="btn primary" @click="openNewUser">＋ 添加用户</button></div>
+          <div v-if="authState.role !== 'ADMIN'" class="card"><div class="card-body"><p class="muted">当前账号没有系统管理权限。</p></div></div>
+          <div v-else class="section-grid grid"><div class="card"><div class="card-head"><h3>用户与角色</h3><span class="muted">{{ users.length }} 个账号</span></div><div class="card-body table-wrap"><table><thead><tr><th>用户</th><th>邮箱</th><th>角色</th><th>状态</th><th>最近登录</th><th></th></tr></thead><tbody><tr v-for="user in users" :key="user.id"><td><strong>{{ user.displayName }}</strong><br><span class="muted">{{ user.username }}</span></td><td>{{ user.email || '--' }}</td><td><span class="role-chip">{{ user.role }}</span></td><td><span class="tag" :class="user.status === 'DISABLED' ? 'gray' : 'green'">{{ user.status === 'DISABLED' ? '已禁用' : '启用' }}</span></td><td>{{ user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('zh-CN') : '--' }}</td><td><div class="head-actions"><button class="btn" @click="editUser(user)">编辑</button><button class="btn" :disabled="user.id === Number(localStorage.getItem('testpilot.userId'))" :title="user.id === Number(localStorage.getItem('testpilot.userId')) ? '不能禁用当前登录用户' : ''" @click="toggleUserStatus(user)">{{ user.status === 'DISABLED' ? '启用' : '禁用' }}</button></div></td></tr><tr v-if="users.length === 0"><td colspan="6" class="muted">暂无用户</td></tr></tbody></table></div></div><div class="card"><div class="card-head"><h3>集成与安全</h3><span class="muted">敏感配置由部署环境管理</span></div><div class="card-body"><div class="ai-callout"><strong>当前运行配置</strong><p>Jenkins、Git Credentials 和 AI API Key 通过后端环境变量注入，前端不保存敏感明文。</p></div></div></div></div>
         </section>
       </div>
     </main>
@@ -1003,7 +1256,7 @@ onMounted(bootstrapAuth)
 
     <div v-if="modal" class="modal-backdrop" @click.self="closeModal">
       <div class="modal">
-        <div class="modal-head"><h3>{{ modal === 'quick' ? '快速创建' : modal === 'project' ? '创建项目' : modal === 'requirement' ? '上传需求文档' : modal === 'requirementDetail' ? '需求详情' : modal === 'run' ? '执行测试任务' : modal === 'case' ? 'AI 测试用例生成' : modal === 'caseEdit' ? (editingCaseId ? '编辑测试用例' : '新建测试用例') : modal === 'model' ? '管理 AI 模型' : modal === 'prompt' ? '新建 Prompt 模板' : modal === 'automationProject' ? '新建自动化项目' : modal === 'task' ? '新建测试任务' : 'AI 失败分析' }}</h3><button class="icon-btn" @click="closeModal">×</button></div>
+        <div class="modal-head"><h3>{{ modal === 'quick' ? '快速创建' : modal === 'project' ? '创建项目' : modal === 'requirement' ? '上传需求文档' : modal === 'requirementDetail' ? '需求详情' : modal === 'run' ? '执行测试任务' : modal === 'case' ? 'AI 测试用例生成' : modal === 'caseEdit' ? (editingCaseId ? '编辑测试用例' : '新建测试用例') : modal === 'model' ? '管理 AI 模型' : modal === 'prompt' ? '新建 Prompt 模板' : modal === 'automationProject' ? '新建自动化项目' : modal === 'task' ? '新建测试任务' : modal === 'user' ? (editingUserId ? '编辑用户' : '新建用户') : modal === 'member' ? '添加项目成员' : 'AI 失败分析' }}</h3><button class="icon-btn" @click="closeModal">×</button></div>
         <form v-if="modal === 'project'" class="modal-body" @submit.prevent="createProject"><div class="two-col"><div class="field"><label>项目名称 *</label><input v-model="newProject.name" placeholder="例如：星河电商平台" /></div><div class="field"><label>项目标识 *</label><input v-model="newProject.code" placeholder="例如：XH-MALL" /></div></div><div class="field"><label>项目描述</label><textarea v-model="newProject.description" placeholder="描述项目范围、业务目标与测试重点"></textarea></div><div class="field"><label>默认环境</label><select v-model="newProject.environment"><option>TEST</option><option>DEV</option><option>STAGING</option></select></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">创建项目</button></div></form>
         <div v-else-if="modal === 'quick'" class="modal-body quick-grid"><button class="btn" @click="openModal('project')">▣ 创建项目</button><button class="btn" @click="openModal('requirement')">◫ 上传需求</button><button class="btn" @click="openGenerationModal">▤ 生成用例</button><button class="btn" @click="openModal('run')">▶ 发起执行</button></div>
         <form v-else-if="modal === 'requirement'" class="modal-body" @submit.prevent="uploadRequirement"><div class="field"><label>上传到当前项目</label><input :value="currentProject.name" disabled /></div><div class="dropzone"><div class="upload-icon">⇧</div><strong>{{ requirementFile?.name || '选择需求文件' }}</strong><p>支持 Markdown、PDF、DOCX、TXT · 单文件不超过 10MB</p><label class="btn file-picker">选择文件<input type="file" accept=".md,.markdown,.pdf,.docx,.txt" @change="handleRequirementFile" /></label></div><div class="field"><label>文档版本说明</label><input v-model="requirementVersion" placeholder="例如：V1.2" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">上传并解析</button></div></form>
@@ -1015,6 +1268,8 @@ onMounted(bootstrapAuth)
         <form v-else-if="modal === 'prompt'" class="modal-body" @submit.prevent="savePrompt"><div class="two-col"><div class="field"><label>Prompt 名称 *</label><input v-model="promptForm.name" /></div><div class="field"><label>任务类型</label><input v-model="promptForm.taskType" /></div></div><div class="field"><label>版本</label><input v-model="promptForm.version" /></div><div class="field"><label>Prompt 内容 *</label><textarea v-model="promptForm.content" rows="8"></textarea></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">保存 Prompt</button></div></form>
         <form v-else-if="modal === 'automationProject'" class="modal-body" @submit.prevent="createAutomationProject"><div class="two-col"><div class="field"><label>名称 *</label><input v-model="automationProjectForm.name" /></div><div class="field"><label>类型</label><select v-model="automationProjectForm.automationType"><option>API</option><option>UI</option></select></div></div><div class="field"><label>Git 仓库地址 *</label><input v-model="automationProjectForm.repositoryUrl" /></div><div class="two-col"><div class="field"><label>Branch</label><input v-model="automationProjectForm.branch" /></div><div class="field"><label>Framework</label><input v-model="automationProjectForm.framework" /></div></div><div class="two-col"><div class="field"><label>Test Path</label><input v-model="automationProjectForm.testPath" /></div><div class="field"><label>Jenkins Job</label><input v-model="automationProjectForm.jenkinsJob" /></div></div><div class="field"><label>执行命令</label><input v-model="automationProjectForm.executeCommand" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">创建自动化项目</button></div></form>
         <form v-else-if="modal === 'task'" class="modal-body" @submit.prevent="createTask"><div class="field"><label>任务名称 *</label><input v-model="taskForm.name" /></div><div class="two-col"><div class="field"><label>自动化项目 *</label><select v-model.number="taskForm.automationProjectId"><option :value="null" disabled>请选择项目</option><option v-for="project in automationProjects" :key="project.id" :value="project.id">{{ project.name }}</option></select></div><div class="field"><label>任务类型</label><input v-model="taskForm.taskType" /></div></div><div class="two-col"><div class="field"><label>环境</label><input v-model="taskForm.environment" /></div><div class="field"><label>Branch</label><input v-model="taskForm.branch" /></div></div><div class="field"><label>Jenkins Job</label><input v-model="taskForm.jenkinsJob" placeholder="留空使用自动化项目配置" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">创建测试任务</button></div></form>
+        <form v-else-if="modal === 'user'" class="modal-body" @submit.prevent="saveUser"><div v-if="!editingUserId" class="field"><label>用户名 *</label><input v-model="userForm.username" autocomplete="off" /></div><div class="two-col"><div class="field"><label>显示名称 *</label><input v-model="userForm.displayName" /></div><div class="field"><label>角色</label><select v-model="userForm.role"><option value="TEST_DEVELOPER">测试开发</option><option value="ADMIN">管理员</option></select></div></div><div class="field"><label>邮箱</label><input v-model="userForm.email" type="email" /></div><div class="field"><label>{{ editingUserId ? '重置密码（可选）' : '初始密码 *' }}</label><input v-model="userForm.password" type="password" autocomplete="new-password" /></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">{{ editingUserId ? '保存用户' : '创建用户' }}</button></div></form>
+        <form v-else-if="modal === 'member'" class="modal-body" @submit.prevent="addProjectMember"><div class="field"><label>用户</label><select v-model.number="memberForm.userId"><option :value="null" disabled>请选择启用用户</option><option v-for="user in users.filter((item) => item.status !== 'DISABLED' && !projectMembers.some((member) => member.userId === item.id))" :key="user.id" :value="user.id">{{ user.displayName }} · {{ user.username }}</option></select></div><div class="field"><label>项目角色</label><select v-model="memberForm.role"><option value="MANAGER">项目管理员</option><option value="TEST_DEVELOPER">测试开发</option><option value="VIEWER">只读成员</option></select></div><div class="modal-foot"><button type="button" class="btn" @click="closeModal">取消</button><button class="btn primary">添加成员</button></div></form>
         <div v-else class="modal-body"><div class="ai-callout"><strong>暂无持久化 AI 分析结果</strong><p>当前版本先展示 Jenkins 执行状态、日志和报告引用；AI 失败分析将在结果持久化后接入。</p></div><div class="modal-foot"><button class="btn" @click="closeModal">关闭</button></div></div>
       </div>
     </div>

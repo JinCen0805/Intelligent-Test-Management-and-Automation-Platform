@@ -10,6 +10,20 @@ export interface ApiUser {
   displayName: string
   email: string
   role: string
+  status?: string
+  lastLoginAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ApiProjectMember {
+  membershipId?: number
+  userId: number
+  username: string
+  displayName: string
+  email?: string
+  role: string
+  joinedAt?: string
 }
 
 export interface ApiProject {
@@ -21,6 +35,7 @@ export interface ApiProject {
   ownerName: string
   defaultEnvironment: string
   status: string
+  memberCount: number
   createdAt: string
   updatedAt: string
 }
@@ -190,7 +205,63 @@ export const api = {
     }) => request<ApiProject>('/projects', {
       method: 'POST',
       body: JSON.stringify(payload)
-    })
+    }),
+    update: (projectId: number, payload: {
+      name: string
+      description?: string
+      defaultEnvironment?: string
+      status?: string
+    }) => request<ApiProject>(`/projects/${projectId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }),
+    remove: (projectId: number) => request<void>(`/projects/${projectId}`, {
+      method: 'DELETE'
+    }),
+    members: (projectId: number) => request<ApiProjectMember[]>(`/projects/${projectId}/members`),
+    addMember: (projectId: number, payload: { userId: number; role: string }) =>
+      request<ApiProjectMember>(`/projects/${projectId}/members`, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }),
+    updateMember: (projectId: number, userId: number, payload: { role: string }) =>
+      request<ApiProjectMember>(`/projects/${projectId}/members/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ userId, ...payload })
+      }),
+    removeMember: (projectId: number, userId: number) =>
+      request<void>(`/projects/${projectId}/members/${userId}`, { method: 'DELETE' })
+  },
+  users: {
+    list: () => request<ApiUser[]>('/users'),
+    create: (payload: {
+      username: string
+      password: string
+      displayName: string
+      email?: string
+      role: string
+    }) => request<ApiUser>('/users', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }),
+    update: (userId: number, payload: {
+      displayName: string
+      email?: string
+      role: string
+    }) => request<ApiUser>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }),
+    changeStatus: (userId: number, status: string) =>
+      request<ApiUser>(`/users/${userId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status })
+      }),
+    resetPassword: (userId: number, password: string) =>
+      request<void>(`/users/${userId}/password`, {
+        method: 'POST',
+        body: JSON.stringify({ password })
+      })
   },
   requirements: {
     list: (projectId: number) => request<ApiRequirement[]>(`/projects/${projectId}/requirements`),

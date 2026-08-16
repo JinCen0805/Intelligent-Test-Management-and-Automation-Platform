@@ -95,6 +95,7 @@ public class ProjectService {
                 ownerName,
                 project.getDefaultEnvironment(),
                 project.getStatus(),
+                projectMemberRepository.countByProjectId(project.getId()),
                 project.getCreatedAt(),
                 project.getUpdatedAt()
         );
