@@ -1,5 +1,6 @@
 package com.testpilot.platform.testcase;
 
+import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.requirement.RequirementRepository;
@@ -18,15 +19,18 @@ public class TestCaseService {
     private final TestCaseRepository testCaseRepository;
     private final RequirementRepository requirementRepository;
     private final ProjectAccessService projectAccessService;
+    private final OperationAuditService operationAuditService;
 
     public TestCaseService(
             TestCaseRepository testCaseRepository,
             RequirementRepository requirementRepository,
-            ProjectAccessService projectAccessService
+            ProjectAccessService projectAccessService,
+            OperationAuditService operationAuditService
     ) {
         this.testCaseRepository = testCaseRepository;
         this.requirementRepository = requirementRepository;
         this.projectAccessService = projectAccessService;
+        this.operationAuditService = operationAuditService;
     }
 
     public Page<TestCaseDtos.Response> list(
@@ -70,7 +74,7 @@ public class TestCaseService {
             User currentUser,
             String source
     ) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requireWrite(projectId, currentUser);
         ensureRequirement(projectId, request.requirementId());
         String caseNo = request.caseNo() == null || request.caseNo().isBlank()
                 ? nextCaseNo(projectId)
@@ -125,8 +129,12 @@ public class TestCaseService {
         if (!isAllowedTransition(testCase.getStatus(), targetStatus)) {
             throw new BusinessException(40005, "测试用例状态流转不合法");
         }
+        String previousStatus = testCase.getStatus();
         testCase.setStatus(targetStatus);
-        return TestCaseDtos.Response.from(testCaseRepository.save(testCase));
+        TestCase saved = testCaseRepository.save(testCase);
+        operationAuditService.record(projectId, currentUser, "TESTCASE_REVIEW", "TESTCASE", testCaseId,
+                "用例 " + saved.getCaseNo() + " 状态从 " + previousStatus + " 流转为 " + targetStatus, true);
+        return TestCaseDtos.Response.from(saved);
     }
 
     @Transactional

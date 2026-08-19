@@ -30,11 +30,8 @@ public class TestTask {
     @Column(name = "automation_project_id", nullable = false)
     private Long automationProjectId;
 
-    @Column(nullable = false, length = 32)
-    private String environment;
-
-    @Column(nullable = false, length = 128)
-    private String branch;
+    @Column(name = "pipeline_binding_id")
+    private Long pipelineBindingId;
 
     @Column(name = "jenkins_job", nullable = false, length = 255)
     private String jenkinsJob;
@@ -59,8 +56,18 @@ public class TestTask {
             String name,
             String taskType,
             Long automationProjectId,
-            String environment,
-            String branch,
+            String jenkinsJob,
+            String parametersJson
+    ) {
+        this(projectId, name, taskType, automationProjectId, null, jenkinsJob, parametersJson);
+    }
+
+    public TestTask(
+            Long projectId,
+            String name,
+            String taskType,
+            Long automationProjectId,
+            Long pipelineBindingId,
             String jenkinsJob,
             String parametersJson
     ) {
@@ -68,11 +75,10 @@ public class TestTask {
         this.name = name;
         this.taskType = taskType;
         this.automationProjectId = automationProjectId;
-        this.environment = environment;
-        this.branch = branch;
+        this.pipelineBindingId = pipelineBindingId;
         this.jenkinsJob = jenkinsJob;
         this.parametersJson = parametersJson;
-        this.status = "READY";
+        this.status = "ENABLED";
     }
 
     @PrePersist
@@ -87,13 +93,32 @@ public class TestTask {
         updatedAt = LocalDateTime.now();
     }
 
+    public void update(
+            String name,
+            String taskType,
+            Long automationProjectId,
+            Long pipelineBindingId,
+            String jenkinsJob,
+            String parametersJson
+    ) {
+        this.name = name;
+        this.taskType = taskType;
+        this.automationProjectId = automationProjectId;
+        this.pipelineBindingId = pipelineBindingId;
+        this.jenkinsJob = jenkinsJob;
+        this.parametersJson = parametersJson;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
     public Long getId() { return id; }
     public Long getProjectId() { return projectId; }
     public String getName() { return name; }
     public String getTaskType() { return taskType; }
     public Long getAutomationProjectId() { return automationProjectId; }
-    public String getEnvironment() { return environment; }
-    public String getBranch() { return branch; }
+    public Long getPipelineBindingId() { return pipelineBindingId; }
     public String getJenkinsJob() { return jenkinsJob; }
     public String getParametersJson() { return parametersJson; }
     public String getStatus() { return status; }

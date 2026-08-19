@@ -46,7 +46,11 @@ public class ProjectAccessService {
     }
 
     public boolean canWrite(Project project, User user) {
-        return isAdmin(user) || project.getOwnerId().equals(user.getId());
+        return isAdmin(user)
+                || project.getOwnerId().equals(user.getId())
+                || projectMemberRepository.findByProjectIdAndUserId(project.getId(), user.getId())
+                    .map(member -> "MANAGER".equalsIgnoreCase(member.getRole()))
+                    .orElse(false);
     }
 
     public boolean isAdmin(User user) {

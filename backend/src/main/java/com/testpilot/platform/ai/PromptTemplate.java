@@ -68,4 +68,16 @@ public class PromptTemplate {
     public String getContent() { return content; }
     public String getVersion() { return version; }
     public boolean isEnabled() { return enabled; }
+
+    public void update(String name, String taskType, String content, String version, boolean enabled) {
+        this.name = name;
+        this.taskType = taskType;
+        this.content = content;
+        this.version = version;
+        this.enabled = enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
 }

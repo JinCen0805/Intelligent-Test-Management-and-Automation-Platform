@@ -75,12 +75,19 @@ public final class AutomationDtos {
             @NotBlank(message = "任务类型不能为空")
             String taskType,
             Long automationProjectId,
-            @NotBlank(message = "执行环境不能为空")
-            String environment,
-            @NotBlank(message = "Branch 不能为空")
-            String branch,
-            String jenkinsJob,
+            Long pipelineBindingId,
             String parametersJson
+    ) {
+    }
+
+    public record ExecuteRequest(
+            String parametersJson
+    ) {
+    }
+
+    public record TestTaskStatusRequest(
+            @NotBlank(message = "任务状态不能为空")
+            String status
     ) {
     }
 
@@ -90,8 +97,7 @@ public final class AutomationDtos {
             String name,
             String taskType,
             Long automationProjectId,
-            String environment,
-            String branch,
+            Long pipelineBindingId,
             String jenkinsJob,
             String parametersJson,
             String status
@@ -103,8 +109,7 @@ public final class AutomationDtos {
                     task.getName(),
                     task.getTaskType(),
                     task.getAutomationProjectId(),
-                    task.getEnvironment(),
-                    task.getBranch(),
+                    task.getPipelineBindingId(),
                     task.getJenkinsJob(),
                     task.getParametersJson(),
                     task.getStatus()
@@ -128,7 +133,11 @@ public final class AutomationDtos {
             int brokenCount,
             @Min(value = 0, message = "跳过数不能为负数")
             int skippedCount,
-            String artifactRef
+            String artifactRef,
+            String failureDetail,
+            String screenshotRef,
+            String videoRef,
+            String aiAnalysis
     ) {
     }
 
@@ -146,6 +155,10 @@ public final class AutomationDtos {
             LocalDateTime finishedAt,
             Long durationMs,
             String consoleLogRef,
+            String syncFailureMessage,
+            int syncFailureCount,
+            String triggeredBy,
+            String triggerMethod,
             TestReportResponse report
     ) {
         public static TestExecutionResponse from(TestExecution execution, TestReport report) {
@@ -163,6 +176,10 @@ public final class AutomationDtos {
                     execution.getFinishedAt(),
                     execution.getDurationMs(),
                     execution.getConsoleLogRef(),
+                    execution.getSyncFailureMessage(),
+                    execution.getSyncFailureCount(),
+                    execution.getTriggeredBy(),
+                    execution.getTriggerMethod(),
                     report == null ? null : TestReportResponse.from(report)
             );
         }
@@ -177,7 +194,11 @@ public final class AutomationDtos {
             int failedCount,
             int brokenCount,
             int skippedCount,
-            String artifactRef
+            String artifactRef,
+            String failureDetail,
+            String screenshotRef,
+            String videoRef,
+            String aiAnalysis
     ) {
         public static TestReportResponse from(TestReport report) {
             return new TestReportResponse(
@@ -189,7 +210,11 @@ public final class AutomationDtos {
                     report.getFailedCount(),
                     report.getBrokenCount(),
                     report.getSkippedCount(),
-                    report.getArtifactRef()
+                    report.getArtifactRef(),
+                    report.getFailureDetail(),
+                    report.getScreenshotRef(),
+                    report.getVideoRef(),
+                    report.getAiAnalysis()
             );
         }
     }

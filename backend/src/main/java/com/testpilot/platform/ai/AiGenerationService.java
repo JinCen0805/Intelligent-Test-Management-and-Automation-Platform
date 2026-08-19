@@ -12,21 +12,23 @@ import com.testpilot.platform.user.User;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import org.springframework.http.MediaType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AiGenerationService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiGenerationService.class);
 
     private final AiModelService aiModelService;
     private final RequirementRepository requirementRepository;
     private final TestCaseRepository testCaseRepository;
     private final ProjectAccessService projectAccessService;
     private final ObjectMapper objectMapper;
-    private final RestClient restClient;
+    private final AiProviderClient aiProviderClient;
+    private final AiCallAuditService aiCallAuditService;
 
     public AiGenerationService(
             AiModelService aiModelService,
@@ -34,14 +36,16 @@ public class AiGenerationService {
             TestCaseRepository testCaseRepository,
             ProjectAccessService projectAccessService,
             ObjectMapper objectMapper,
-            RestClient.Builder restClientBuilder
+            AiProviderClient aiProviderClient,
+            AiCallAuditService aiCallAuditService
     ) {
         this.aiModelService = aiModelService;
         this.requirementRepository = requirementRepository;
         this.testCaseRepository = testCaseRepository;
         this.projectAccessService = projectAccessService;
         this.objectMapper = objectMapper;
-        this.restClient = restClientBuilder.build();
+        this.aiProviderClient = aiProviderClient;
+        this.aiCallAuditService = aiCallAuditService;
     }
 
     @Transactional
@@ -51,7 +55,7 @@ public class AiGenerationService {
             AiDtos.GenerateRequest request,
             User currentUser
     ) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requireWrite(projectId, currentUser);
         Requirement requirement = requirementRepository.findByIdAndProjectId(requirementId, projectId)
                 .orElseThrow(() -> new BusinessException(40402, "需求文档不存在"));
         if (!"PARSED".equals(requirement.getParseStatus())
@@ -68,10 +72,22 @@ public class AiGenerationService {
         String rules = request == null || request.rules() == null || request.rules().isBlank()
                 ? "覆盖正向、异常和边界场景，输出结构化测试用例。"
                 : request.rules().trim();
-        String generatedJson = "MOCK".equalsIgnoreCase(model.getProvider())
-                ? mockResponse(requirement, rules)
-                : callModel(model, prompt, requirement.getContentText(), rules);
-        List<GeneratedCase> generatedCases = parseGeneratedCases(generatedJson);
+        long start = System.nanoTime();
+        List<GeneratedCase> generatedCases;
+        try {
+            String generatedJson = "MOCK".equalsIgnoreCase(model.getProvider())
+                    ? mockResponse(requirement, rules)
+                    : callModel(model, prompt, requirement.getContentText(), rules);
+            generatedCases = parseGeneratedCases(generatedJson);
+            aiCallAuditService.record(projectId, currentUser, "TEST_CASE_GENERATION", model,
+                    prompt.getId(), prompt.getName(), prompt.getVersion(),
+                    true, null, null, elapsedMs(start));
+        } catch (BusinessException exception) {
+            aiCallAuditService.record(projectId, currentUser, "TEST_CASE_GENERATION", model,
+                    prompt.getId(), prompt.getName(), prompt.getVersion(),
+                    false, exception.getCode(), exception.getMessage(), elapsedMs(start));
+            throw exception;
+        }
         List<AiDtos.TestCaseView> savedCases = new ArrayList<>();
         for (GeneratedCase generated : generatedCases) {
             String caseNo = generated.caseNo();
@@ -118,55 +134,21 @@ public class AiGenerationService {
             String requirementText,
             String rules
     ) {
-        String endpoint = model.getEndpoint();
-        if (endpoint == null || endpoint.isBlank()) {
-            throw new BusinessException(40007, "AI 模型 Endpoint 未配置");
-        }
-        String url = endpoint.endsWith("/")
-                ? endpoint + "chat/completions"
-                : endpoint + "/chat/completions";
         String userPrompt = prompt.getContent()
                 + "\n\n生成规则:\n"
                 + rules
                 + "\n\n需求正文:\n"
                 + requirementText;
-        try {
-            JsonNode response = restClient.post()
-                    .uri(url)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .headers(headers -> {
-                        if (model.getApiKey() != null && !model.getApiKey().isBlank()) {
-                            headers.setBearerAuth(model.getApiKey());
-                        }
-                    })
-                    .body(java.util.Map.of(
-                            "model", model.getName(),
-                            "temperature", 0.2,
-                            "messages", List.of(
-                                    java.util.Map.of(
-                                            "role", "system",
-                                            "content", "只输出 JSON，不要 Markdown 代码块。"
-                                    ),
-                                    java.util.Map.of("role", "user", "content", userPrompt)
-                            )
-                    ))
-                    .retrieve()
-                    .body(JsonNode.class);
-            JsonNode content = response == null
-                    ? null
-                    : response.path("choices").path(0).path("message").path("content");
-            if (content == null || content.isMissingNode() || content.asText().isBlank()) {
-                throw new BusinessException(50201, "AI 返回内容为空");
-            }
-            return content.asText();
-        } catch (RestClientException exception) {
-            throw new BusinessException(50200, "AI 调用失败，请检查模型配置和网络");
-        }
+        return aiProviderClient.completeJson(model, userPrompt);
+    }
+
+    private long elapsedMs(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000;
     }
 
     private List<GeneratedCase> parseGeneratedCases(String rawJson) {
         try {
-            JsonNode root = objectMapper.readTree(stripCodeFence(rawJson));
+            JsonNode root = objectMapper.readTree(extractJson(rawJson));
             JsonNode casesNode = root.isArray() ? root : root.path("testCases");
             if (!casesNode.isArray() || casesNode.isEmpty()) {
                 throw new BusinessException(50202, "AI 未返回有效测试用例");
@@ -207,6 +189,8 @@ public class AiGenerationService {
         } catch (BusinessException exception) {
             throw exception;
         } catch (Exception exception) {
+            String preview = rawJson == null ? "<null>" : rawJson.substring(0, Math.min(800, rawJson.length()));
+            log.error("AI 返回内容无法解析为 JSON，原始内容: {}", preview, exception);
             throw new BusinessException(50202, "AI 返回的 JSON 格式不正确");
         }
     }
@@ -267,36 +251,85 @@ public class AiGenerationService {
         return "未分类模块";
     }
 
-    private String stripCodeFence(String rawJson) {
-        String value = rawJson.trim();
-        if (value.startsWith("```")) {
-            value = value.replaceFirst("^```(?:json)?\\s*", "");
-            value = value.replaceFirst("\\s*```$", "");
+    private String extractJson(String rawJson) {
+        if (rawJson == null) {
+            return "";
         }
-        return value;
+        String value = rawJson.trim();
+        int start = -1;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '{' || c == '[') {
+                start = i;
+                break;
+            }
+        }
+        if (start < 0) {
+            return value;
+        }
+        char close = value.charAt(start) == '[' ? ']' : '}';
+        int end = value.lastIndexOf(close);
+        if (end <= start) {
+            return value;
+        }
+        return value.substring(start, end + 1);
     }
 
     private String text(JsonNode node, String... names) {
         for (String name : names) {
             JsonNode value = node.path(name);
-            if (!value.isMissingNode() && !value.isNull()) {
-                return value.asText("").trim();
+            if (value.isMissingNode() || value.isNull()) {
+                continue;
             }
+            if (value.isArray()) {
+                StringBuilder joined = new StringBuilder();
+                for (JsonNode element : value) {
+                    if (element.isNull()) {
+                        continue;
+                    }
+                    String part = element.asText("").trim();
+                    if (part.isEmpty()) {
+                        continue;
+                    }
+                    if (joined.length() > 0) {
+                        joined.append('\n');
+                    }
+                    joined.append(part);
+                }
+                return joined.toString();
+            }
+            if (value.isObject()) {
+                return value.toString();
+            }
+            return value.asText("").trim();
         }
         return "";
     }
 
     private String normalizePriority(String priority) {
-        return switch (priority.toUpperCase(Locale.ROOT)) {
-            case "P0", "P1", "P2", "P3" -> priority.toUpperCase(Locale.ROOT);
-            default -> throw new BusinessException(50203, "AI 返回的优先级不合法");
+        String value = priority == null ? "" : priority.trim().toUpperCase(Locale.ROOT);
+        return switch (value) {
+            case "P0", "HIGH", "CRITICAL", "BLOCKER", "URGENT", "高", "紧急", "严重" -> "P0";
+            case "P1", "MEDIUM", "MAJOR", "中", "重要" -> "P1";
+            case "P2", "NORMAL", "MINOR", "低", "一般" -> "P2";
+            case "P3", "LOW", "TRIVIAL", "较低", "轻微" -> "P3";
+            default -> {
+                log.warn("AI 返回了无法识别的优先级值，已回退为 P2: {}", priority);
+                yield "P2";
+            }
         };
     }
 
     private String normalizeType(String type) {
-        return switch (type.toUpperCase(Locale.ROOT)) {
-            case "FUNCTIONAL", "EXCEPTION", "BOUNDARY" -> type.toUpperCase(Locale.ROOT);
-            default -> throw new BusinessException(50204, "AI 返回的测试类型不合法");
+        String value = type == null ? "" : type.trim().toUpperCase(Locale.ROOT);
+        return switch (value) {
+            case "FUNCTIONAL", "POSITIVE", "NORMAL", "SUCCESS", "正向" -> "FUNCTIONAL";
+            case "EXCEPTION", "NEGATIVE", "FAILURE", "ERROR", "异常", "反向" -> "EXCEPTION";
+            case "BOUNDARY", "边界" -> "BOUNDARY";
+            default -> {
+                log.warn("AI 返回了无法识别的测试类型值，已回退为 FUNCTIONAL: {}", type);
+                yield "FUNCTIONAL";
+            }
         };
     }
 

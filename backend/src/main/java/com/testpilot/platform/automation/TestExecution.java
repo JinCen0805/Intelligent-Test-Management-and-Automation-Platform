@@ -54,6 +54,18 @@ public class TestExecution {
     @Column(name = "console_log_ref", length = 500)
     private String consoleLogRef;
 
+    @Column(name = "sync_failure_message", length = 1000)
+    private String syncFailureMessage;
+
+    @Column(name = "sync_failure_count", nullable = false)
+    private int syncFailureCount;
+
+    @Column(name = "triggered_by", length = 64)
+    private String triggeredBy;
+
+    @Column(name = "trigger_method", nullable = false, length = 16)
+    private String triggerMethod = "MANUAL";
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -108,6 +120,16 @@ public class TestExecution {
     public LocalDateTime getFinishedAt() { return finishedAt; }
     public Long getDurationMs() { return durationMs; }
     public String getConsoleLogRef() { return consoleLogRef; }
+    public String getSyncFailureMessage() { return syncFailureMessage; }
+    public int getSyncFailureCount() { return syncFailureCount; }
+    public String getTriggeredBy() { return triggeredBy; }
+    public String getTriggerMethod() { return triggerMethod; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void recordTrigger(String triggeredBy, String triggerMethod) {
+        this.triggeredBy = triggeredBy;
+        this.triggerMethod = triggerMethod == null || triggerMethod.isBlank() ? "MANUAL" : triggerMethod;
+    }
     public void applyJenkinsSync(
             String buildNumber,
             String queueUrl,
@@ -122,6 +144,8 @@ public class TestExecution {
         this.status = status;
         this.commitSha = commitSha;
         this.consoleLogRef = consoleLogRef;
+        this.syncFailureMessage = null;
+        this.syncFailureCount = 0;
         if (startedAt != null) {
             this.startedAt = startedAt;
         }
@@ -129,6 +153,14 @@ public class TestExecution {
         if (this.startedAt != null && finishedAt != null) {
             this.durationMs = java.time.Duration.between(this.startedAt, finishedAt).toMillis();
         }
+    }
+    public void recordSyncFailure(String message) {
+        this.syncFailureCount++;
+        this.syncFailureMessage = message;
+    }
+    public void clearSyncFailure() {
+        this.syncFailureCount = 0;
+        this.syncFailureMessage = null;
     }
     public void applyResult(String status, String commitSha, String consoleLogRef, LocalDateTime finishedAt) {
         this.status = status;

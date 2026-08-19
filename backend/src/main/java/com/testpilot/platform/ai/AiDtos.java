@@ -1,6 +1,7 @@
 package com.testpilot.platform.ai;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -84,6 +85,24 @@ public final class AiDtos {
         }
     }
 
+    public record PromptPublishRequest(
+            @Size(max = 32, message = "版本长度不能超过 32 个字符")
+            String version
+    ) {
+    }
+
+    public record PromptEnabledRequest(
+            @NotNull(message = "enabled 不能为空")
+            Boolean enabled
+    ) {
+    }
+
+    public record ModelEnabledRequest(
+            @NotNull(message = "enabled 不能为空")
+            Boolean enabled
+    ) {
+    }
+
     public record GenerateRequest(
             Long modelId,
             Long promptId,
@@ -106,5 +125,45 @@ public final class AiDtos {
             String title,
             String status
     ) {
+    }
+
+    public record AiCallAuditResponse(
+            Long id,
+            Long projectId,
+            Long userId,
+            String userName,
+            String taskType,
+            Long modelId,
+            String modelName,
+            String provider,
+            Long promptId,
+            String promptName,
+            String promptVersion,
+            String status,
+            Integer statusCode,
+            String errorMessage,
+            Long latencyMs,
+            LocalDateTime createdAt
+    ) {
+        public static AiCallAuditResponse from(AiCallAudit audit) {
+            return new AiCallAuditResponse(
+                    audit.getId(),
+                    audit.getProjectId(),
+                    audit.getUserId(),
+                    audit.getUserName(),
+                    audit.getTaskType(),
+                    audit.getModelId(),
+                    audit.getModelName(),
+                    audit.getProvider(),
+                    audit.getPromptId(),
+                    audit.getPromptName(),
+                    audit.getPromptVersion(),
+                    audit.getStatus(),
+                    audit.getStatusCode(),
+                    audit.getErrorMessage(),
+                    audit.getLatencyMs(),
+                    audit.getCreatedAt()
+            );
+        }
     }
 }

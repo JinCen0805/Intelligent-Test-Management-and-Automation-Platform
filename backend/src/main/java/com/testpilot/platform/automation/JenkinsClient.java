@@ -1,6 +1,8 @@
 package com.testpilot.platform.automation;
 
+import com.testpilot.platform.common.BusinessException;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface JenkinsClient {
 
@@ -8,7 +10,105 @@ public interface JenkinsClient {
 
     SyncResult sync(AutomationProject automationProject, TestTask task, TestExecution execution);
 
+    default TriggerResult trigger(
+            AutomationProject automationProject,
+            TestTask task,
+            JenkinsTarget target
+    ) {
+        return trigger(automationProject, task);
+    }
+
+    default TriggerResult trigger(
+            AutomationProject automationProject,
+            TestTask task,
+            JenkinsTarget target,
+            String parametersJson
+    ) {
+        return trigger(automationProject, task, target);
+    }
+
+    default SyncResult sync(
+            AutomationProject automationProject,
+            TestTask task,
+            TestExecution execution,
+            JenkinsTarget target
+    ) {
+        return sync(automationProject, task, execution);
+    }
+
+    default void testConnection(JenkinsTarget target) {
+        throw new BusinessException(50101, "当前 Jenkins 客户端不支持连接测试");
+    }
+
+    default List<JenkinsJob> listJobs(JenkinsTarget target) {
+        throw new BusinessException(50102, "当前 Jenkins 客户端不支持 Job 发现");
+    }
+
+    default void cancel(
+            AutomationProject automationProject,
+            TestTask task,
+            TestExecution execution,
+            JenkinsTarget target
+    ) {
+        throw new BusinessException(50103, "当前 Jenkins 客户端不支持取消 Build");
+    }
+
+    default byte[] downloadAllureArchive(
+            AutomationProject automationProject,
+            TestTask task,
+            TestExecution execution,
+            JenkinsTarget target
+    ) {
+        return null;
+    }
+
+    default AllureSummary downloadAllureSummary(
+            AutomationProject automationProject,
+            TestTask task,
+            TestExecution execution,
+            JenkinsTarget target
+    ) {
+        return null;
+    }
+
+    default String fetchConsoleLog(JenkinsTarget target, String consoleLogRef) {
+        return null;
+    }
+
+    default void createJob(JenkinsTarget target, String jobName, String configXml) {
+        throw new BusinessException(50104, "当前 Jenkins 客户端不支持创建 Job");
+    }
+
+    record JenkinsTarget(
+            String baseUrl,
+            String username,
+            String apiToken,
+            int connectTimeoutMs,
+            int readTimeoutMs
+    ) {
+    }
+
     record TriggerResult(String buildNumber, String queueUrl) {
+    }
+
+    record AllureSummary(
+            int totalCount,
+            int passedCount,
+            int failedCount,
+            int brokenCount,
+            int skippedCount
+    ) {
+    }
+
+    record JenkinsJob(
+            String name,
+            String path,
+            String url,
+            String pipelineType,
+            String jenkinsClass,
+            boolean buildable,
+            String parametersJson
+    ) {
     }
 
     record SyncResult(

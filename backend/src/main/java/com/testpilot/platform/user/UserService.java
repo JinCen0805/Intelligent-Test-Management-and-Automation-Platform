@@ -1,5 +1,6 @@
 package com.testpilot.platform.user;
 
+import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
 import java.util.List;
 import java.util.Locale;
@@ -12,10 +13,16 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final OperationAuditService operationAuditService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            OperationAuditService operationAuditService
+    ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.operationAuditService = operationAuditService;
     }
 
     public List<UserDtos.Response> list(User currentUser) {
@@ -41,7 +48,10 @@ public class UserService {
                 normalizeRole(request.role()),
                 "ENABLED"
         );
-        return UserDtos.Response.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        operationAuditService.record(null, currentUser, "USER_CREATE", "USER", saved.getId(),
+                "创建用户 " + saved.getUsername() + "（角色 " + saved.getRole() + "）", true);
+        return UserDtos.Response.from(saved);
     }
 
     @Transactional
@@ -51,7 +61,10 @@ public class UserService {
         user.setDisplayName(request.displayName().trim());
         user.setEmail(blankToNull(request.email()));
         user.setRole(normalizeRole(request.role()));
-        return UserDtos.Response.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        operationAuditService.record(null, currentUser, "USER_UPDATE", "USER", saved.getId(),
+                "更新用户 " + saved.getUsername() + "（角色 " + saved.getRole() + "）", true);
+        return UserDtos.Response.from(saved);
     }
 
     @Transactional
@@ -70,7 +83,10 @@ public class UserService {
             throw new BusinessException(40014, "不能禁用当前登录用户");
         }
         user.setStatus(status);
-        return UserDtos.Response.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        operationAuditService.record(null, currentUser, "USER_STATUS", "USER", saved.getId(),
+                "变更用户 " + saved.getUsername() + " 状态为 " + status, true);
+        return UserDtos.Response.from(saved);
     }
 
     @Transactional
@@ -79,6 +95,8 @@ public class UserService {
         User user = find(userId);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         userRepository.save(user);
+        operationAuditService.record(null, currentUser, "USER_PASSWORD", "USER", user.getId(),
+                "重置用户 " + user.getUsername() + " 的密码", true);
     }
 
     private User find(Long userId) {

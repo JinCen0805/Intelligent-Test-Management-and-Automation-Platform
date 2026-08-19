@@ -30,9 +30,6 @@ public class Project {
     @Column(name = "owner_id", nullable = false)
     private Long ownerId;
 
-    @Column(name = "default_environment", nullable = false, length = 32)
-    private String defaultEnvironment;
-
     @Column(nullable = false, length = 16)
     private String status;
 
@@ -48,12 +45,11 @@ public class Project {
     protected Project() {
     }
 
-    public Project(String name, String code, String description, Long ownerId, String defaultEnvironment, String status) {
+    public Project(String name, String code, String description, Long ownerId, String status) {
         this.name = name;
         this.code = code;
         this.description = description;
         this.ownerId = ownerId;
-        this.defaultEnvironment = defaultEnvironment;
         this.status = status;
     }
 
@@ -75,14 +71,12 @@ public class Project {
     public String getCode() { return code; }
     public String getDescription() { return description; }
     public Long getOwnerId() { return ownerId; }
-    public String getDefaultEnvironment() { return defaultEnvironment; }
     public String getStatus() { return status; }
     public boolean isDeleted() { return deleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setName(String name) { this.name = name; }
     public void setDescription(String description) { this.description = description; }
-    public void setDefaultEnvironment(String defaultEnvironment) { this.defaultEnvironment = defaultEnvironment; }
     public void setStatus(String status) { this.status = status; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
 }

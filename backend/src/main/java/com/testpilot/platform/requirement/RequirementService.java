@@ -56,7 +56,7 @@ public class RequirementService {
             String version,
             User currentUser
     ) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requireWrite(projectId, currentUser);
         if (file == null || file.isEmpty()) {
             throw new BusinessException(40003, "请选择需求文件");
         }
@@ -106,7 +106,7 @@ public class RequirementService {
 
     @Transactional
     public RequirementDtos.Response parse(Long projectId, Long requirementId, User currentUser) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requireWrite(projectId, currentUser);
         Requirement requirement = findRequirement(projectId, requirementId);
         try {
             try (var inputStream = Files.newInputStream(Path.of(requirement.getFilePath()))) {

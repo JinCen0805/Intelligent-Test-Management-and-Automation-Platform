@@ -23,7 +23,6 @@ CREATE TABLE IF NOT EXISTS projects (
   code VARCHAR(64) NOT NULL UNIQUE,
   description TEXT,
   owner_id BIGINT NOT NULL,
-  default_environment VARCHAR(32) NOT NULL,
   status VARCHAR(16) NOT NULL,
   deleted TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

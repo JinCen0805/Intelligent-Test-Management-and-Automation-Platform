@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS ai_analysis_records (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    execution_id BIGINT NOT NULL,
+    project_id BIGINT NOT NULL,
+    test_task_id BIGINT,
+    model_id BIGINT,
+    model_name VARCHAR(128),
+    provider VARCHAR(64),
+    prompt_id BIGINT,
+    prompt_name VARCHAR(128),
+    prompt_version VARCHAR(32),
+    status VARCHAR(16) NOT NULL,
+    category VARCHAR(32),
+    result_json TEXT,
+    error_message TEXT,
+    created_by BIGINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT uk_ai_analysis_execution UNIQUE (execution_id)
+);

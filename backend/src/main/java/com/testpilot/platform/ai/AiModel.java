@@ -71,4 +71,12 @@ public class AiModel {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+    public void update(String name, String provider, String endpoint, String apiKey, boolean enabled) {
+        this.name = name;
+        this.provider = provider;
+        this.endpoint = endpoint;
+        this.apiKey = apiKey;
+        this.enabled = enabled;
+    }
 }

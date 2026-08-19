@@ -17,9 +17,7 @@ public final class ProjectDtos {
             @Size(max = 64, message = "长度不能超过 64 个字符")
             String code,
             @Size(max = 2000, message = "长度不能超过 2000 个字符")
-            String description,
-            @Size(max = 32, message = "长度不能超过 32 个字符")
-            String defaultEnvironment
+            String description
     ) {
     }
 
@@ -29,8 +27,6 @@ public final class ProjectDtos {
             String name,
             @Size(max = 2000, message = "长度不能超过 2000 个字符")
             String description,
-            @Size(max = 32, message = "长度不能超过 32 个字符")
-            String defaultEnvironment,
             @Size(max = 16, message = "长度不能超过 16 个字符")
             String status
     ) {
@@ -43,7 +39,6 @@ public final class ProjectDtos {
             String description,
             Long ownerId,
             String ownerName,
-            String defaultEnvironment,
             String status,
             long memberCount,
             LocalDateTime createdAt,

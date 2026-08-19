@@ -14,22 +14,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/projects/{projectId}/requirements/{requirementId}/test-cases")
 public class AiGenerationController {
 
-    private final AiGenerationService aiGenerationService;
+    private final AiTaskService aiTaskService;
     private final AuthService authService;
 
-    public AiGenerationController(AiGenerationService aiGenerationService, AuthService authService) {
-        this.aiGenerationService = aiGenerationService;
+    public AiGenerationController(AiTaskService aiTaskService, AuthService authService) {
+        this.aiTaskService = aiTaskService;
         this.authService = authService;
     }
 
     @PostMapping("/generate")
-    public ApiResponse<AiDtos.GenerateResponse> generate(
+    public ApiResponse<AiTaskDtos.SubmitResponse> generate(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
             @Valid @RequestBody(required = false) AiDtos.GenerateRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        return ApiResponse.success(aiGenerationService.generate(
+        return ApiResponse.success(aiTaskService.submitTestCases(
                 projectId,
                 requirementId,
                 request == null ? new AiDtos.GenerateRequest(null, null, null) : request,

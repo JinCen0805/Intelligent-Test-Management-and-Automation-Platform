@@ -2,6 +2,7 @@ package com.testpilot.platform.project;
 
 import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
+import com.testpilot.platform.user.UserDtos;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,6 +33,17 @@ public class ProjectMemberController {
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
         return ApiResponse.success(projectMemberService.list(
+                projectId,
+                authService.currentUser(authorization)
+        ));
+    }
+
+    @GetMapping("/candidates")
+    public ApiResponse<List<UserDtos.Response>> candidates(
+            @PathVariable Long projectId,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(projectMemberService.candidates(
                 projectId,
                 authService.currentUser(authorization)
         ));

@@ -42,6 +42,18 @@ public class TestReport {
     @Column(name = "artifact_ref", length = 1000)
     private String artifactRef;
 
+    @Column(name = "failure_detail", columnDefinition = "text")
+    private String failureDetail;
+
+    @Column(name = "screenshot_ref", length = 1000)
+    private String screenshotRef;
+
+    @Column(name = "video_ref", length = 1000)
+    private String videoRef;
+
+    @Column(name = "ai_analysis", columnDefinition = "text")
+    private String aiAnalysis;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -59,7 +71,11 @@ public class TestReport {
             int failedCount,
             int brokenCount,
             int skippedCount,
-            String artifactRef
+            String artifactRef,
+            String failureDetail,
+            String screenshotRef,
+            String videoRef,
+            String aiAnalysis
     ) {
         this.executionId = executionId;
         this.allureUrl = allureUrl;
@@ -69,6 +85,10 @@ public class TestReport {
         this.brokenCount = brokenCount;
         this.skippedCount = skippedCount;
         this.artifactRef = artifactRef;
+        this.failureDetail = failureDetail;
+        this.screenshotRef = screenshotRef;
+        this.videoRef = videoRef;
+        this.aiAnalysis = aiAnalysis;
     }
 
     @PrePersist
@@ -92,4 +112,9 @@ public class TestReport {
     public int getBrokenCount() { return brokenCount; }
     public int getSkippedCount() { return skippedCount; }
     public String getArtifactRef() { return artifactRef; }
+    public String getFailureDetail() { return failureDetail; }
+    public String getScreenshotRef() { return screenshotRef; }
+    public String getVideoRef() { return videoRef; }
+    public String getAiAnalysis() { return aiAnalysis; }
+    public void setAiAnalysis(String aiAnalysis) { this.aiAnalysis = aiAnalysis; }
 }

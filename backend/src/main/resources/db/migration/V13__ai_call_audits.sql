@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS ai_call_audits (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    project_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    user_name VARCHAR(64),
+    task_type VARCHAR(32) NOT NULL,
+    model_id BIGINT,
+    model_name VARCHAR(128),
+    provider VARCHAR(64),
+    prompt_id BIGINT,
+    prompt_name VARCHAR(128),
+    prompt_version VARCHAR(32),
+    status VARCHAR(16) NOT NULL,
+    status_code INT,
+    error_message TEXT,
+    latency_ms BIGINT,
+    created_at DATETIME NOT NULL,
+    KEY idx_ai_call_audits_project (project_id),
+    KEY idx_ai_call_audits_user (user_id),
+    KEY idx_ai_call_audits_created (created_at)
+);

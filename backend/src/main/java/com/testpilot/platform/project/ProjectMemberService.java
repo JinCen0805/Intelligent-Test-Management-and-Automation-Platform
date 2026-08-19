@@ -1,7 +1,9 @@
 package com.testpilot.platform.project;
 
+import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.user.User;
+import com.testpilot.platform.user.UserDtos;
 import com.testpilot.platform.user.UserRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,17 +18,20 @@ public class ProjectMemberService {
     private final ProjectMemberRepository projectMemberRepository;
     private final UserRepository userRepository;
     private final ProjectAccessService projectAccessService;
+    private final OperationAuditService operationAuditService;
 
     public ProjectMemberService(
             ProjectRepository projectRepository,
             ProjectMemberRepository projectMemberRepository,
             UserRepository userRepository,
-            ProjectAccessService projectAccessService
+            ProjectAccessService projectAccessService,
+            OperationAuditService operationAuditService
     ) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
         this.projectAccessService = projectAccessService;
+        this.operationAuditService = operationAuditService;
     }
 
     public List<ProjectMemberDtos.Response> list(Long projectId, User currentUser) {
@@ -41,6 +46,13 @@ public class ProjectMemberService {
                 .map(this::toResponse)
                 .toList());
         return result;
+    }
+
+    public List<UserDtos.Response> candidates(Long projectId, User currentUser) {
+        projectAccessService.requireWrite(projectId, currentUser);
+        return userRepository.findAllByStatusOrderByDisplayNameAsc("ENABLED").stream()
+                .map(UserDtos.Response::from)
+                .toList();
     }
 
     @Transactional
@@ -59,6 +71,8 @@ public class ProjectMemberService {
                 member.getId(),
                 normalizeRole(request.role())
         ));
+        operationAuditService.record(projectId, currentUser, "PROJECT_MEMBER_ADD", "PROJECT_MEMBER", member.getId(),
+                "添加成员 " + member.getUsername() + " 到项目 " + projectId, true);
         return toResponse(saved);
     }
 
@@ -69,11 +83,17 @@ public class ProjectMemberService {
             ProjectMemberDtos.UpsertRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        Project project = projectAccessService.requireWrite(projectId, currentUser);
+        if (project.getOwnerId().equals(userId)) {
+            throw new BusinessException(40016, "项目负责人角色不能修改");
+        }
         ProjectMember member = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
                 .orElseThrow(() -> new BusinessException(40405, "项目成员不存在"));
         member.setRole(normalizeRole(request.role()));
-        return toResponse(projectMemberRepository.save(member));
+        ProjectMember saved = projectMemberRepository.save(member);
+        operationAuditService.record(projectId, currentUser, "PROJECT_MEMBER_UPDATE", "PROJECT_MEMBER", userId,
+                "变更成员 " + member.getUserId() + " 在项目 " + projectId + " 的角色为 " + saved.getRole(), true);
+        return toResponse(saved);
     }
 
     @Transactional
@@ -86,6 +106,8 @@ public class ProjectMemberService {
             throw new BusinessException(40405, "项目成员不存在");
         }
         projectMemberRepository.deleteByProjectIdAndUserId(projectId, userId);
+        operationAuditService.record(projectId, currentUser, "PROJECT_MEMBER_REMOVE", "PROJECT_MEMBER", userId,
+                "从项目 " + projectId + " 移除成员 " + userId, true);
     }
 
     private ProjectMemberDtos.Response toResponse(ProjectMember member) {

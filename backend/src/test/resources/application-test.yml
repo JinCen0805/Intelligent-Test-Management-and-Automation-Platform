@@ -12,3 +12,8 @@ testpilot:
   jenkins:
     mode: MOCK
     callback-token: test-callback-token
+    poll-interval-ms: 3600000
+  api-workbench:
+    # 测试专用：允许本地回环 HTTP 服务器，用于接口工作台真实执行 E2E 验收。
+    # 生产默认值为空，保持严格 SSRF 防护。
+    ssrf-allowed-hosts: localhost
