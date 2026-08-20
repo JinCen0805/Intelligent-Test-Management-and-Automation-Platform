@@ -109,6 +109,14 @@ export const apiWorkbench = {
     `/projects/${projectId}/api-workbench/requests/${requestId}`,
     { method: 'PUT', body: JSON.stringify(payload) }
   ),
+  deleteRequest: (projectId: number, requestId: number) =>
+    request<void>(`/projects/${projectId}/api-workbench/requests/${requestId}`, {
+      method: 'DELETE'
+    }),
+  deleteCollection: (projectId: number, collectionId: number) =>
+    request<void>(`/projects/${projectId}/api-workbench/collections/${collectionId}`, {
+      method: 'DELETE'
+    }),
   execute: (projectId: number, requestId: number, environment: string) =>
     request<ApiRequestHistory>(
       `/projects/${projectId}/api-workbench/requests/${requestId}/execute`,

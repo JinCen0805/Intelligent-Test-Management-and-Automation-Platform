@@ -8,7 +8,7 @@ export const useUiStore = defineStore('ui', () => {
   const activeProjectTab = ref<ProjectTab>('overview')
   const activeAiTab = ref<'models' | 'prompts'>('models')
   const activeApiTab = ref<'collections' | 'variables' | 'history'>('collections')
-  const activeApiRequestTab = ref<'params' | 'headers' | 'body' | 'assertions' | 'pre-script' | 'post-script'>('params')
+  const activeApiRequestTab = ref<'params' | 'authorization' | 'headers' | 'body' | 'assertions' | 'pre-script' | 'post-script'>('params')
   const modal = ref<ModalName | null>(null)
   const toast = ref('')
   const processing = ref<{ message: string; hint: string } | null>(null)

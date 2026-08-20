@@ -26,7 +26,7 @@ export function useApiWorkbench() {
   const selectedApiCollectionId = ref<number | null>(null)
   const selectedApiRequestId = ref<number | null>(null)
   const apiResponse = ref<ApiRequestHistory | null>(null)
-  const apiCollectionForm = reactive({ name: '' })
+  const apiCollectionForm = reactive({ name: '', description: '' })
   const apiVariableForm = reactive({
     environment: 'TEST',
     name: '',
@@ -109,6 +109,7 @@ export function useApiWorkbench() {
       const collection = await api.apiWorkbench.createCollection(projectId, apiCollectionForm)
       apiCollections.push(collection)
       apiCollectionForm.name = ''
+      apiCollectionForm.description = ''
       selectedApiCollectionId.value = collection.id
       apiRequests.splice(0, apiRequests.length)
       selectedApiRequestId.value = null
@@ -202,6 +203,38 @@ export function useApiWorkbench() {
     }
   }
 
+  async function deleteApiRequest(requestId: number) {
+    const projectId = currentProject.value?.id
+    if (!projectId) return
+    try {
+      await api.apiWorkbench.deleteRequest(projectId, requestId)
+      const index = apiRequests.findIndex((item) => item.id === requestId)
+      if (index >= 0) apiRequests.splice(index, 1)
+      selectedApiRequestId.value = apiRequests[0]?.id ?? null
+      if (apiRequests[0]) applyApiRequest(apiRequests[0])
+      ui.showToast('请求已删除')
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '请求删除失败')
+    }
+  }
+
+  async function deleteApiCollection(collectionId: number) {
+    const projectId = currentProject.value?.id
+    if (!projectId) return
+    try {
+      await api.apiWorkbench.deleteCollection(projectId, collectionId)
+      const index = apiCollections.findIndex((item) => item.id === collectionId)
+      if (index >= 0) apiCollections.splice(index, 1)
+      selectedApiCollectionId.value = apiCollections[0]?.id ?? null
+      apiRequests.splice(0, apiRequests.length)
+      selectedApiRequestId.value = null
+      if (selectedApiCollectionId.value) await loadApiRequests(selectedApiCollectionId.value)
+      ui.showToast('集合已删除')
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '集合删除失败')
+    }
+  }
+
   function variableToken(name: string) {
     return `{{${name}}}`
   }
@@ -225,6 +258,8 @@ export function useApiWorkbench() {
     sendApiRequest,
     executeApiCollection,
     saveApiVariable,
+    deleteApiRequest,
+    deleteApiCollection,
     variableToken
   }
 }
