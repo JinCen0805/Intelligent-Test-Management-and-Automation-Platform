@@ -29,6 +29,7 @@ export const useAiStore = defineStore('ai', () => {
   const generatedCaseList = ref<ApiGeneratedCase[]>([])
   const isGenerating = ref(false)
   const generationDone = ref(false)
+  const testingModelId = ref<number | null>(null)
   let stopAiPoll: (() => void) | undefined
 
   async function loadAiConfig() {
@@ -100,6 +101,19 @@ export const useAiStore = defineStore('ai', () => {
       ui.showToast(saved.enabled ? '模型已启用' : '模型已停用')
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : '模型状态更新失败')
+    }
+  }
+
+  async function testModel(model: ApiAiModel) {
+    if (auth.authState.role !== 'ADMIN') return
+    testingModelId.value = model.id
+    try {
+      await api.ai.testModel(model.id)
+      ui.showToast('模型连接测试成功')
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '模型连接测试失败')
+    } finally {
+      testingModelId.value = null
     }
   }
 
@@ -248,6 +262,8 @@ export const useAiStore = defineStore('ai', () => {
     saveModel,
     openModelEditor,
     toggleModelEnabled,
+    testModel,
+    testingModelId,
     deleteModel,
     savePrompt,
     openPromptEditor,

@@ -70,6 +70,15 @@ public class AiModelController {
         ));
     }
 
+    @PostMapping("/models/{id}/test")
+    public ApiResponse<Void> testConnection(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        aiModelService.testConnection(id, authService.currentUser(authorization));
+        return ApiResponse.success(null);
+    }
+
     @DeleteMapping("/models/{id}")
     public ApiResponse<Void> deleteModel(
             @PathVariable Long id,

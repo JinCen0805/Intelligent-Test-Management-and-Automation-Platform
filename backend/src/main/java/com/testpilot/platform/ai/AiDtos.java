@@ -18,7 +18,7 @@ public final class AiDtos {
             @NotBlank(message = "Provider 不能为空")
             @Size(max = 64, message = "Provider 长度不能超过 64 个字符")
             String provider,
-            @Size(max = 500, message = "Endpoint 长度不能超过 500 个字符")
+            @Size(max = 500, message = "AI 请求地址长度不能超过 500 个字符")
             String endpoint,
             String apiKey,
             Boolean enabled

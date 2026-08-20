@@ -1,6 +1,8 @@
 package com.testpilot.platform.common;
 
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -8,6 +10,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(BusinessException.class)
     public ApiResponse<Void> handleBusiness(BusinessException exception) {
@@ -30,6 +34,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ApiResponse<Void> handleUnexpected(Exception exception) {
+        log.error("未处理的服务异常", exception);
         return ApiResponse.failure(HttpStatus.INTERNAL_SERVER_ERROR.value(), "服务暂时不可用");
     }
 }

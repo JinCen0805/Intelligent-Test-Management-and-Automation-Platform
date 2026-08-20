@@ -55,6 +55,10 @@ export const ai = {
     `/ai/models/${modelId}/enabled`,
     { method: 'PUT', body: JSON.stringify({ enabled }) }
   ),
+  testModel: (modelId: number) => request<void>(
+    `/ai/models/${modelId}/test`,
+    { method: 'POST' }
+  ),
   deleteModel: (modelId: number) => request<void>(
     `/ai/models/${modelId}`,
     { method: 'DELETE' }

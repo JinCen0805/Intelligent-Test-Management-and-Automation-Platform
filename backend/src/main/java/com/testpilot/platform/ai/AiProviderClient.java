@@ -64,7 +64,7 @@ public class AiProviderClient {
         String safeUserPrompt = sensitiveDataSanitizer.sanitize(userPrompt);
         String endpoint = model.getEndpoint();
         if (endpoint == null || endpoint.isBlank()) {
-            throw new BusinessException(40007, "AI 模型 Endpoint 未配置");
+            throw new BusinessException(40007, "AI 请求地址未配置");
         }
         String baseUrl = addressSafety.validate(endpoint).toString();
         String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";

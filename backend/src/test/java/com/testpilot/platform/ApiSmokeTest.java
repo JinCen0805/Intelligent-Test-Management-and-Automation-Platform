@@ -430,7 +430,6 @@ class ApiSmokeTest {
                 "ISOLATED-" + System.nanoTime(),
                 "权限测试项目",
                 outsider.getId(),
-                "TEST",
                 "RUNNING"
         ));
 

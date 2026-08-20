@@ -6,22 +6,29 @@ import com.testpilot.platform.user.User;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AiModelService {
 
+    private static final Logger log = LoggerFactory.getLogger(AiModelService.class);
+
     private final AiModelRepository aiModelRepository;
     private final PromptTemplateRepository promptTemplateRepository;
     private final SecretCipher secretCipher;
+    private final AiProviderClient aiProviderClient;
 
     public AiModelService(
             AiModelRepository aiModelRepository,
             PromptTemplateRepository promptTemplateRepository,
-            SecretCipher secretCipher
+            SecretCipher secretCipher,
+            AiProviderClient aiProviderClient
     ) {
         this.aiModelRepository = aiModelRepository;
         this.promptTemplateRepository = promptTemplateRepository;
         this.secretCipher = secretCipher;
+        this.aiProviderClient = aiProviderClient;
     }
 
     public List<AiDtos.ModelResponse> listModels(User user) {
@@ -69,6 +76,31 @@ public class AiModelService {
                 .orElseThrow(() -> new BusinessException(40420, "AI 模型不存在"));
         model.setEnabled(enabled);
         return AiDtos.ModelResponse.from(aiModelRepository.save(model));
+    }
+
+    public void testConnection(Long id, User user) {
+        requireAdmin(user);
+        AiModel model = aiModelRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(40420, "AI 模型不存在"));
+        if ("MOCK".equalsIgnoreCase(model.getProvider())) {
+            return;
+        }
+        // Probe only endpoint, credentials and model name; do not create project data.
+        try {
+            aiProviderClient.complete(model, "只回复 OK。", "连接测试：请只回复 OK。");
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            log.error("AI 模型连接测试异常: modelId={}, provider={}, endpoint={}",
+                    model.getId(), model.getProvider(), model.getEndpoint(), exception);
+            String detail = exception.getMessage();
+            throw new BusinessException(
+                    50200,
+                    detail == null || detail.isBlank()
+                            ? "AI 连接测试失败，请检查请求地址、API Key 和模型名称"
+                            : "AI 连接测试失败：" + detail
+            );
+        }
     }
 
     public void deleteModel(Long id, User user) {
