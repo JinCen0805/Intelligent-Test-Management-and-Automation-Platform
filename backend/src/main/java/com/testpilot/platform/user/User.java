@@ -82,6 +82,7 @@ public class User {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setLastLoginAt(LocalDateTime lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+    public void setUsername(String username) { this.username = username; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public void setEmail(String email) { this.email = email; }
     public void setRole(String role) { this.role = role; }

@@ -25,6 +25,7 @@ export const users = {
     body: JSON.stringify(payload)
   }),
   update: (userId: number, payload: {
+    username: string
     displayName: string
     email?: string
     role: string

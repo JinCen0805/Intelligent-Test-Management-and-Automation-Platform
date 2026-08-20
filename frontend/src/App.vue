@@ -67,23 +67,27 @@ onMounted(() => { void bootstrapAuth() })
       <div class="side-label">工作台</div>
       <nav class="nav">
         <button v-for="item in navItems" :key="item.key" :class="{ active: activeNavKey === item.key }" @click="navigate(item.key)">
-          <span class="nav-icon">{{ item.icon }}</span>{{ item.label }}<span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+          <span class="nav-icon">{{ item.icon }}</span><span class="nav-text">{{ item.label }}</span><span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
         </button>
       </nav>
+      <div class="side-label side-label-secondary">系统连接</div>
+      <div class="side-status"><small>平台运行状态</small><strong><i></i> 正常运行</strong></div>
       <div class="sidebar-footer">
         <div class="account">
           <div class="avatar">{{ authState.displayName.slice(0, 1) }}</div>
-          <div><strong>{{ authState.displayName }}</strong><span>{{ authState.role === 'ADMIN' ? '管理员' : '测试开发' }}</span></div>
-          <button class="account-more" title="退出登录" @click="logout">↪</button>
+          <div class="account-info"><strong>{{ authState.displayName }}</strong><span>{{ authState.role === 'ADMIN' ? '管理员' : '测试开发' }}</span></div>
+          <button class="account-more" title="退出登录" aria-label="退出登录" @click="logout">↪</button>
         </div>
       </div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <div class="crumb"><span>TestPilot</span><b>›</b><strong>{{ activeViewName }}</strong></div>
+        <div class="crumb"><span>TestPilot AI</span><b>/</b><strong>{{ activeViewName }}</strong></div>
         <div class="top-actions">
           <label v-if="route.name === 'projects' || route.name === 'project'" class="search"><span>⌕</span><input v-model="search" placeholder="搜索项目或用例" /></label>
+          <span class="top-status"><i></i> DEV 环境正常</span>
+          <span class="top-date">{{ new Date().toLocaleDateString('zh-CN') }}</span>
         </div>
       </header>
 

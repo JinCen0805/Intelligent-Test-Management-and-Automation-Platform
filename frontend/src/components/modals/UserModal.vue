@@ -17,7 +17,7 @@ const title = computed(() => (editingUserId.value ? '编辑用户' : '新建用�
 <template>
   <BaseModal :title="title">
     <form class="modal-body" @submit.prevent="saveUser">
-      <div v-if="!editingUserId" class="field"><label>用户名 *</label><input v-model="userForm.username" autocomplete="off" /></div>
+      <div class="field"><label>用户名 *</label><input v-model="userForm.username" autocomplete="off" /></div>
       <div class="two-col">
         <div class="field"><label>显示名称 *</label><input v-model="userForm.displayName" /></div>
         <div class="field"><label>角色</label><select v-model="userForm.role"><option value="TEST_DEVELOPER">测试开发</option><option value="ADMIN">管理员</option></select></div>

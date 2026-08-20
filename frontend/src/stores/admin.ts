@@ -93,13 +93,14 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   async function saveUser() {
-    if (auth.authState.role !== 'ADMIN' || !userForm.value.displayName.trim()) {
-      ui.showToast('请填写用户显示名称')
+    if (auth.authState.role !== 'ADMIN' || !userForm.value.username.trim() || !userForm.value.displayName.trim()) {
+      ui.showToast('请填写用户名和用户显示名称')
       return
     }
     try {
       if (editingUserId.value) {
         const saved = await api.users.update(editingUserId.value, {
+          username: userForm.value.username,
           displayName: userForm.value.displayName,
           email: userForm.value.email,
           role: userForm.value.role
@@ -111,7 +112,7 @@ export const useAdminStore = defineStore('admin', () => {
         }
         ui.showToast('用户信息已更新')
       } else {
-        if (!userForm.value.username.trim() || !userForm.value.password.trim()) {
+        if (!userForm.value.password.trim()) {
           ui.showToast('新建用户需要填写用户名和初始密码')
           return
         }

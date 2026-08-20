@@ -58,6 +58,13 @@ public class UserService {
     public UserDtos.Response update(Long userId, UserDtos.UpdateRequest request, User currentUser) {
         requireAdmin(currentUser);
         User user = find(userId);
+        String username = request.username().trim();
+        userRepository.findByUsername(username)
+                .filter(existing -> !existing.getId().equals(userId))
+                .ifPresent(existing -> {
+                    throw new BusinessException(40903, "用户名已存在");
+                });
+        user.setUsername(username);
         user.setDisplayName(request.displayName().trim());
         user.setEmail(blankToNull(request.email()));
         user.setRole(normalizeRole(request.role()));

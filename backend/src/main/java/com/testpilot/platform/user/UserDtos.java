@@ -27,6 +27,9 @@ public final class UserDtos {
     }
 
     public record UpdateRequest(
+            @NotBlank(message = "用户名不能为空")
+            @Size(max = 64, message = "用户名长度不能超过 64 个字符")
+            String username,
             @NotBlank(message = "显示名称不能为空")
             @Size(max = 64, message = "显示名称长度不能超过 64 个字符")
             String displayName,
