@@ -268,6 +268,9 @@ public class AutomationService {
         projectAccessService.requireWrite(projectId, user);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
+        if (!"ENABLED".equals(task.getStatus())) {
+            throw new BusinessException(40028, "测试任务已禁用，无法执行");
+        }
         AutomationProject automationProject = automationProjectRepository
                 .findByIdAndProjectId(task.getAutomationProjectId(), projectId)
                 .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));

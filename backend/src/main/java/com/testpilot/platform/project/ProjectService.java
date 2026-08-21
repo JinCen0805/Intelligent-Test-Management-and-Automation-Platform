@@ -6,6 +6,7 @@ import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserRepository;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +50,7 @@ public class ProjectService {
         if (!code.matches("[A-Z0-9][A-Z0-9_-]{0,63}")) {
             throw new BusinessException(40026, "项目标识只能包含字母、数字、下划线和连字符，且以字母或数字开头");
         }
-        if (projectRepository.existsByCodeAndDeletedFalse(code)) {
+        if (projectRepository.existsByCode(code)) {
             throw new BusinessException(40901, "项目标识已存在");
         }
         Project project = new Project(
@@ -72,7 +73,7 @@ public class ProjectService {
         project.setName(request.name().trim());
         project.setDescription(request.description());
         if (request.status() != null && !request.status().isBlank()) {
-            project.setStatus(request.status().trim().toUpperCase(Locale.ROOT));
+            project.setStatus(normalizeStatus(request.status()));
         }
         Project saved = projectRepository.save(project);
         operationAuditService.record(id, currentUser, "PROJECT_UPDATE", "PROJECT", id,
@@ -109,5 +110,13 @@ public class ProjectService {
                 project.getCreatedAt(),
                 project.getUpdatedAt()
         );
+    }
+
+    private String normalizeStatus(String status) {
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("RUNNING", "TESTING").contains(normalized)) {
+            throw new BusinessException(40027, "项目状态不合法");
+        }
+        return normalized;
     }
 }

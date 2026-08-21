@@ -370,7 +370,7 @@ watch(() => currentProject.value?.id, () => loadTreeMeta())
         <h1>接口测试工作台</h1>
       </div>
       <div class="api-workbench-actions">
-        <select v-model="apiVariableForm.environment" title="当前环境" @change="loadApiWorkbench">
+        <select v-model="apiVariableForm.environment" class="api-environment-select" title="当前环境" @change="loadApiWorkbench">
           <option>DEV</option>
           <option>TEST</option>
           <option>STAGING</option>

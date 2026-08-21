@@ -10,8 +10,10 @@ import com.testpilot.platform.testcase.TestCase;
 import com.testpilot.platform.testcase.TestCaseRepository;
 import com.testpilot.platform.user.User;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -89,12 +91,15 @@ public class AiGenerationService {
             throw exception;
         }
         List<AiDtos.TestCaseView> savedCases = new ArrayList<>();
+        Set<String> assignedCaseNos = new HashSet<>();
         for (GeneratedCase generated : generatedCases) {
             String caseNo = generated.caseNo();
             if (caseNo == null || caseNo.isBlank()
+                    || assignedCaseNos.contains(caseNo)
                     || testCaseRepository.existsByProjectIdAndCaseNo(projectId, caseNo)) {
-                caseNo = nextCaseNo(projectId);
+                caseNo = nextCaseNo(projectId, assignedCaseNos);
             }
+            assignedCaseNos.add(caseNo);
             TestCase testCase = new TestCase(
                     projectId,
                     requirementId,
@@ -341,8 +346,14 @@ public class AiGenerationService {
         return value;
     }
 
-    private String nextCaseNo(Long projectId) {
-        return "TC-AI-" + String.format("%03d", testCaseRepository.countByProjectId(projectId) + 1);
+    private String nextCaseNo(Long projectId, Set<String> reservedCaseNos) {
+        long next = testCaseRepository.countByProjectId(projectId) + 1;
+        String caseNo;
+        do {
+            caseNo = "TC-AI-" + String.format("%03d", next++);
+        } while (reservedCaseNos.contains(caseNo)
+                || testCaseRepository.existsByProjectIdAndCaseNo(projectId, caseNo));
+        return caseNo;
     }
 
     private record GeneratedCase(

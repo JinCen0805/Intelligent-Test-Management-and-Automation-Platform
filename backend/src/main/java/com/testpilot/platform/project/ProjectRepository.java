@@ -8,6 +8,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findAllByDeletedFalseOrderByCreatedAtDesc();
     Optional<Project> findByIdAndDeletedFalse(Long id);
     Optional<Project> findByCodeAndDeletedFalse(String code);
-    boolean existsByCodeAndDeletedFalse(String code);
+    boolean existsByCode(String code);
     long countByDeletedFalse();
 }

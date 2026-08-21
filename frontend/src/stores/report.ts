@@ -50,10 +50,7 @@ export const useReportStore = defineStore('report', () => {
   const reportTrend = computed(() => reportCenter.value?.trend ?? [])
   const reportItems = computed<ApiReportExecution[]>(() => reportCenter.value?.content ?? [])
   const failedReports = computed(() => reportItems.value.filter((execution) =>
-    execution.status === 'FAILED'
-      || execution.status === 'TIMEOUT'
-      || (execution.report?.failedCount || 0) > 0
-      || (execution.report?.brokenCount || 0) > 0
+    ['FAILED', 'ABORTED', 'TIMEOUT'].includes(execution.status)
   ))
 
   async function loadReportCenter(projectId?: number | null) {
