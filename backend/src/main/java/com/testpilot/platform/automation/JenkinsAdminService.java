@@ -3,10 +3,12 @@ package com.testpilot.platform.automation;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.common.SecretCipher;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.net.URI;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -142,7 +144,7 @@ public class JenkinsAdminService {
     public List<JenkinsAdminDtos.BindingResponse> listBindings(
             Long projectId, Long automationProjectId, User user
     ) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         return bindingRepository.findAllByProjectIdAndAutomationProjectIdOrderByCreatedAtAsc(
                         projectId, automationProjectId
                 ).stream()
@@ -153,7 +155,7 @@ public class JenkinsAdminService {
     public List<JenkinsAdminDtos.JobResponse> listJobs(
             Long projectId, Long automationProjectId, Long jenkinsInstanceId, User user
     ) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         requireAutomationProject(projectId, automationProjectId);
         JenkinsInstance instance = requireEnabledInstance(jenkinsInstanceId);
         return jenkinsClient.listJobs(toTarget(instance)).stream()
@@ -173,7 +175,7 @@ public class JenkinsAdminService {
             JenkinsAdminDtos.JobImportRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationProject automationProject = requireAutomationProject(projectId, automationProjectId);
         JenkinsInstance instance = requireEnabledInstance(request.jenkinsInstanceId());
         validateCredentialScope(projectId, request.credentialScopeRef());
@@ -213,7 +215,7 @@ public class JenkinsAdminService {
     public JenkinsAdminDtos.BindingResponse createJobAndBind(
             Long projectId, Long automationProjectId, JenkinsAdminDtos.CreateJobRequest request, User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationProject automationProject = requireAutomationProject(projectId, automationProjectId);
         JenkinsInstance instance = requireEnabledInstance(request.jenkinsInstanceId());
         validateCredentialScope(projectId, request.credentialScopeRef());
@@ -263,7 +265,7 @@ public class JenkinsAdminService {
     public JenkinsAdminDtos.BindingResponse createBinding(
             Long projectId, Long automationProjectId, JenkinsAdminDtos.BindingRequest request, User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         requireAutomationProject(projectId, automationProjectId);
         JenkinsInstance instance = requireEnabledInstance(request.jenkinsInstanceId());
         validateBinding(request);
@@ -287,7 +289,7 @@ public class JenkinsAdminService {
     public JenkinsAdminDtos.BindingResponse updateBinding(
             Long projectId, Long bindingId, JenkinsAdminDtos.BindingRequest request, User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         JenkinsPipelineBinding binding = bindingRepository.findByIdAndProjectId(bindingId, projectId)
                 .orElseThrow(() -> new BusinessException(40452, "Pipeline Binding 不存在"));
         requireEnabledInstance(request.jenkinsInstanceId());
@@ -332,7 +334,7 @@ public class JenkinsAdminService {
     public List<JenkinsAdminDtos.CredentialGrantResponse> listCredentialGrants(
             Long projectId, User user
     ) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         return credentialGrantRepository.findAllByProjectIdAndStatusOrderByCredentialRefAsc(
                         projectId, "ACTIVE"
                 ).stream()
@@ -347,7 +349,7 @@ public class JenkinsAdminService {
             User user
     ) {
         requireAdmin(user);
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         String credentialRef = request.credentialRef().trim();
         if (credentialGrantRepository.existsByProjectIdAndCredentialRefAndStatus(
                 projectId, credentialRef, "ACTIVE")) {
@@ -365,7 +367,7 @@ public class JenkinsAdminService {
     @Transactional
     public void revokeCredentialGrant(Long projectId, Long grantId, User user) {
         requireAdmin(user);
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         JenkinsCredentialGrant grant = credentialGrantRepository.findByIdAndProjectId(grantId, projectId)
                 .orElseThrow(() -> new BusinessException(40455, "凭证授权不存在"));
         grant.revoke();
@@ -390,7 +392,7 @@ public class JenkinsAdminService {
 
     private void requireAdmin(User user) {
         if (!projectAccessService.isAdmin(user)) {
-            throw new BusinessException(40310, "只有管理员可以管理 Jenkins 实例");
+            throw new AccessDeniedException("只有管理员可以管理 Jenkins 实例");
         }
     }
 

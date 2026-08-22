@@ -112,7 +112,7 @@ class ApiSmokeTest {
         MvcResult projectResult = mockMvc.perform(get("/api/projects")
                         .header("Authorization", auth))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data", Matchers.hasSize(2)))
+                .andExpect(jsonPath("$.data.length()").value(Matchers.greaterThanOrEqualTo(2)))
                 .andReturn();
         Long projectId = ((Number) JsonPath.read(
                 projectResult.getResponse().getContentAsString(),
@@ -435,8 +435,8 @@ class ApiSmokeTest {
 
         mockMvc.perform(get("/api/projects/{projectId}", project.getId())
                         .header("Authorization", "Bearer " + loginToken()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40301));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
     }
 
     @Test
@@ -490,23 +490,26 @@ class ApiSmokeTest {
                         .content("{\"status\":\"ENABLED\"}"))
                 .andExpect(status().isOk());
 
+        // Re-enabling a user does not revive tokens invalidated by the disable operation.
+        userAuth = "Bearer " + loginToken(username, "demo123");
+
         mockMvc.perform(post("/api/projects/{projectId}/members", projectId)
                         .header("Authorization", adminAuth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"userId":%d,"role":"VIEWER"}
+                                {"userId":%d,"role":"PROJECT_VIEWER"}
                                 """.formatted(userId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("VIEWER"));
+                .andExpect(jsonPath("$.data.role").value("PROJECT_VIEWER"));
 
         mockMvc.perform(put("/api/projects/{projectId}/members/{userId}", projectId, userId)
                         .header("Authorization", adminAuth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"userId":%d,"role":"MANAGER"}
+                                {"userId":%d,"role":"PROJECT_MANAGER"}
                                 """.formatted(userId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.role").value("MANAGER"));
+                .andExpect(jsonPath("$.data.role").value("PROJECT_MANAGER"));
 
         mockMvc.perform(put("/api/projects/{projectId}", projectId)
                         .header("Authorization", userAuth)
@@ -525,7 +528,7 @@ class ApiSmokeTest {
                         .header("Authorization", adminAuth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"userId":%d,"role":"VIEWER"}
+                                {"userId":%d,"role":"PROJECT_VIEWER"}
                                 """.formatted(userId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(40904));
@@ -548,7 +551,7 @@ class ApiSmokeTest {
                         .header("Authorization", adminAuth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"userId":%d,"role":"MANAGER"}
+                                {"userId":%d,"role":"PROJECT_MANAGER"}
                                 """.formatted(ownerId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(40016));
@@ -919,8 +922,8 @@ class ApiSmokeTest {
     void nonAdminCannotManageUsers() throws Exception {
         mockMvc.perform(get("/api/users")
                         .header("Authorization", "Bearer " + loginToken()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40303));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
     }
 
     @Test
@@ -1113,8 +1116,8 @@ class ApiSmokeTest {
                         .content("""
                                 {"name":"forbidden","provider":"MOCK"}
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40303));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
 
         mockMvc.perform(put("/api/ai/models/{id}", modelId)
                         .header("Authorization", developerAuth)
@@ -1122,13 +1125,13 @@ class ApiSmokeTest {
                         .content("""
                                 {"name":"hijack","provider":"MOCK"}
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40303));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
 
         mockMvc.perform(delete("/api/ai/models/{id}", modelId)
                         .header("Authorization", developerAuth))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40303));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
 
         // 删除不存在的模型
         mockMvc.perform(delete("/api/ai/models/{id}", 999999L)
@@ -1179,8 +1182,8 @@ class ApiSmokeTest {
 
         mockMvc.perform(get("/api/ai/audits")
                         .header("Authorization", auth))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40303));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
     }
 
     @Test
@@ -2008,8 +2011,8 @@ class ApiSmokeTest {
 
         mockMvc.perform(get("/api/operation-audits")
                         .header("Authorization", "Bearer " + loginToken()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40303));
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(40300));
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +29,7 @@ public class TestCaseController {
     }
 
     @GetMapping
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:read')")
     public ApiResponse<Page<TestCaseDtos.Response>> list(
             @PathVariable Long projectId,
             @RequestParam(value = "status", required = false) String status,
@@ -51,6 +53,7 @@ public class TestCaseController {
     }
 
     @GetMapping("/{testCaseId}")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:read')")
     public ApiResponse<TestCaseDtos.Response> get(
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
@@ -64,6 +67,7 @@ public class TestCaseController {
     }
 
     @PostMapping
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:write')")
     public ApiResponse<TestCaseDtos.Response> create(
             @PathVariable Long projectId,
             @Valid @RequestBody TestCaseDtos.UpsertRequest request,
@@ -78,6 +82,7 @@ public class TestCaseController {
     }
 
     @PutMapping("/{testCaseId}")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:write')")
     public ApiResponse<TestCaseDtos.Response> update(
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
@@ -93,6 +98,7 @@ public class TestCaseController {
     }
 
     @PostMapping("/{testCaseId}/status")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:review')")
     public ApiResponse<TestCaseDtos.Response> changeStatus(
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
@@ -108,6 +114,7 @@ public class TestCaseController {
     }
 
     @DeleteMapping("/{testCaseId}")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:write')")
     public ApiResponse<Void> delete(
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,

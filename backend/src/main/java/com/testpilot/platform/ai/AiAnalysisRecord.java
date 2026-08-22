@@ -1,69 +1,31 @@
 package com.testpilot.platform.ai;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "ai_analysis_records")
+@TableName("ai_analysis_records")
 public class AiAnalysisRecord {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "execution_id", nullable = false, unique = true)
     private Long executionId;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "test_task_id")
     private Long testTaskId;
-
-    @Column(name = "model_id")
     private Long modelId;
-
-    @Column(name = "model_name", length = 128)
     private String modelName;
-
-    @Column(length = 64)
     private String provider;
-
-    @Column(name = "prompt_id")
     private Long promptId;
-
-    @Column(name = "prompt_name", length = 128)
     private String promptName;
-
-    @Column(name = "prompt_version", length = 32)
     private String promptVersion;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(length = 32)
     private String category;
-
-    @Column(name = "result_json", columnDefinition = "text")
     private String resultJson;
-
-    @Column(name = "error_message", columnDefinition = "text")
     private String errorMessage;
-
-    @Column(name = "created_by", nullable = false)
     private Long createdBy;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected AiAnalysisRecord() {
@@ -100,15 +62,11 @@ public class AiAnalysisRecord {
         this.errorMessage = errorMessage;
         this.createdBy = createdBy;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -130,3 +88,4 @@ public class AiAnalysisRecord {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
+

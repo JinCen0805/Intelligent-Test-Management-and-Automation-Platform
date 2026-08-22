@@ -1,8 +1,11 @@
 package com.testpilot.platform.ai;
 
 import com.testpilot.platform.common.BusinessException;
+import com.testpilot.platform.rbac.RbacPermissions;
+import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
 import java.util.List;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,9 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class AiCallAuditService {
 
     private final AiCallAuditRepository repository;
+    private final RbacService rbacService;
 
-    public AiCallAuditService(AiCallAuditRepository repository) {
+    public AiCallAuditService(AiCallAuditRepository repository, RbacService rbacService) {
         this.repository = repository;
+        this.rbacService = rbacService;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -67,8 +72,8 @@ public class AiCallAuditService {
     }
 
     private void requireAdmin(User user) {
-        if (user == null || !"ADMIN".equalsIgnoreCase(user.getRole())) {
-            throw new BusinessException(40303, "只有管理员可以查看 AI 调用审计");
+        if (user == null || !rbacService.hasSystemPermission(user.getId(), RbacPermissions.SYSTEM_AUDIT_READ)) {
+            throw new AccessDeniedException("只有管理员可以查看 AI 调用审计");
         }
     }
 

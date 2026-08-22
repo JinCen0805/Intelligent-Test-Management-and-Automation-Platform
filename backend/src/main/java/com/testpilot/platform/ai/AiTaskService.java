@@ -3,6 +3,7 @@ package com.testpilot.platform.ai;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserRepository;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -58,7 +59,7 @@ public class AiTaskService {
             AiDtos.GenerateRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AI_GENERATE);
         AiTask task = aiTaskRepository.save(new AiTask(projectId, user.getId(), "TEST_CASE_GENERATION"));
         dispatchAfterCommit(() -> runGeneration(task.getId(), projectId, requirementId, request, user.getId()));
         return new AiTaskDtos.SubmitResponse(task.getId(), task.getStatus());
@@ -70,7 +71,7 @@ public class AiTaskService {
             AiAutomationDtos.GenerateRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AI_GENERATE);
         AiTask task = aiTaskRepository.save(new AiTask(projectId, user.getId(), "AUTOMATION_TASK_GENERATION"));
         dispatchAfterCommit(() -> runAutomationTask(task.getId(), projectId, request, user.getId()));
         return new AiTaskDtos.SubmitResponse(task.getId(), task.getStatus());
@@ -83,7 +84,7 @@ public class AiTaskService {
             AiAnalysisDtos.AnalyzeRequest request,
             User user
     ) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AI_ANALYZE);
         AiTask task = aiTaskRepository.save(new AiTask(projectId, user.getId(), "FAILURE_ANALYSIS"));
         dispatchAfterCommit(() -> runAnalysis(task.getId(), projectId, executionId, request, user.getId()));
         return new AiTaskDtos.SubmitResponse(task.getId(), task.getStatus());
@@ -93,7 +94,10 @@ public class AiTaskService {
     public AiTaskDtos.StatusResponse status(String taskId, User user) {
         AiTask task = aiTaskRepository.findById(taskId)
                 .orElseThrow(() -> new BusinessException(40465, "AI 任务不存在"));
-        projectAccessService.requireRead(task.getProjectId(), user);
+        String permission = "FAILURE_ANALYSIS".equals(task.getType())
+                ? RbacPermissions.AI_ANALYZE
+                : RbacPermissions.AI_GENERATE;
+        projectAccessService.requirePermission(task.getProjectId(), user, permission);
         return AiTaskDtos.StatusResponse.from(task, objectMapper);
     }
 

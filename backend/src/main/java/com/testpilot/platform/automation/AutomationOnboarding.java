@@ -1,55 +1,27 @@
 package com.testpilot.platform.automation;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "automation_onboardings")
+@TableName("automation_onboardings")
 public class AutomationOnboarding {
 
-    @Id
-    @Column(length = 64)
+    @TableId(type = IdType.INPUT)
     private String id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "automation_project_id", nullable = false)
     private Long automationProjectId;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(name = "current_step", length = 64)
     private String currentStep;
-
-    @Column(name = "retry_count", nullable = false)
     private int retryCount;
-
-    @Column(name = "error_code", length = 32)
     private String errorCode;
-
-    @Column(name = "error_message", length = 1000)
     private String errorMessage;
-
-    @Column(name = "started_at")
     private LocalDateTime startedAt;
-
-    @Column(name = "finished_at")
     private LocalDateTime finishedAt;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected AutomationOnboarding() {
@@ -106,15 +78,11 @@ public class AutomationOnboarding {
         this.errorMessage = null;
         this.finishedAt = null;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -132,3 +100,4 @@ public class AutomationOnboarding {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
+

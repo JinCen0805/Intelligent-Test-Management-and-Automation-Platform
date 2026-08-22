@@ -1,72 +1,32 @@
 package com.testpilot.platform.testcase;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "test_cases")
+@TableName("test_cases")
 public class TestCase {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "requirement_id")
     private Long requirementId;
-
-    @Column(name = "case_no", nullable = false, length = 64)
     private String caseNo;
-
-    @Column(nullable = false, length = 255)
     private String title;
-
-    @Column(name = "module_name", length = 128)
     private String moduleName;
-
-    @Column(columnDefinition = "text")
     private String precondition;
-
-    @Column(columnDefinition = "text")
     private String steps;
-
-    @Column(name = "test_data", columnDefinition = "text")
     private String testData;
-
-    @Column(name = "expected_result", columnDefinition = "text")
     private String expectedResult;
-
-    @Column(nullable = false, length = 8)
     private String priority;
-
-    @Column(name = "case_type", nullable = false, length = 32)
     private String caseType;
-
-    @Column(length = 500)
     private String tags;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(nullable = false, length = 16)
     private String source;
-
-    @Column(name = "created_by", nullable = false)
     private Long createdBy;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected TestCase() {
@@ -105,15 +65,11 @@ public class TestCase {
         this.source = source;
         this.createdBy = createdBy;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -156,3 +112,4 @@ public class TestCase {
         return value == null || value.isBlank() ? null : value.trim();
     }
 }
+

@@ -1,66 +1,30 @@
 package com.testpilot.platform.automation;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "jenkins_pipeline_bindings")
+@TableName("jenkins_pipeline_bindings")
 public class JenkinsPipelineBinding {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "automation_project_id", nullable = false)
     private Long automationProjectId;
-
-    @Column(name = "jenkins_instance_id", nullable = false)
     private Long jenkinsInstanceId;
-
-    @Column(name = "pipeline_type", nullable = false, length = 32)
     private String pipelineType;
-
-    @Column(name = "folder_path", length = 500)
     private String folderPath;
-
-    @Column(name = "job_name", nullable = false, length = 255)
     private String jobName;
-
-    @Column(name = "job_url", length = 1000)
     private String jobUrl;
-
-    @Column(name = "credential_scope_ref", length = 128)
     private String credentialScopeRef;
-
-    @Column(name = "managed_by", nullable = false, length = 16)
     private String managedBy;
-
-    @Column(name = "provisioning_status", nullable = false, length = 24)
     private String provisioningStatus;
-
-    @Column(name = "parameters_json", columnDefinition = "text")
     private String parametersJson;
-
-    @Column(name = "last_scan_at")
     private LocalDateTime lastScanAt;
-
-    @Column(name = "last_error", length = 1000)
     private String lastError;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected JenkinsPipelineBinding() {
@@ -111,14 +75,13 @@ public class JenkinsPipelineBinding {
     public String getParametersJson() { return parametersJson; }
     public LocalDateTime getLastScanAt() { return lastScanAt; }
     public String getLastError() { return lastError; }
-
-    @PrePersist
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() { updatedAt = LocalDateTime.now(); }
 }
+

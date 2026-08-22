@@ -6,6 +6,7 @@ import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.requirement.Requirement;
 import com.testpilot.platform.requirement.RequirementRepository;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.testcase.TestCase;
 import com.testpilot.platform.testcase.TestCaseRepository;
 import com.testpilot.platform.user.User;
@@ -57,7 +58,7 @@ public class AiGenerationService {
             AiDtos.GenerateRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         Requirement requirement = requirementRepository.findByIdAndProjectId(requirementId, projectId)
                 .orElseThrow(() -> new BusinessException(40402, "需求文档不存在"));
         if (!"PARSED".equals(requirement.getParseStatus())

@@ -2,6 +2,8 @@ package com.testpilot.platform.project;
 
 import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
+import com.testpilot.platform.rbac.RbacPermissionCache;
+import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserRepository;
 import java.util.List;
@@ -18,19 +20,25 @@ public class ProjectService {
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectAccessService projectAccessService;
     private final OperationAuditService operationAuditService;
+    private final RbacPermissionCache permissionCache;
+    private final RbacService rbacService;
 
     public ProjectService(
             ProjectRepository projectRepository,
             UserRepository userRepository,
             ProjectMemberRepository projectMemberRepository,
             ProjectAccessService projectAccessService,
-            OperationAuditService operationAuditService
+            OperationAuditService operationAuditService,
+            RbacPermissionCache permissionCache,
+            RbacService rbacService
     ) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.projectAccessService = projectAccessService;
         this.operationAuditService = operationAuditService;
+        this.permissionCache = permissionCache;
+        this.rbacService = rbacService;
     }
 
     public List<ProjectDtos.Response> list(User currentUser) {
@@ -61,7 +69,9 @@ public class ProjectService {
                 "TESTING"
         );
         Project saved = projectRepository.save(project);
-        projectMemberRepository.save(new ProjectMember(saved.getId(), currentUser.getId(), "OWNER"));
+        projectMemberRepository.save(new ProjectMember(saved.getId(), currentUser.getId(), "PROJECT_OWNER"));
+        rbacService.ensureProjectRole(currentUser.getId(), saved.getId(), "PROJECT_OWNER");
+        permissionCache.invalidateProject(currentUser.getId(), saved.getId());
         operationAuditService.record(saved.getId(), currentUser, "PROJECT_CREATE", "PROJECT", saved.getId(),
                 "创建项目 " + saved.getName() + "（" + saved.getCode() + "）", true);
         return toResponse(saved);

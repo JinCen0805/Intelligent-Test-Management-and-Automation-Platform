@@ -4,10 +4,9 @@ import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserRepository;
+import com.testpilot.platform.auth.AuthSessionStore.AuthSession;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,18 +17,20 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final OperationAuditService operationAuditService;
+    private final AuthSessionStore sessionStore;
     private final long sessionTtlMinutes;
-    private final Map<String, Session> sessions = new ConcurrentHashMap<>();
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             OperationAuditService operationAuditService,
+            AuthSessionStore sessionStore,
             @Value("${testpilot.security.session-ttl-minutes:480}") long sessionTtlMinutes
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.operationAuditService = operationAuditService;
+        this.sessionStore = sessionStore;
         this.sessionTtlMinutes = sessionTtlMinutes;
     }
 
@@ -43,7 +44,13 @@ public class AuthService {
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         String token = UUID.randomUUID().toString();
-        sessions.put(token, new Session(user.getId(), LocalDateTime.now().plusMinutes(sessionTtlMinutes)));
+        LocalDateTime now = LocalDateTime.now();
+        sessionStore.save(token, new AuthSession(
+                user.getId(),
+                user.getAuthVersion(),
+                now,
+                now.plusMinutes(sessionTtlMinutes)
+        ));
         operationAuditService.record(null, user, "LOGIN", "USER", user.getId(), "用户登录成功", true);
         return new AuthDtos.LoginResponse(token, AuthDtos.UserResponse.from(user));
     }
@@ -53,21 +60,33 @@ public class AuthService {
             throw new BusinessException(40100, "未登录");
         }
         String token = authorization.substring("Bearer ".length()).trim();
-        Session session = sessions.get(token);
+        AuthSession session = sessionStore.get(token);
         if (session == null || session.expiresAt().isBefore(LocalDateTime.now())) {
-            sessions.remove(token);
+            sessionStore.delete(token);
             throw new BusinessException(40100, "登录已失效");
         }
-        return userRepository.findByIdAndStatus(session.userId(), "ENABLED")
+        User user = userRepository.findByIdAndStatus(session.userId(), "ENABLED")
                 .orElseThrow(() -> new BusinessException(40100, "登录已失效"));
+        if (!session.authVersion().equals(user.getAuthVersion())) {
+            sessionStore.delete(token);
+            throw new BusinessException(40100, "登录已失效");
+        }
+        return user;
     }
 
     public void logout(String authorization) {
         if (authorization != null && authorization.startsWith("Bearer ")) {
-            sessions.remove(authorization.substring("Bearer ".length()).trim());
+            sessionStore.delete(authorization.substring("Bearer ".length()).trim());
         }
     }
 
-    private record Session(Long userId, LocalDateTime expiresAt) {
+    @org.springframework.transaction.annotation.Transactional
+    public void invalidateUserSessions(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            return;
+        }
+        user.bumpAuthVersion();
+        userRepository.save(user);
     }
 }

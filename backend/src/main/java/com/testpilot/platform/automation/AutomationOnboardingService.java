@@ -2,6 +2,7 @@ package com.testpilot.platform.automation;
 
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -49,7 +50,7 @@ public class AutomationOnboardingService {
 
     @Transactional
     public OnboardingDtos.StartResponse start(Long projectId, Long automationProjectId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         projectRepository.findByIdAndProjectId(automationProjectId, projectId)
                 .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
         var active = onboardingRepository.findFirstByAutomationProjectIdAndStatusInOrderByCreatedAtDesc(
@@ -73,13 +74,13 @@ public class AutomationOnboardingService {
     }
 
     public OnboardingDtos.StatusResponse status(Long projectId, String onboardingId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         return response(requireOnboarding(projectId, onboardingId));
     }
 
     @Transactional
     public OnboardingDtos.StatusResponse retry(Long projectId, String onboardingId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationOnboarding onboarding = requireOnboarding(projectId, onboardingId);
         if (!"FAILED".equals(onboarding.getStatus())) {
             throw new BusinessException(40061, "只有失败的初始化任务可以重试");
@@ -92,7 +93,7 @@ public class AutomationOnboardingService {
 
     @Transactional
     public OnboardingDtos.StatusResponse cancel(Long projectId, String onboardingId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationOnboarding onboarding = requireOnboarding(projectId, onboardingId);
         if (List.of("READY", "FAILED", "CANCELED").contains(onboarding.getStatus())) {
             throw new BusinessException(40062, "当前初始化任务不能取消");

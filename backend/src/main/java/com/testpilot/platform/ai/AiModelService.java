@@ -2,8 +2,11 @@ package com.testpilot.platform.ai;
 
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.common.SecretCipher;
+import com.testpilot.platform.rbac.RbacPermissions;
+import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
 import java.util.List;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -18,17 +21,20 @@ public class AiModelService {
     private final PromptTemplateRepository promptTemplateRepository;
     private final SecretCipher secretCipher;
     private final AiProviderClient aiProviderClient;
+    private final RbacService rbacService;
 
     public AiModelService(
             AiModelRepository aiModelRepository,
             PromptTemplateRepository promptTemplateRepository,
             SecretCipher secretCipher,
-            AiProviderClient aiProviderClient
+            AiProviderClient aiProviderClient,
+            RbacService rbacService
     ) {
         this.aiModelRepository = aiModelRepository;
         this.promptTemplateRepository = promptTemplateRepository;
         this.secretCipher = secretCipher;
         this.aiProviderClient = aiProviderClient;
+        this.rbacService = rbacService;
     }
 
     public List<AiDtos.ModelResponse> listModels(User user) {
@@ -211,8 +217,8 @@ public class AiModelService {
     }
 
     private void requireAdmin(User user) {
-        if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
-            throw new BusinessException(40303, "只有管理员可以管理 AI 配置");
+        if (user == null || !rbacService.hasSystemPermission(user.getId(), RbacPermissions.SYSTEM_AI_MODEL_MANAGE)) {
+            throw new AccessDeniedException("只有管理员可以管理 AI 配置");
         }
     }
 }

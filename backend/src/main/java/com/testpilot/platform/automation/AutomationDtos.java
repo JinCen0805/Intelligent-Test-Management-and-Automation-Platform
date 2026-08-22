@@ -76,6 +76,10 @@ public final class AutomationDtos {
             String taskType,
             Long automationProjectId,
             Long pipelineBindingId,
+            @NotBlank(message = "执行环境不能为空")
+            String environment,
+            @NotBlank(message = "Branch 不能为空")
+            String branch,
             String parametersJson
     ) {
     }
@@ -99,6 +103,8 @@ public final class AutomationDtos {
             Long automationProjectId,
             Long pipelineBindingId,
             String jenkinsJob,
+            String environment,
+            String branch,
             String parametersJson,
             String status
     ) {
@@ -111,6 +117,8 @@ public final class AutomationDtos {
                     task.getAutomationProjectId(),
                     task.getPipelineBindingId(),
                     task.getJenkinsJob(),
+                    task.getEnvironment(),
+                    task.getBranch(),
                     task.getParametersJson(),
                     task.getStatus()
             );

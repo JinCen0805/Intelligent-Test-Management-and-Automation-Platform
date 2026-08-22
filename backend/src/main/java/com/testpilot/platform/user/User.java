@@ -1,47 +1,25 @@
 package com.testpilot.platform.user;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "users")
+@TableName("users")
 public class User {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(nullable = false, unique = true, length = 64)
     private String username;
-
-    @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
-
-    @Column(name = "display_name", nullable = false, length = 64)
     private String displayName;
-
-    @Column(length = 128)
     private String email;
-
-    @Column(nullable = false, length = 32)
     private String role;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(name = "last_login_at")
+    private Long authVersion;
     private LocalDateTime lastLoginAt;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected User() {
@@ -54,19 +32,20 @@ public class User {
         this.email = email;
         this.role = role;
         this.status = status;
+        this.authVersion = 1L;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
+        if (authVersion == null) {
+            authVersion = 1L;
+        }
         if (lastLoginAt == null) {
             lastLoginAt = now;
         }
     }
 
-    @jakarta.persistence.PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -78,6 +57,7 @@ public class User {
     public String getEmail() { return email; }
     public String getRole() { return role; }
     public String getStatus() { return status; }
+    public Long getAuthVersion() { return authVersion; }
     public LocalDateTime getLastLoginAt() { return lastLoginAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
@@ -87,5 +67,10 @@ public class User {
     public void setEmail(String email) { this.email = email; }
     public void setRole(String role) { this.role = role; }
     public void setStatus(String status) { this.status = status; }
+    public void setAuthVersion(Long authVersion) { this.authVersion = authVersion; }
+    public void bumpAuthVersion() {
+        authVersion = authVersion == null ? 1L : authVersion + 1;
+    }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 }
+

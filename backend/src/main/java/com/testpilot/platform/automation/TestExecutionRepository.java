@@ -1,38 +1,86 @@
 package com.testpilot.platform.automation;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.testpilot.platform.common.persistence.MybatisRepository;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface TestExecutionRepository extends JpaRepository<TestExecution, Long> {
-    List<TestExecution> findAllByProjectIdOrderByCreatedAtDesc(Long projectId);
-    List<TestExecution> findAllByStatusIn(List<String> statuses);
-    List<TestExecution> findAllByProjectIdInAndCreatedAtBetweenOrderByCreatedAtDesc(
+@Repository
+public class TestExecutionRepository extends MybatisRepository<TestExecution, Long> {
+
+    public TestExecutionRepository(TestExecutionMapper mapper) {
+        super(mapper, TestExecution.class, TestExecution::getId);
+    }
+
+    public List<TestExecution> findAllByProjectIdOrderByCreatedAtDesc(Long projectId) {
+        return list(Wrappers.<TestExecution>lambdaQuery()
+                .eq(TestExecution::getProjectId, projectId)
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
+    public List<TestExecution> findAllByStatusIn(List<String> statuses) {
+        return statuses == null || statuses.isEmpty()
+                ? List.of()
+                : list(Wrappers.<TestExecution>lambdaQuery().in(TestExecution::getStatus, statuses));
+    }
+
+    public List<TestExecution> findAllByProjectIdInAndCreatedAtBetweenOrderByCreatedAtDesc(
             List<Long> projectIds,
             LocalDateTime from,
             LocalDateTime to
-    );
-    List<TestExecution> findAllByProjectIdInAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
+    ) {
+        return list(Wrappers.<TestExecution>lambdaQuery()
+                .in(TestExecution::getProjectId, projectIds)
+                .between(TestExecution::getCreatedAt, from, to)
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
+    public List<TestExecution> findAllByProjectIdInAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
             List<Long> projectIds,
             String status,
             LocalDateTime from,
             LocalDateTime to
-    );
-    Page<TestExecution> findAllByProjectIdInAndCreatedAtBetweenOrderByCreatedAtDesc(
+    ) {
+        return list(Wrappers.<TestExecution>lambdaQuery()
+                .in(TestExecution::getProjectId, projectIds)
+                .eq(TestExecution::getStatus, status)
+                .between(TestExecution::getCreatedAt, from, to)
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
+    public Page<TestExecution> findAllByProjectIdInAndCreatedAtBetweenOrderByCreatedAtDesc(
             List<Long> projectIds,
             LocalDateTime from,
             LocalDateTime to,
             Pageable pageable
-    );
-    Page<TestExecution> findAllByProjectIdInAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
+    ) {
+        return page(pageable, Wrappers.<TestExecution>lambdaQuery()
+                .in(TestExecution::getProjectId, projectIds)
+                .between(TestExecution::getCreatedAt, from, to)
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
+    public Page<TestExecution> findAllByProjectIdInAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
             List<Long> projectIds,
             String status,
             LocalDateTime from,
             LocalDateTime to,
             Pageable pageable
-    );
-    Optional<TestExecution> findByIdAndProjectId(Long id, Long projectId);
+    ) {
+        return page(pageable, Wrappers.<TestExecution>lambdaQuery()
+                .in(TestExecution::getProjectId, projectIds)
+                .eq(TestExecution::getStatus, status)
+                .between(TestExecution::getCreatedAt, from, to)
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
+    public Optional<TestExecution> findByIdAndProjectId(Long id, Long projectId) {
+        return findOne(Wrappers.<TestExecution>lambdaQuery()
+                .eq(TestExecution::getId, id)
+                .eq(TestExecution::getProjectId, projectId));
+    }
 }

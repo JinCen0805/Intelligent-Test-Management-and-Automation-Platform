@@ -5,6 +5,7 @@ import com.testpilot.platform.common.ApiResponse;
 import com.testpilot.platform.user.UserDtos;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,6 +29,7 @@ public class ProjectMemberController {
     }
 
     @GetMapping
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:read')")
     public ApiResponse<List<ProjectMemberDtos.Response>> list(
             @PathVariable Long projectId,
             @RequestHeader(value = "Authorization", required = false) String authorization
@@ -39,6 +41,7 @@ public class ProjectMemberController {
     }
 
     @GetMapping("/candidates")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:member:manage')")
     public ApiResponse<List<UserDtos.Response>> candidates(
             @PathVariable Long projectId,
             @RequestHeader(value = "Authorization", required = false) String authorization
@@ -50,6 +53,7 @@ public class ProjectMemberController {
     }
 
     @PostMapping
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:member:manage')")
     public ApiResponse<ProjectMemberDtos.Response> add(
             @PathVariable Long projectId,
             @Valid @RequestBody ProjectMemberDtos.UpsertRequest request,
@@ -63,6 +67,7 @@ public class ProjectMemberController {
     }
 
     @PutMapping("/{userId}")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:member:manage')")
     public ApiResponse<ProjectMemberDtos.Response> update(
             @PathVariable Long projectId,
             @PathVariable Long userId,
@@ -78,6 +83,7 @@ public class ProjectMemberController {
     }
 
     @DeleteMapping("/{userId}")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:member:manage')")
     public ApiResponse<Void> remove(
             @PathVariable Long projectId,
             @PathVariable Long userId,

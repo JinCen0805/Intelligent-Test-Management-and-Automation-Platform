@@ -19,6 +19,7 @@ import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.common.SensitiveDataSanitizer;
 import com.testpilot.platform.project.Project;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -101,7 +102,7 @@ public class AiFailureAnalysisService {
             AiAnalysisDtos.AnalyzeRequest request,
             User currentUser
     ) {
-        Project project = projectAccessService.requireRead(projectId, currentUser);
+        Project project = projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_ANALYZE);
         TestExecution execution = executionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         if (!List.of("FAILED", "ABORTED", "TIMEOUT").contains(execution.getStatus())) {

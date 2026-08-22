@@ -2,6 +2,9 @@ package com.testpilot.platform.project;
 
 import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
+import com.testpilot.platform.rbac.RbacPermissionCache;
+import com.testpilot.platform.rbac.RbacPermissions;
+import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserDtos;
 import com.testpilot.platform.user.UserRepository;
@@ -19,27 +22,33 @@ public class ProjectMemberService {
     private final UserRepository userRepository;
     private final ProjectAccessService projectAccessService;
     private final OperationAuditService operationAuditService;
+    private final RbacPermissionCache permissionCache;
+    private final RbacService rbacService;
 
     public ProjectMemberService(
             ProjectRepository projectRepository,
             ProjectMemberRepository projectMemberRepository,
             UserRepository userRepository,
             ProjectAccessService projectAccessService,
-            OperationAuditService operationAuditService
+            OperationAuditService operationAuditService,
+            RbacPermissionCache permissionCache,
+            RbacService rbacService
     ) {
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.userRepository = userRepository;
         this.projectAccessService = projectAccessService;
         this.operationAuditService = operationAuditService;
+        this.permissionCache = permissionCache;
+        this.rbacService = rbacService;
     }
 
     public List<ProjectMemberDtos.Response> list(Long projectId, User currentUser) {
-        Project project = projectAccessService.requireRead(projectId, currentUser);
+        Project project = projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.PROJECT_READ);
         List<ProjectMemberDtos.Response> result = new ArrayList<>();
         if (projectMemberRepository.findByProjectIdAndUserId(projectId, project.getOwnerId()).isEmpty()) {
             userRepository.findById(project.getOwnerId()).ifPresent(owner ->
-                    result.add(toResponse(null, owner, "OWNER")));
+                    result.add(toResponse(null, owner, "PROJECT_OWNER")));
         }
         result.addAll(projectMemberRepository.findAllByProjectIdOrderByJoinedAtAsc(projectId)
                 .stream()
@@ -49,7 +58,7 @@ public class ProjectMemberService {
     }
 
     public List<UserDtos.Response> candidates(Long projectId, User currentUser) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.PROJECT_MEMBER_MANAGE);
         return userRepository.findAllByStatusOrderByDisplayNameAsc("ENABLED").stream()
                 .map(UserDtos.Response::from)
                 .toList();
@@ -61,7 +70,7 @@ public class ProjectMemberService {
             ProjectMemberDtos.UpsertRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.PROJECT_MEMBER_MANAGE);
         User member = enabledUser(request.userId());
         if (projectMemberRepository.findByProjectIdAndUserId(projectId, member.getId()).isPresent()) {
             throw new BusinessException(40904, "项目成员已存在");
@@ -71,6 +80,8 @@ public class ProjectMemberService {
                 member.getId(),
                 normalizeRole(request.role())
         ));
+        rbacService.ensureProjectRole(member.getId(), projectId, saved.getRole());
+        permissionCache.invalidateProject(member.getId(), projectId);
         operationAuditService.record(projectId, currentUser, "PROJECT_MEMBER_ADD", "PROJECT_MEMBER", member.getId(),
                 "添加成员 " + member.getUsername() + " 到项目 " + projectId, true);
         return toResponse(saved);
@@ -83,7 +94,7 @@ public class ProjectMemberService {
             ProjectMemberDtos.UpsertRequest request,
             User currentUser
     ) {
-        Project project = projectAccessService.requireWrite(projectId, currentUser);
+        Project project = projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.PROJECT_MEMBER_MANAGE);
         if (project.getOwnerId().equals(userId)) {
             throw new BusinessException(40016, "项目负责人角色不能修改");
         }
@@ -91,6 +102,8 @@ public class ProjectMemberService {
                 .orElseThrow(() -> new BusinessException(40405, "项目成员不存在"));
         member.setRole(normalizeRole(request.role()));
         ProjectMember saved = projectMemberRepository.save(member);
+        rbacService.replaceProjectRole(userId, projectId, saved.getRole());
+        permissionCache.invalidateProject(userId, projectId);
         operationAuditService.record(projectId, currentUser, "PROJECT_MEMBER_UPDATE", "PROJECT_MEMBER", userId,
                 "变更成员 " + member.getUserId() + " 在项目 " + projectId + " 的角色为 " + saved.getRole(), true);
         return toResponse(saved);
@@ -98,7 +111,7 @@ public class ProjectMemberService {
 
     @Transactional
     public void remove(Long projectId, Long userId, User currentUser) {
-        Project project = projectAccessService.requireWrite(projectId, currentUser);
+        Project project = projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.PROJECT_MEMBER_MANAGE);
         if (project.getOwnerId().equals(userId)) {
             throw new BusinessException(40016, "项目负责人不能移除");
         }
@@ -106,6 +119,8 @@ public class ProjectMemberService {
             throw new BusinessException(40405, "项目成员不存在");
         }
         projectMemberRepository.deleteByProjectIdAndUserId(projectId, userId);
+        rbacService.removeProjectRoles(userId, projectId);
+        permissionCache.invalidateProject(userId, projectId);
         operationAuditService.record(projectId, currentUser, "PROJECT_MEMBER_REMOVE", "PROJECT_MEMBER", userId,
                 "从项目 " + projectId + " 移除成员 " + userId, true);
     }
@@ -144,7 +159,7 @@ public class ProjectMemberService {
 
     private String normalizeRole(String role) {
         String normalized = role.trim().toUpperCase(Locale.ROOT);
-        if (!List.of("MANAGER", "TEST_DEVELOPER", "VIEWER").contains(normalized)) {
+        if (!List.of("PROJECT_MANAGER", "PROJECT_TEST_DEVELOPER", "PROJECT_VIEWER").contains(normalized)) {
             throw new BusinessException(40017, "项目成员角色不合法");
         }
         return normalized;

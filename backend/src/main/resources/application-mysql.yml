@@ -4,9 +4,6 @@ spring:
     username: ${DB_USERNAME:testpilot}
     password: ${DB_PASSWORD:change-me}
     driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    hibernate:
-      ddl-auto: validate
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -14,6 +11,11 @@ spring:
 testpilot:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://127.0.0.1:5173}
+  infrastructure:
+    redis:
+      enabled: ${REDIS_ENABLED:true}
+      required: ${REDIS_REQUIRED:true}
+      key-prefix: ${REDIS_KEY_PREFIX:testpilot:}
   jenkins:
     mode: ${JENKINS_MODE:HTTP}
     base-url: ${JENKINS_BASE_URL:}

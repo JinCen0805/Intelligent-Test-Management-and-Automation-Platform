@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testpilot.platform.common.AddressSafety;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -69,21 +70,21 @@ public class ApiWorkbenchService {
     }
 
     public List<ApiDtos.CollectionResponse> listCollections(Long projectId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         return collectionRepository.findAllByProjectIdOrderByCreatedAtAsc(projectId)
                 .stream().map(ApiDtos.CollectionResponse::from).toList();
     }
 
     @Transactional
     public ApiDtos.CollectionResponse createCollection(Long projectId, ApiDtos.CollectionRequest request, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         return ApiDtos.CollectionResponse.from(collectionRepository.save(
                 new ApiCollection(projectId, request.name().trim(), blankToNull(request.description()))
         ));
     }
 
     public List<ApiDtos.RequestResponse> listRequests(Long projectId, Long collectionId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         requireCollection(projectId, collectionId);
         return requestRepository.findAllByCollectionIdOrderByCreatedAtAsc(collectionId)
                 .stream().map(ApiDtos.RequestResponse::from).toList();
@@ -91,7 +92,7 @@ public class ApiWorkbenchService {
 
     @Transactional
     public void deleteCollection(Long projectId, Long collectionId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         requireCollection(projectId, collectionId);
         List<ApiRequest> requests = requestRepository.findAllByCollectionIdOrderByCreatedAtAsc(collectionId);
         requests.forEach(request -> historyRepository.deleteAll(
@@ -103,7 +104,7 @@ public class ApiWorkbenchService {
 
     @Transactional
     public void deleteRequest(Long projectId, Long requestId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         ApiRequest request = requestRepository.findByIdAndProjectId(requestId, projectId)
                 .orElseThrow(() -> new BusinessException(40431, "接口请求不存在"));
         historyRepository.deleteAll(historyRepository.findAllByRequestId(requestId));
@@ -116,7 +117,7 @@ public class ApiWorkbenchService {
             ApiDtos.RequestUpsert request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         requireCollection(projectId, request.collectionId());
         String method = request.method().trim().toUpperCase(Locale.ROOT);
         validateMethod(method);
@@ -143,7 +144,7 @@ public class ApiWorkbenchService {
             ApiDtos.RequestUpsert request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         ApiRequest saved = requestRepository.findByIdAndProjectId(requestId, projectId)
                 .orElseThrow(() -> new BusinessException(40431, "接口请求不存在"));
         requireCollection(projectId, request.collectionId());
@@ -165,7 +166,7 @@ public class ApiWorkbenchService {
     }
 
     public List<ApiDtos.VariableResponse> listVariables(Long projectId, String environment, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         String normalized = normalizeEnvironment(environment);
         return variableRepository.findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, normalized)
                 .stream().map(ApiDtos.VariableResponse::from).toList();
@@ -177,7 +178,7 @@ public class ApiWorkbenchService {
             ApiDtos.VariableUpsert request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         String environment = normalizeEnvironment(request.environment());
         ApiEnvironmentVariable variable = variableRepository
                 .findByProjectIdAndEnvironmentAndName(projectId, environment, request.name().trim())
@@ -197,14 +198,14 @@ public class ApiWorkbenchService {
 
     @Transactional
     public void deleteVariable(Long projectId, Long variableId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         ApiEnvironmentVariable variable = variableRepository.findByIdAndProjectId(variableId, projectId)
                 .orElseThrow(() -> new BusinessException(40433, "环境变量不存在"));
         variableRepository.delete(variable);
     }
 
     public Page<ApiDtos.HistoryResponse> listHistory(Long projectId, int page, int size, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         Map<Long, String> requestNames = requestRepository.findAllByProjectId(projectId).stream()
                 .collect(java.util.stream.Collectors.toMap(ApiRequest::getId, ApiRequest::getName));
         return historyRepository.findAllByProjectIdOrderByStartedAtDesc(
@@ -223,7 +224,7 @@ public class ApiWorkbenchService {
             ApiDtos.ExecuteRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         ApiRequest apiRequest = requestRepository.findByIdAndProjectId(requestId, projectId)
                 .orElseThrow(() -> new BusinessException(40431, "接口请求不存在"));
         return executeRequest(projectId, apiRequest, normalizeEnvironment(request.environment()), null, new HashMap<>());
@@ -236,7 +237,7 @@ public class ApiWorkbenchService {
             ApiDtos.CollectionExecuteRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         requireCollection(projectId, collectionId);
         String environment = normalizeEnvironment(request.environment());
         String runId = java.util.UUID.randomUUID().toString();

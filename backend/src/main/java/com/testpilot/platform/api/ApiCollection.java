@@ -1,36 +1,20 @@
 package com.testpilot.platform.api;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "api_collections")
+@TableName("api_collections")
 public class ApiCollection {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(nullable = false, length = 128)
     private String name;
-
-    @Column(length = 500)
     private String description;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected ApiCollection() {
@@ -41,15 +25,11 @@ public class ApiCollection {
         this.name = name;
         this.description = description;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -63,3 +43,4 @@ public class ApiCollection {
     public void setName(String name) { this.name = name; }
     public void setDescription(String description) { this.description = description; }
 }
+

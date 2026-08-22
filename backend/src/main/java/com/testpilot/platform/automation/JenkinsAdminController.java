@@ -4,6 +4,7 @@ import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -27,6 +28,7 @@ public class JenkinsAdminController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<JenkinsAdminDtos.InstanceResponse>> list(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
@@ -34,6 +36,7 @@ public class JenkinsAdminController {
     }
 
     @PostMapping
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> create(
             @Valid @RequestBody JenkinsAdminDtos.InstanceRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization
@@ -42,6 +45,7 @@ public class JenkinsAdminController {
     }
 
     @PutMapping("/{instanceId}")
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> update(
             @PathVariable Long instanceId,
             @Valid @RequestBody JenkinsAdminDtos.InstanceRequest request,
@@ -53,6 +57,7 @@ public class JenkinsAdminController {
     }
 
     @PostMapping("/{instanceId}/status")
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> changeStatus(
             @PathVariable Long instanceId,
             @Valid @RequestBody JenkinsAdminDtos.StatusRequest request,
@@ -64,6 +69,7 @@ public class JenkinsAdminController {
     }
 
     @DeleteMapping("/{instanceId}")
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<Void> delete(
             @PathVariable Long instanceId,
             @RequestHeader(value = "Authorization", required = false) String authorization
@@ -73,6 +79,7 @@ public class JenkinsAdminController {
     }
 
     @PostMapping("/{instanceId}/test-connection")
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> testConnection(
             @PathVariable Long instanceId,
             @RequestHeader(value = "Authorization", required = false) String authorization

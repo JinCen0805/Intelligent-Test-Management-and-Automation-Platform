@@ -1,12 +1,9 @@
 package com.testpilot.platform.audit;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
 /**
@@ -14,39 +11,19 @@ import java.time.LocalDateTime;
  *
  * <p>AI 调用由 {@code ai_call_audits} 单独审计，本表负责其余关键操作，供管理员回溯。
  */
-@Entity
-@Table(name = "operation_audits")
+@TableName("operation_audits")
 public class OperationAudit {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id")
     private Long projectId;
-
-    @Column(name = "user_id")
     private Long userId;
-
-    @Column(name = "user_name", length = 64)
     private String userName;
-
-    @Column(nullable = false, length = 64)
     private String action;
-
-    @Column(name = "target_type", length = 32)
     private String targetType;
-
-    @Column(name = "target_id")
     private Long targetId;
-
-    @Column(columnDefinition = "text")
     private String detail;
-
-    @Column(length = 16)
     private String result;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     protected OperationAudit() {
@@ -71,8 +48,6 @@ public class OperationAudit {
         this.detail = detail;
         this.result = result;
     }
-
-    @PrePersist
     void onCreate() {
         createdAt = LocalDateTime.now();
     }
@@ -88,3 +63,4 @@ public class OperationAudit {
     public String getResult() { return result; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }
+

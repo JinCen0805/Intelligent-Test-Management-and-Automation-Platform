@@ -3,6 +3,7 @@ package com.testpilot.platform.testcase;
 import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.requirement.RequirementRepository;
 import com.testpilot.platform.user.User;
 import java.util.Locale;
@@ -43,7 +44,7 @@ public class TestCaseService {
             int size,
             User currentUser
     ) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_READ);
         validateFilters(priority, caseType);
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
@@ -63,7 +64,7 @@ public class TestCaseService {
     }
 
     public TestCaseDtos.Response get(Long projectId, Long testCaseId, User currentUser) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_READ);
         return TestCaseDtos.Response.from(findCase(projectId, testCaseId));
     }
 
@@ -74,7 +75,7 @@ public class TestCaseService {
             User currentUser,
             String source
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_WRITE);
         ensureRequirement(projectId, request.requirementId());
         String caseNo = request.caseNo() == null || request.caseNo().isBlank()
                 ? nextCaseNo(projectId)
@@ -109,7 +110,7 @@ public class TestCaseService {
             TestCaseDtos.UpsertRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_WRITE);
         ensureRequirement(projectId, request.requirementId());
         TestCase testCase = findCase(projectId, testCaseId);
         testCase.updateFrom(request);
@@ -123,7 +124,7 @@ public class TestCaseService {
             String status,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_REVIEW);
         TestCase testCase = findCase(projectId, testCaseId);
         String targetStatus = status.trim().toUpperCase(Locale.ROOT);
         if (!isAllowedTransition(testCase.getStatus(), targetStatus)) {
@@ -139,7 +140,7 @@ public class TestCaseService {
 
     @Transactional
     public void delete(Long projectId, Long testCaseId, User currentUser) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_WRITE);
         testCaseRepository.delete(findCase(projectId, testCaseId));
     }
 

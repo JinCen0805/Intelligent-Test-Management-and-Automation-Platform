@@ -1,54 +1,26 @@
 package com.testpilot.platform.requirement;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "requirements")
+@TableName("requirements")
 public class Requirement {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(nullable = false, length = 255)
     private String name;
-
-    @Column(name = "file_type", nullable = false, length = 16)
     private String fileType;
-
-    @Column(name = "file_path", length = 500)
     private String filePath;
-
-    @Column(length = 32)
     private String version;
-
-    @Column(name = "parse_status", nullable = false, length = 16)
     private String parseStatus;
-
-    @Column(name = "content_text", columnDefinition = "text")
     private String contentText;
-
-    @Column(name = "parse_error", columnDefinition = "text")
     private String parseError;
-
-    @Column(name = "uploaded_by", nullable = false)
     private Long uploadedBy;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected Requirement() {
@@ -73,15 +45,11 @@ public class Requirement {
         this.contentText = contentText;
         this.uploadedBy = uploadedBy;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -102,3 +70,4 @@ public class Requirement {
     public void setContentText(String contentText) { this.contentText = contentText; }
     public void setParseError(String parseError) { this.parseError = parseError; }
 }
+

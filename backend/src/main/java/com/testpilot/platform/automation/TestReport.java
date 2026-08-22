@@ -1,63 +1,29 @@
 package com.testpilot.platform.automation;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "test_reports")
+@TableName("test_reports")
 public class TestReport {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "execution_id", nullable = false, unique = true)
     private Long executionId;
-
-    @Column(name = "allure_url", length = 500)
     private String allureUrl;
-
-    @Column(nullable = false)
     private int totalCount;
-
-    @Column(nullable = false)
     private int passedCount;
-
-    @Column(nullable = false)
     private int failedCount;
-
-    @Column(nullable = false)
     private int brokenCount;
-
-    @Column(nullable = false)
     private int skippedCount;
-
-    @Column(name = "artifact_ref", length = 1000)
     private String artifactRef;
-
-    @Column(name = "failure_detail", columnDefinition = "text")
     private String failureDetail;
-
-    @Column(name = "screenshot_ref", length = 1000)
     private String screenshotRef;
-
-    @Column(name = "video_ref", length = 1000)
     private String videoRef;
-
-    @Column(name = "ai_analysis", columnDefinition = "text")
     private String aiAnalysis;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected TestReport() {
@@ -90,15 +56,11 @@ public class TestReport {
         this.videoRef = videoRef;
         this.aiAnalysis = aiAnalysis;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -116,5 +78,8 @@ public class TestReport {
     public String getScreenshotRef() { return screenshotRef; }
     public String getVideoRef() { return videoRef; }
     public String getAiAnalysis() { return aiAnalysis; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setAiAnalysis(String aiAnalysis) { this.aiAnalysis = aiAnalysis; }
 }
+

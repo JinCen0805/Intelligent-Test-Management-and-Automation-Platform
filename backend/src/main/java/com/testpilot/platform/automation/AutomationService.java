@@ -3,6 +3,7 @@ package com.testpilot.platform.automation;
 import com.testpilot.platform.audit.OperationAuditService;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -54,7 +55,7 @@ public class AutomationService {
     }
 
     public List<AutomationDtos.AutomationProjectResponse> listAutomationProjects(Long projectId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         return automationProjectRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
                 .map(AutomationDtos.AutomationProjectResponse::from)
@@ -67,7 +68,7 @@ public class AutomationService {
             AutomationDtos.AutomationProjectRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationProject project = new AutomationProject(
                 projectId,
                 request.name().trim(),
@@ -92,7 +93,7 @@ public class AutomationService {
             AutomationDtos.AutomationProjectRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationProject project = automationProjectRepository
                 .findByIdAndProjectId(automationProjectId, projectId)
                 .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
@@ -111,7 +112,7 @@ public class AutomationService {
     }
 
     public List<AutomationDtos.TestTaskResponse> listTasks(Long projectId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         return testTaskRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
                 .map(AutomationDtos.TestTaskResponse::from)
@@ -124,7 +125,7 @@ public class AutomationService {
             AutomationDtos.TestTaskRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationProject automationProject = automationProjectRepository
                 .findByIdAndProjectId(request.automationProjectId(), projectId)
                 .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
@@ -140,6 +141,8 @@ public class AutomationService {
                 request.taskType().trim().toUpperCase(),
                 automationProject.getId(),
                 target.binding() == null ? null : target.binding().getId(),
+                request.environment().trim().toUpperCase(),
+                request.branch().trim(),
                 target.jobName(),
                 request.parametersJson()
         );
@@ -153,7 +156,7 @@ public class AutomationService {
             AutomationDtos.TestTaskRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
         AutomationProject automationProject = automationProjectRepository
@@ -170,6 +173,8 @@ public class AutomationService {
                 request.taskType().trim().toUpperCase(),
                 automationProject.getId(),
                 target.binding() == null ? null : target.binding().getId(),
+                request.environment().trim().toUpperCase(),
+                request.branch().trim(),
                 target.jobName(),
                 request.parametersJson()
         );
@@ -178,7 +183,7 @@ public class AutomationService {
 
     @Transactional
     public void deleteTask(Long projectId, Long taskId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
         boolean hasActiveExecution = testExecutionRepository
@@ -199,7 +204,7 @@ public class AutomationService {
             AutomationDtos.TestTaskStatusRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
         String status = request.status().trim().toUpperCase();
@@ -212,7 +217,7 @@ public class AutomationService {
 
     @Transactional
     public AutomationDtos.TestExecutionResponse stopTask(Long projectId, Long taskId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
         TestExecution active = testExecutionRepository
@@ -251,7 +256,7 @@ public class AutomationService {
     }
 
     public List<AutomationDtos.TestExecutionResponse> listExecutions(Long projectId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         return testExecutionRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
                 .map(this::toExecutionResponse)
@@ -265,7 +270,7 @@ public class AutomationService {
             AutomationDtos.ExecuteRequest request,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
         if (!"ENABLED".equals(task.getStatus())) {
@@ -309,7 +314,7 @@ public class AutomationService {
             Long executionId,
             User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestExecution previous = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         if (!List.of("FAILED", "ABORTED", "TIMEOUT").contains(previous.getStatus())) {
@@ -354,7 +359,7 @@ public class AutomationService {
             AutomationDtos.ExecutionResultRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AUTOMATION_EXECUTE);
         testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         return saveReport(executionId, request);
@@ -366,7 +371,7 @@ public class AutomationService {
             Long executionId,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AUTOMATION_EXECUTE);
         TestExecution execution = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         TestTask task = testTaskRepository.findByIdAndProjectId(execution.getTestTaskId(), projectId)
@@ -383,7 +388,7 @@ public class AutomationService {
             Long executionId,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AUTOMATION_EXECUTE);
         TestExecution execution = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         if (!List.of("QUEUED", "RUNNING").contains(execution.getStatus())) {
@@ -437,7 +442,7 @@ public class AutomationService {
 
     @Transactional
     public void deleteExecution(Long projectId, Long executionId, User user) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestExecution execution = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         if (List.of("QUEUED", "RUNNING").contains(execution.getStatus())) {
@@ -452,7 +457,7 @@ public class AutomationService {
     }
 
     public String fetchConsoleLog(Long projectId, Long executionId, User user) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestExecution execution = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         if (execution.getConsoleLogRef() == null || execution.getConsoleLogRef().isBlank()) {

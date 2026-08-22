@@ -7,6 +7,7 @@ import com.testpilot.platform.automation.AutomationDtos;
 import com.testpilot.platform.automation.AutomationService;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -63,7 +64,7 @@ public class AiAutomationTaskService {
             AiAutomationDtos.GenerateRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         String repositoryUrl = request.repositoryUrl().trim();
         String branch = request.branch().trim();
         String description = request.description().trim();
@@ -120,7 +121,7 @@ public class AiAutomationTaskService {
     }
 
     public AiAutomationDtos.DraftResponse get(Long projectId, Long draftId, User currentUser) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         return toResponse(requireDraft(projectId, draftId));
     }
 
@@ -131,7 +132,7 @@ public class AiAutomationTaskService {
             AiAutomationDtos.DraftUpdateRequest request,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         AiAutomationTaskDraft draft = requireDraft(projectId, draftId);
         if ("CONFIRMED".equals(draft.getStatus())) {
             throw new BusinessException(40023, "草稿已确认，无法修改或重复确认");
@@ -156,7 +157,7 @@ public class AiAutomationTaskService {
 
     @Transactional
     public AiAutomationDtos.ConfirmResponse confirm(Long projectId, Long draftId, User currentUser) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         AiAutomationTaskDraft draft = requireDraft(projectId, draftId);
         if ("CONFIRMED".equals(draft.getStatus())) {
             throw new BusinessException(40023, "草稿已确认，无法修改或重复确认");
@@ -184,6 +185,8 @@ public class AiAutomationTaskService {
                         draft.getTaskType(),
                         automationProject.id(),
                         null,
+                        draft.getEnvironment(),
+                        draft.getBranch(),
                         draft.getParametersJson()
                 ),
                 currentUser

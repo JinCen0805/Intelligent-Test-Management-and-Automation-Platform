@@ -1,58 +1,28 @@
 package com.testpilot.platform.api;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "api_execution_history")
+@TableName("api_execution_history")
 public class ApiExecutionHistory {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "request_id", nullable = false)
     private Long requestId;
-
-    @Column(name = "collection_run_id", length = 64)
     private String collectionRunId;
-
-    @Column(nullable = false, length = 32)
     private String environment;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(name = "status_code")
     private Integer statusCode;
-
-    @Column(name = "duration_ms")
     private Long durationMs;
-
-    @Column(name = "response_headers_json", columnDefinition = "text")
     private String responseHeadersJson;
-
-    @Column(name = "response_body", columnDefinition = "text")
     private String responseBody;
-
-    @Column(name = "assertion_results_json", columnDefinition = "text")
     private String assertionResultsJson;
-
-    @Column(name = "request_snapshot_json", columnDefinition = "text")
     private String requestSnapshotJson;
-
-    @Column(name = "started_at", nullable = false)
     private LocalDateTime startedAt;
-
-    @Column(name = "finished_at")
     private LocalDateTime finishedAt;
 
     protected ApiExecutionHistory() {
@@ -123,3 +93,4 @@ public class ApiExecutionHistory {
     public LocalDateTime getStartedAt() { return startedAt; }
     public LocalDateTime getFinishedAt() { return finishedAt; }
 }
+

@@ -4,6 +4,7 @@ import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,6 +28,7 @@ public class RequirementController {
     }
 
     @GetMapping("/projects/{projectId}/requirements")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:read')")
     public ApiResponse<List<RequirementDtos.Response>> list(
             @PathVariable Long projectId,
             @RequestHeader(value = "Authorization", required = false) String authorization
@@ -38,6 +40,7 @@ public class RequirementController {
     }
 
     @GetMapping("/projects/{projectId}/requirements/{requirementId}")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:read')")
     public ApiResponse<RequirementDtos.DetailResponse> get(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
@@ -51,6 +54,7 @@ public class RequirementController {
     }
 
     @PostMapping("/projects/{projectId}/requirements/upload")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:write')")
     public ApiResponse<RequirementDtos.Response> upload(
             @PathVariable Long projectId,
             @RequestPart("file") MultipartFile file,
@@ -66,6 +70,7 @@ public class RequirementController {
     }
 
     @PostMapping("/projects/{projectId}/requirements/{requirementId}/parse")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:write')")
     public ApiResponse<RequirementDtos.Response> parse(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,

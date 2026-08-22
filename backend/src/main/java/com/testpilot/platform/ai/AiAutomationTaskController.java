@@ -3,6 +3,7 @@ package com.testpilot.platform.ai;
 import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,25 +15,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/projects/{projectId}/automation-tasks")
+@PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'ai:generate')")
 public class AiAutomationTaskController {
 
     private final AiAutomationTaskService service;
-    private final AiTaskService aiTaskService;
     private final AuthService authService;
 
-    public AiAutomationTaskController(AiAutomationTaskService service, AiTaskService aiTaskService, AuthService authService) {
+    public AiAutomationTaskController(AiAutomationTaskService service, AuthService authService) {
         this.service = service;
-        this.aiTaskService = aiTaskService;
         this.authService = authService;
     }
 
     @PostMapping("/ai-generate")
-    public ApiResponse<AiTaskDtos.SubmitResponse> generate(
+    public ApiResponse<AiAutomationDtos.DraftResponse> generate(
             @PathVariable Long projectId,
             @Valid @RequestBody AiAutomationDtos.GenerateRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        return ApiResponse.success(aiTaskService.submitAutomationTask(
+        return ApiResponse.success(service.generate(
                 projectId,
                 request,
                 authService.currentUser(authorization)

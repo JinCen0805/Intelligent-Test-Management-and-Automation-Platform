@@ -1,42 +1,24 @@
 package com.testpilot.platform.ai;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "ai_models")
+@TableName("ai_models")
 public class AiModel {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(nullable = false, length = 128)
     private String name;
-
-    @Column(nullable = false, length = 64)
     private String provider;
-
-    @Column(nullable = false, length = 500)
     private String endpoint;
-
-    @Column(name = "api_key_ciphertext", columnDefinition = "text")
+    @TableField("api_key_ciphertext")
     private String apiKey;
-
-    @Column(nullable = false)
     private boolean enabled;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected AiModel() {
@@ -49,15 +31,11 @@ public class AiModel {
         this.apiKey = apiKey;
         this.enabled = enabled;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -80,3 +58,4 @@ public class AiModel {
         this.enabled = enabled;
     }
 }
+

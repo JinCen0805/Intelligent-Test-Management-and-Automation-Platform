@@ -4,6 +4,7 @@ import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.Project;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.project.ProjectRepository;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -104,7 +105,7 @@ public class ReportService {
     public ReportDtos.ExecutionDetail detail(Long executionId, User user) {
         TestExecution execution = executionRepository.findById(executionId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
-        Project project = projectAccessService.requireRead(execution.getProjectId(), user);
+        Project project = projectAccessService.requirePermission(execution.getProjectId(), user, RbacPermissions.REPORT_READ);
         TestTask task = taskRepository.findById(execution.getTestTaskId()).orElse(null);
         AutomationProject automationProject = automationProjectRepository
                 .findById(execution.getAutomationProjectId()).orElse(null);

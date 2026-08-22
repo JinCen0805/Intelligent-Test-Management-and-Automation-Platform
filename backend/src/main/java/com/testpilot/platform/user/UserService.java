@@ -1,9 +1,14 @@
 package com.testpilot.platform.user;
 
 import com.testpilot.platform.audit.OperationAuditService;
+import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.BusinessException;
+import com.testpilot.platform.rbac.RbacPermissionCache;
+import com.testpilot.platform.rbac.RbacPermissions;
+import com.testpilot.platform.rbac.RbacService;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,15 +19,24 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final OperationAuditService operationAuditService;
+    private final AuthService authService;
+    private final RbacPermissionCache permissionCache;
+    private final RbacService rbacService;
 
     public UserService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            OperationAuditService operationAuditService
+            OperationAuditService operationAuditService,
+            AuthService authService,
+            RbacPermissionCache permissionCache,
+            RbacService rbacService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.operationAuditService = operationAuditService;
+        this.authService = authService;
+        this.permissionCache = permissionCache;
+        this.rbacService = rbacService;
     }
 
     public List<UserDtos.Response> list(User currentUser) {
@@ -49,6 +63,7 @@ public class UserService {
                 "ENABLED"
         );
         User saved = userRepository.save(user);
+        syncSystemRole(saved, null, currentUser);
         operationAuditService.record(null, currentUser, "USER_CREATE", "USER", saved.getId(),
                 "创建用户 " + saved.getUsername() + "（角色 " + saved.getRole() + "）", true);
         return UserDtos.Response.from(saved);
@@ -67,8 +82,12 @@ public class UserService {
         user.setUsername(username);
         user.setDisplayName(request.displayName().trim());
         user.setEmail(blankToNull(request.email()));
+        String previousRole = user.getRole();
         user.setRole(normalizeRole(request.role()));
         User saved = userRepository.save(user);
+        syncSystemRole(saved, previousRole, currentUser);
+        authService.invalidateUserSessions(saved.getId());
+        permissionCache.invalidateUser(saved.getId());
         operationAuditService.record(null, currentUser, "USER_UPDATE", "USER", saved.getId(),
                 "更新用户 " + saved.getUsername() + "（角色 " + saved.getRole() + "）", true);
         return UserDtos.Response.from(saved);
@@ -91,6 +110,8 @@ public class UserService {
         }
         user.setStatus(status);
         User saved = userRepository.save(user);
+        authService.invalidateUserSessions(saved.getId());
+        permissionCache.invalidateUser(saved.getId());
         operationAuditService.record(null, currentUser, "USER_STATUS", "USER", saved.getId(),
                 "变更用户 " + saved.getUsername() + " 状态为 " + status, true);
         return UserDtos.Response.from(saved);
@@ -102,6 +123,8 @@ public class UserService {
         User user = find(userId);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         userRepository.save(user);
+        authService.invalidateUserSessions(user.getId());
+        permissionCache.invalidateUser(user.getId());
         operationAuditService.record(null, currentUser, "USER_PASSWORD", "USER", user.getId(),
                 "重置用户 " + user.getUsername() + " 的密码", true);
     }
@@ -112,8 +135,8 @@ public class UserService {
     }
 
     private void requireAdmin(User user) {
-        if (!"ADMIN".equalsIgnoreCase(user.getRole())) {
-            throw new BusinessException(40303, "只有管理员可以管理用户");
+        if (user == null || !rbacService.hasSystemPermission(user.getId(), RbacPermissions.SYSTEM_USER_MANAGE)) {
+            throw new AccessDeniedException("只有管理员可以管理用户");
         }
     }
 
@@ -127,5 +150,17 @@ public class UserService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void syncSystemRole(User saved, String previousRole, User currentUser) {
+        String normalizedCurrent = saved.getRole();
+        String normalizedPrevious = previousRole == null ? null : previousRole.trim().toUpperCase(Locale.ROOT);
+        if (normalizedPrevious != null && !normalizedPrevious.equals(normalizedCurrent)) {
+            if (List.of("ADMIN", "TEST_DEVELOPER").contains(normalizedPrevious)) {
+                rbacService.revokeRole(currentUser, saved.getId(), normalizedPrevious,
+                        RbacService.SYSTEM_SCOPE_TYPE, RbacService.SYSTEM_SCOPE_ID);
+            }
+        }
+        rbacService.assignSystemRole(currentUser, saved.getId(), normalizedCurrent);
     }
 }

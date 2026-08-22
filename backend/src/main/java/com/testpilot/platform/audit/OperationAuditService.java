@@ -3,6 +3,7 @@ package com.testpilot.platform.audit;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.user.User;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,17 +50,11 @@ public class OperationAuditService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:audit:read')")
     public List<OperationAuditDtos.OperationAuditResponse> list(User user) {
-        requireAdmin(user);
         return repository.findAllByOrderByCreatedAtDesc().stream()
                 .map(OperationAuditDtos.OperationAuditResponse::from)
                 .toList();
-    }
-
-    private void requireAdmin(User user) {
-        if (user == null || !"ADMIN".equalsIgnoreCase(user.getRole())) {
-            throw new BusinessException(40303, "只有管理员可以查看操作审计");
-        }
     }
 
     private String truncate(String value, int max) {

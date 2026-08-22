@@ -1,60 +1,28 @@
 package com.testpilot.platform.api;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "api_requests")
+@TableName("api_requests")
 public class ApiRequest {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "collection_id", nullable = false)
     private Long collectionId;
-
-    @Column(nullable = false, length = 128)
     private String name;
-
-    @Column(nullable = false, length = 16)
     private String method;
-
-    @Column(nullable = false, length = 1000)
     private String url;
-
-    @Column(name = "params_json", columnDefinition = "text")
     private String paramsJson;
-
-    @Column(name = "headers_json", columnDefinition = "text")
     private String headersJson;
-
-    @Column(name = "body_text", columnDefinition = "text")
     private String bodyText;
-
-    @Column(name = "assertions_json", columnDefinition = "text")
     private String assertionsJson;
-
-    @Column(name = "pre_request_script", columnDefinition = "text")
     private String preRequestScript;
-
-    @Column(name = "post_request_script", columnDefinition = "text")
     private String postRequestScript;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected ApiRequest() {
@@ -85,15 +53,11 @@ public class ApiRequest {
         this.preRequestScript = preRequestScript;
         this.postRequestScript = postRequestScript;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -110,6 +74,8 @@ public class ApiRequest {
     public String getAssertionsJson() { return assertionsJson; }
     public String getPreRequestScript() { return preRequestScript; }
     public String getPostRequestScript() { return postRequestScript; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void update(
             Long collectionId,
             String name,
@@ -134,3 +100,4 @@ public class ApiRequest {
         this.postRequestScript = postRequestScript;
     }
 }
+

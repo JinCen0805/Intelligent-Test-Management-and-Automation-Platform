@@ -1,12 +1,37 @@
 package com.testpilot.platform.user;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.testpilot.platform.common.persistence.MybatisRepository;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByUsername(String username);
-    Optional<User> findByUsernameAndStatus(String username, String status);
-    Optional<User> findByIdAndStatus(Long id, String status);
-    List<User> findAllByStatusOrderByDisplayNameAsc(String status);
+@Repository
+public class UserRepository extends MybatisRepository<User, Long> {
+
+    public UserRepository(UserMapper mapper) {
+        super(mapper, User.class, User::getId);
+    }
+
+    public Optional<User> findByUsername(String username) {
+        return findOne(Wrappers.<User>lambdaQuery().eq(User::getUsername, username));
+    }
+
+    public Optional<User> findByUsernameAndStatus(String username, String status) {
+        return findOne(Wrappers.<User>lambdaQuery()
+                .eq(User::getUsername, username)
+                .eq(User::getStatus, status));
+    }
+
+    public Optional<User> findByIdAndStatus(Long id, String status) {
+        return findOne(Wrappers.<User>lambdaQuery()
+                .eq(User::getId, id)
+                .eq(User::getStatus, status));
+    }
+
+    public List<User> findAllByStatusOrderByDisplayNameAsc(String status) {
+        return list(Wrappers.<User>lambdaQuery()
+                .eq(User::getStatus, status)
+                .orderByAsc(User::getDisplayName));
+    }
 }

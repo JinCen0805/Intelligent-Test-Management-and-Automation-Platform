@@ -4,6 +4,7 @@ import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.util.Map;
 import org.springframework.core.io.Resource;
@@ -50,7 +51,7 @@ public class AllureReportController {
         User user = authService.currentUser(authorization);
         TestExecution execution = executionRepository.findById(executionId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
-        projectAccessService.requireRead(execution.getProjectId(), user);
+        projectAccessService.requirePermission(execution.getProjectId(), user, RbacPermissions.REPORT_READ);
         String token = tokenService.issue(executionId, 600);
         String base = "/api/reports/public/allure/" + token;
         return ApiResponse.success(Map.of(

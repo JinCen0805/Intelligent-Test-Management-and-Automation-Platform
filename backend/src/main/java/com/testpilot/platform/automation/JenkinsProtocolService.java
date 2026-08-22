@@ -2,6 +2,7 @@ package com.testpilot.platform.automation;
 
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,7 @@ public class JenkinsProtocolService {
     public JenkinsProtocolDtos.ContractResponse contract(
             Long projectId, Long automationProjectId, User user
     ) {
-        projectAccessService.requireRead(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         AutomationProject project = projectRepository.findByIdAndProjectId(automationProjectId, projectId)
                 .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
         return new JenkinsProtocolDtos.ContractResponse(
@@ -51,7 +52,7 @@ public class JenkinsProtocolService {
     public JenkinsProtocolDtos.PrecheckResponse precheck(
             Long projectId, Long automationProjectId, User user
     ) {
-        projectAccessService.requireWrite(projectId, user);
+        projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         projectRepository.findByIdAndProjectId(automationProjectId, projectId)
                 .orElseThrow(() -> new BusinessException(40410, "自动化项目不存在"));
         JenkinsPipelineBinding binding = bindingRepository

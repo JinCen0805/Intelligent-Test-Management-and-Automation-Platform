@@ -1,11 +1,9 @@
 package com.testpilot.platform.ai;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -15,45 +13,21 @@ import java.util.UUID;
  * <p>提交时立即创建一条 RUNNING 记录并返回 taskId，后台线程执行真正的 AI 调用与落库，
  * 完成后回写 status / resultJson（或 errorCode / errorMessage），前端轮询该状态。
  */
-@Entity
-@Table(name = "ai_tasks")
+@TableName("ai_tasks")
 public class AiTask {
 
-    @Id
-    @Column(length = 64)
+    @TableId(type = IdType.INPUT)
     private String id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "created_by", nullable = false)
     private Long createdBy;
-
-    @Column(nullable = false, length = 32)
     private String type;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(name = "result_json", columnDefinition = "TEXT")
     private String resultJson;
-
-    @Column(name = "error_code")
     private Integer errorCode;
-
-    @Column(name = "error_message", length = 1000)
     private String errorMessage;
-
-    @Column(name = "started_at")
     private LocalDateTime startedAt;
-
-    @Column(name = "finished_at")
     private LocalDateTime finishedAt;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected AiTask() {
@@ -82,15 +56,11 @@ public class AiTask {
         this.errorMessage = message;
         this.finishedAt = LocalDateTime.now();
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -108,3 +78,4 @@ public class AiTask {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
+

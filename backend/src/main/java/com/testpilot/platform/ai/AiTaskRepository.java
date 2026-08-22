@@ -1,6 +1,12 @@
 package com.testpilot.platform.ai;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.testpilot.platform.common.persistence.MybatisRepository;
+import org.springframework.stereotype.Repository;
 
-public interface AiTaskRepository extends JpaRepository<AiTask, String> {
+@Repository
+public class AiTaskRepository extends MybatisRepository<AiTask, String> {
+
+    public AiTaskRepository(AiTaskMapper mapper) {
+        super(mapper, AiTask.class, AiTask::getId);
+    }
 }

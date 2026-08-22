@@ -4,6 +4,7 @@ import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/ai")
+@PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:ai-model:manage')")
 public class AiModelController {
 
     private final AiModelService aiModelService;

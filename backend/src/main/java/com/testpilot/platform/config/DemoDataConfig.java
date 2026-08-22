@@ -72,12 +72,12 @@ public class DemoDataConfig {
                         developer.getId(),
                         "RUNNING"
                 ));
-                projectMemberRepository.save(new ProjectMember(firstProject.getId(), developer.getId(), "OWNER"));
-                projectMemberRepository.save(new ProjectMember(secondProject.getId(), developer.getId(), "OWNER"));
+                projectMemberRepository.save(new ProjectMember(firstProject.getId(), developer.getId(), "PROJECT_OWNER"));
+                projectMemberRepository.save(new ProjectMember(secondProject.getId(), developer.getId(), "PROJECT_OWNER"));
             } else {
                 projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc().forEach(project -> {
                     if (projectMemberRepository.findByProjectIdAndUserId(project.getId(), project.getOwnerId()).isEmpty()) {
-                        projectMemberRepository.save(new ProjectMember(project.getId(), project.getOwnerId(), "OWNER"));
+                        projectMemberRepository.save(new ProjectMember(project.getId(), project.getOwnerId(), "PROJECT_OWNER"));
                     }
                 });
             }
@@ -139,6 +139,8 @@ public class DemoDataConfig {
                             "订单接口回归",
                             "REGRESSION",
                             automationProject.getId(),
+                            "TEST",
+                            "main",
                             "xh-mall-api-pipeline",
                             "{\"alluredir\":\"allure-results\"}"
                     ));

@@ -4,11 +4,21 @@ spring:
     username: sa
     password:
     driver-class-name: org.h2.Driver
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      repositories:
+        enabled: false
 
 testpilot:
+  security:
+    http-status-enforcement: false
+  infrastructure:
+    redis:
+      enabled: false
+      required: false
+      key-prefix: 'testpilot:test:'
   jenkins:
     mode: MOCK
     callback-token: test-callback-token

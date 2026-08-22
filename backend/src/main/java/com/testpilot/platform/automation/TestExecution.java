@@ -1,75 +1,33 @@
 package com.testpilot.platform.automation;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "test_executions")
+@TableName("test_executions")
 public class TestExecution {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(name = "test_task_id", nullable = false)
     private Long testTaskId;
-
-    @Column(name = "automation_project_id", nullable = false)
     private Long automationProjectId;
-
-    @Column(name = "jenkins_job", nullable = false, length = 255)
     private String jenkinsJob;
-
-    @Column(name = "queue_url", length = 1000)
     private String queueUrl;
-
-    @Column(name = "build_number", length = 64)
     private String buildNumber;
-
-    @Column(name = "commit_sha", length = 64)
     private String commitSha;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(name = "started_at")
     private LocalDateTime startedAt;
-
-    @Column(name = "finished_at")
     private LocalDateTime finishedAt;
-
-    @Column(name = "duration_ms")
     private Long durationMs;
-
-    @Column(name = "console_log_ref", length = 500)
     private String consoleLogRef;
-
-    @Column(name = "sync_failure_message", length = 1000)
     private String syncFailureMessage;
-
-    @Column(name = "sync_failure_count", nullable = false)
     private int syncFailureCount;
-
-    @Column(name = "triggered_by", length = 64)
     private String triggeredBy;
-
-    @Column(name = "trigger_method", nullable = false, length = 16)
     private String triggerMethod = "MANUAL";
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected TestExecution() {
@@ -94,15 +52,11 @@ public class TestExecution {
         this.status = status;
         this.startedAt = startedAt;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -172,3 +126,4 @@ public class TestExecution {
         }
     }
 }
+

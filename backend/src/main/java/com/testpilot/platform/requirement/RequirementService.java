@@ -3,6 +3,7 @@ package com.testpilot.platform.requirement;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectRepository;
 import com.testpilot.platform.project.ProjectAccessService;
+import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,7 +38,7 @@ public class RequirementService {
     }
 
     public List<RequirementDtos.Response> list(Long projectId, User currentUser) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.REQUIREMENT_READ);
         return requirementRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)
                 .stream()
                 .map(RequirementDtos.Response::from)
@@ -45,7 +46,7 @@ public class RequirementService {
     }
 
     public RequirementDtos.DetailResponse get(Long projectId, Long requirementId, User currentUser) {
-        projectAccessService.requireRead(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.REQUIREMENT_READ);
         return RequirementDtos.DetailResponse.from(findRequirement(projectId, requirementId));
     }
 
@@ -56,7 +57,7 @@ public class RequirementService {
             String version,
             User currentUser
     ) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.REQUIREMENT_WRITE);
         if (file == null || file.isEmpty()) {
             throw new BusinessException(40003, "请选择需求文件");
         }
@@ -106,7 +107,7 @@ public class RequirementService {
 
     @Transactional
     public RequirementDtos.Response parse(Long projectId, Long requirementId, User currentUser) {
-        projectAccessService.requireWrite(projectId, currentUser);
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.REQUIREMENT_WRITE);
         Requirement requirement = findRequirement(projectId, requirementId);
         try {
             try (var inputStream = Files.newInputStream(Path.of(requirement.getFilePath()))) {

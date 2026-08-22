@@ -1,45 +1,26 @@
 package com.testpilot.platform.api;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "api_environment_variables")
+@TableName("api_environment_variables")
 public class ApiEnvironmentVariable {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(nullable = false, length = 32)
     private String environment;
-
-    @Column(nullable = false, length = 128)
     private String name;
-
-    @Column(name = "value_text", columnDefinition = "text")
-    private String value;
-
-    @Column(name = "sensitive_flag", nullable = false)
+    @TableField("value_text")
+    private String valueText;
+    @TableField("sensitive_flag")
     private boolean sensitive;
-
-    @Column(length = 64)
     private String source;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected ApiEnvironmentVariable() {
@@ -49,19 +30,15 @@ public class ApiEnvironmentVariable {
         this.projectId = projectId;
         this.environment = environment;
         this.name = name;
-        this.value = value;
+        this.valueText = value;
         this.sensitive = sensitive;
         this.source = source;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -70,12 +47,15 @@ public class ApiEnvironmentVariable {
     public Long getProjectId() { return projectId; }
     public String getEnvironment() { return environment; }
     public String getName() { return name; }
-    public String getValue() { return value; }
+    public String getValue() { return valueText; }
     public boolean isSensitive() { return sensitive; }
     public String getSource() { return source; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void update(String value, boolean sensitive, String source) {
-        this.value = value;
+        this.valueText = value;
         this.sensitive = sensitive;
         this.source = source;
     }
 }
+

@@ -1,51 +1,27 @@
 package com.testpilot.platform.automation;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "test_tasks")
+@TableName("test_tasks")
 public class TestTask {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(name = "project_id", nullable = false)
     private Long projectId;
-
-    @Column(nullable = false, length = 128)
     private String name;
-
-    @Column(name = "task_type", nullable = false, length = 32)
     private String taskType;
-
-    @Column(name = "automation_project_id", nullable = false)
     private Long automationProjectId;
-
-    @Column(name = "pipeline_binding_id")
     private Long pipelineBindingId;
-
-    @Column(name = "jenkins_job", nullable = false, length = 255)
     private String jenkinsJob;
-
-    @Column(name = "parameters_json", columnDefinition = "text")
+    private String environment;
+    private String branch;
     private String parametersJson;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected TestTask() {
@@ -59,7 +35,20 @@ public class TestTask {
             String jenkinsJob,
             String parametersJson
     ) {
-        this(projectId, name, taskType, automationProjectId, null, jenkinsJob, parametersJson);
+        this(projectId, name, taskType, automationProjectId, null, null, jenkinsJob, parametersJson);
+    }
+
+    public TestTask(
+            Long projectId,
+            String name,
+            String taskType,
+            Long automationProjectId,
+            String environment,
+            String branch,
+            String jenkinsJob,
+            String parametersJson
+    ) {
+        this(projectId, name, taskType, automationProjectId, null, environment, branch, jenkinsJob, parametersJson);
     }
 
     public TestTask(
@@ -68,6 +57,8 @@ public class TestTask {
             String taskType,
             Long automationProjectId,
             Long pipelineBindingId,
+            String environment,
+            String branch,
             String jenkinsJob,
             String parametersJson
     ) {
@@ -76,19 +67,17 @@ public class TestTask {
         this.taskType = taskType;
         this.automationProjectId = automationProjectId;
         this.pipelineBindingId = pipelineBindingId;
+        this.environment = environment;
+        this.branch = branch;
         this.jenkinsJob = jenkinsJob;
         this.parametersJson = parametersJson;
         this.status = "ENABLED";
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -98,6 +87,8 @@ public class TestTask {
             String taskType,
             Long automationProjectId,
             Long pipelineBindingId,
+            String environment,
+            String branch,
             String jenkinsJob,
             String parametersJson
     ) {
@@ -105,6 +96,8 @@ public class TestTask {
         this.taskType = taskType;
         this.automationProjectId = automationProjectId;
         this.pipelineBindingId = pipelineBindingId;
+        this.environment = environment;
+        this.branch = branch;
         this.jenkinsJob = jenkinsJob;
         this.parametersJson = parametersJson;
     }
@@ -120,6 +113,11 @@ public class TestTask {
     public Long getAutomationProjectId() { return automationProjectId; }
     public Long getPipelineBindingId() { return pipelineBindingId; }
     public String getJenkinsJob() { return jenkinsJob; }
+    public String getEnvironment() { return environment; }
+    public String getBranch() { return branch; }
     public String getParametersJson() { return parametersJson; }
     public String getStatus() { return status; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
+

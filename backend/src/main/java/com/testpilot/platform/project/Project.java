@@ -1,45 +1,25 @@
 package com.testpilot.platform.project;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
+import com.baomidou.mybatisplus.annotation.TableName;
+
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "projects")
+@TableName("projects")
 public class Project {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
-
-    @Column(nullable = false, length = 128)
     private String name;
-
-    @Column(nullable = false, unique = true, length = 64)
     private String code;
-
-    @Column(columnDefinition = "text")
     private String description;
-
-    @Column(name = "owner_id", nullable = false)
     private Long ownerId;
-
-    @Column(nullable = false, length = 16)
     private String status;
-
-    @Column(nullable = false)
+    @TableLogic
     private boolean deleted;
-
-    @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     protected Project() {
@@ -52,16 +32,12 @@ public class Project {
         this.ownerId = ownerId;
         this.status = status;
     }
-
-    @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
         deleted = false;
     }
-
-    @PreUpdate
     void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
@@ -80,3 +56,4 @@ public class Project {
     public void setStatus(String status) { this.status = status; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
 }
+
