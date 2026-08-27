@@ -28,6 +28,29 @@ export interface ApiPromptTemplate {
   enabled: boolean
 }
 
+export interface ApiCaseChatResponse {
+  sessionId: number
+  modelId: number
+  provider: string
+  reply: string
+  generatedCases?: ApiGeneratedCase[]
+}
+
+export interface ApiCaseChatMessage {
+  id: number
+  role: 'assistant' | 'user'
+  content: string
+}
+
+export interface ApiCaseChatSession {
+  sessionId: number
+  title: string
+  messages: ApiCaseChatMessage[]
+  createdAt: string
+  updatedAt: string
+  suiteType?: string
+}
+
 export const ai = {
   models: () => request<ApiAiModel[]>('/ai/models'),
   prompts: () => request<ApiPromptTemplate[]>('/ai/prompts'),
@@ -98,9 +121,27 @@ export const ai = {
   generate: (projectId: number, requirementId: number, payload: {
     modelId?: number
     promptId?: number
+    suiteType?: string
     rules?: string
-  } = {}) => request<ApiAiTaskSubmit>(`/projects/${projectId}/requirements/${requirementId}/test-cases/generate`, {
+  } = {}) => request<ApiAiTaskSubmit>(`/projects/${projectId}/files/${requirementId}/test-cases/generate`, {
     method: 'POST',
     body: JSON.stringify(payload)
-  })
+  }),
+  caseChat: (projectId: number, payload: {
+    sessionId?: number | null
+    modelId?: number | null
+    requirementId?: number | null
+    selectedCaseId?: number | null
+    suiteType: string
+    message: string
+  }) => request<ApiCaseChatResponse>(`/projects/${projectId}/test-cases/chat`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  }),
+  caseChatHistory: (projectId: number, suiteType: string) =>
+    request<ApiCaseChatSession[]>(`/projects/${projectId}/test-cases/chat/history?suiteType=${encodeURIComponent(suiteType)}`),
+  deleteCaseChatHistory: (projectId: number, sessionId: number, suiteType: string) =>
+    request<void>(`/projects/${projectId}/test-cases/chat/history/${sessionId}?suiteType=${encodeURIComponent(suiteType)}`, { method: 'DELETE' }),
+  deleteAllCaseChatHistory: (projectId: number, suiteType: string) =>
+    request<void>(`/projects/${projectId}/test-cases/chat/history?suiteType=${encodeURIComponent(suiteType)}`, { method: 'DELETE' })
 }

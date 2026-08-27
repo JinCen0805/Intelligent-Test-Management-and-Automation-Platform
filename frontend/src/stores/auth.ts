@@ -17,8 +17,8 @@ export const useAuthStore = defineStore('auth', () => {
     authenticated: false,
     loading: false,
     error: '',
-    username: 'lin.xiao',
-    password: 'demo123',
+    username: '',
+    password: '',
     displayName: '林晓',
     role: 'TEST_DEVELOPER'
   })

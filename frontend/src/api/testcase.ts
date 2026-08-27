@@ -1,4 +1,4 @@
-import { request } from './client'
+import { download, request } from './client'
 
 export interface ApiTestCase {
   id: number
@@ -13,7 +13,9 @@ export interface ApiTestCase {
   expectedResult?: string | null
   priority: string
   caseType: string
+  suiteType: string
   tags?: string | null
+  extraFields?: Record<string, unknown> | null
   status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'REJECTED'
   source: string
   createdBy: number
@@ -35,6 +37,8 @@ export const testCases = {
     keyword?: string
     priority?: string
     caseType?: string
+    source?: string
+    suiteType?: string
     page?: number
     size?: number
   } = {}) => {
@@ -43,9 +47,34 @@ export const testCases = {
     if (params.keyword) query.set('keyword', params.keyword)
     if (params.priority) query.set('priority', params.priority)
     if (params.caseType) query.set('caseType', params.caseType)
+    if (params.source) query.set('source', params.source)
+    if (params.suiteType) query.set('suiteType', params.suiteType)
     query.set('page', String(params.page ?? 0))
     query.set('size', String(params.size ?? 100))
     return request<ApiTestCasePage>(`/projects/${projectId}/test-cases?${query.toString()}`)
+  },
+  exportExcel: async (projectId: number, params: {
+    status?: string
+    keyword?: string
+    priority?: string
+    caseType?: string
+    source?: string
+    suiteType?: string
+  } = {}) => {
+    const query = new URLSearchParams()
+    if (params.status) query.set('status', params.status)
+    if (params.keyword) query.set('keyword', params.keyword)
+    if (params.priority) query.set('priority', params.priority)
+    if (params.caseType) query.set('caseType', params.caseType)
+    if (params.source) query.set('source', params.source)
+    if (params.suiteType) query.set('suiteType', params.suiteType)
+    const blob = await download(`/projects/${projectId}/test-cases/export?${query.toString()}`)
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `test-cases-${projectId}.xlsx`
+    anchor.click()
+    URL.revokeObjectURL(url)
   },
   create: (projectId: number, payload: {
     requirementId?: number | null
@@ -58,6 +87,7 @@ export const testCases = {
     expectedResult?: string
     priority: string
     caseType: string
+    suiteType: string
     tags?: string
   }) => request<ApiTestCase>(`/projects/${projectId}/test-cases`, {
     method: 'POST',
@@ -74,6 +104,7 @@ export const testCases = {
     expectedResult?: string
     priority: string
     caseType: string
+    suiteType: string
     tags?: string
   }) => request<ApiTestCase>(`/projects/${projectId}/test-cases/${caseId}`, {
     method: 'PUT',

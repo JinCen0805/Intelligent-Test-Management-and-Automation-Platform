@@ -1,13 +1,23 @@
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/api'
-import type { ApiAiModel, ApiPromptTemplate, ApiGeneratedCase } from '@/api'
+import type { ApiAiModel, ApiPromptTemplate, ApiGeneratedCase, ApiCaseChatMessage, ApiCaseChatSession } from '@/api'
 import { useUiStore } from './ui'
 import { useAuthStore } from './auth'
 import { useProjectStore } from './project'
 import { useRequirementStore } from './requirement'
 import { useTestcaseStore } from './testcase'
 import { pollAiTask } from '@/utils/pollAiTask'
+
+const DEFAULT_CASE_CHAT_MESSAGE: ApiCaseChatMessage = {
+  id: Date.now(),
+  role: 'assistant',
+  content: '你可以先告诉我想补哪类场景，或者直接让我帮你优化选中的测试用例。'
+}
+
+function cloneCaseChatMessages(messages: ApiCaseChatMessage[]) {
+  return messages.map((item) => ({ ...item }))
+}
 
 export const useAiStore = defineStore('ai', () => {
   const ui = useUiStore()
@@ -22,15 +32,108 @@ export const useAiStore = defineStore('ai', () => {
   const editingPromptId = ref<number | null>(null)
   const generationForm = ref({
     requirementId: null as number | null,
+    selectedCaseId: null as number | null,
     modelId: null as number | null,
+    suiteType: ui.activeCaseSuiteType,
     rules: '覆盖正向、异常、边界场景；输出结构化字段。'
   })
   const promptForm = ref({ name: '', taskType: '', content: '', version: '' })
   const generatedCaseList = ref<ApiGeneratedCase[]>([])
+  const caseChatMessages = ref<ApiCaseChatMessage[]>([DEFAULT_CASE_CHAT_MESSAGE])
+  const caseChatHistory = ref<ApiCaseChatSession[]>([])
+  const activeCaseChatSessionId = ref<number | null>(null)
+  const caseChatInput = ref('')
   const isGenerating = ref(false)
+  const isChatting = ref(false)
   const generationDone = ref(false)
   const testingModelId = ref<number | null>(null)
   let stopAiPoll: (() => void) | undefined
+  let caseChatHistoryLoadSeq = 0
+
+  watch(
+    () => ui.activeCaseSuiteType,
+    (suiteType) => {
+      generationForm.value.suiteType = suiteType
+      generationForm.value.selectedCaseId = null
+      activeCaseChatSessionId.value = null
+      caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
+      caseChatInput.value = ''
+      void loadCaseChatHistory(true)
+    },
+    { immediate: true }
+  )
+
+  function defaultCaseChatMessages() {
+    return [{ ...DEFAULT_CASE_CHAT_MESSAGE, id: Date.now() }]
+  }
+
+  async function loadCaseChatHistory(restoreLatest = false) {
+    const projectId = projectStore.currentProject.id
+    const suiteType = ui.activeCaseSuiteType
+    const loadSeq = ++caseChatHistoryLoadSeq
+    if (!projectId) {
+      caseChatHistory.value.splice(0, caseChatHistory.value.length)
+      caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
+      activeCaseChatSessionId.value = null
+      return
+    }
+    try {
+      const sessions = await api.ai.caseChatHistory(projectId, suiteType)
+      if (loadSeq !== caseChatHistoryLoadSeq) return
+      caseChatHistory.value.splice(0, caseChatHistory.value.length, ...sessions)
+      if (restoreLatest) {
+        const latest = sessions[0]
+        if (latest?.messages?.length) {
+          caseChatMessages.value.splice(0, caseChatMessages.value.length, ...cloneCaseChatMessages(latest.messages))
+          activeCaseChatSessionId.value = latest.sessionId
+        } else {
+          caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
+          activeCaseChatSessionId.value = null
+        }
+      }
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '历史对话加载失败')
+    }
+  }
+
+  function restoreCaseChatSession(sessionId: number) {
+    const session = caseChatHistory.value.find((item) => item.sessionId === sessionId)
+    if (!session) return
+    activeCaseChatSessionId.value = session.sessionId
+    caseChatMessages.value.splice(0, caseChatMessages.value.length, ...cloneCaseChatMessages(session.messages))
+    ui.closeModal()
+  }
+
+  async function deleteCaseChatSession(sessionId: number) {
+    const projectId = projectStore.currentProject.id
+    if (!projectId) return
+    try {
+      await api.ai.deleteCaseChatHistory(projectId, sessionId, ui.activeCaseSuiteType)
+      await loadCaseChatHistory(false)
+      if (activeCaseChatSessionId.value === sessionId) {
+        activeCaseChatSessionId.value = null
+        caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
+      }
+      ui.showToast('历史对话已删除')
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '历史对话删除失败')
+    }
+  }
+
+  async function deleteAllCaseChatSessions() {
+    const projectId = projectStore.currentProject.id
+    if (!projectId || caseChatHistory.value.length === 0) return
+    if (!window.confirm('确认删除全部历史对话吗？')) return
+    try {
+      await api.ai.deleteAllCaseChatHistory(projectId, ui.activeCaseSuiteType)
+      caseChatHistory.value.splice(0, caseChatHistory.value.length)
+      activeCaseChatSessionId.value = null
+      caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
+      ui.showToast('全部历史对话已删除')
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '全部删除失败')
+    }
+  }
 
   async function loadAiConfig() {
     if (auth.authState.role !== 'ADMIN') return
@@ -44,14 +147,6 @@ export const useAiStore = defineStore('ai', () => {
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : 'AI 配置加载失败')
     }
-  }
-
-  function openGenerationModal() {
-    generationForm.value.requirementId = requirement.selectedRequirementId
-    generationForm.value.modelId = aiModels.value[0]?.id ?? null
-    generatedCaseList.value.splice(0, generatedCaseList.value.length)
-    generationDone.value = false
-    ui.openModal('case')
   }
 
   async function saveModel() {
@@ -207,7 +302,7 @@ export const useAiStore = defineStore('ai', () => {
     const projectId = projectStore.currentProject.id
     const requirementId = generationForm.value.requirementId ?? requirement.selectedRequirementId
     if (!projectId || !requirementId) {
-      ui.showToast('请先上传并解析一份需求文档')
+      ui.showToast('请先添加一个项目文件')
       return
     }
     isGenerating.value = true
@@ -216,7 +311,8 @@ export const useAiStore = defineStore('ai', () => {
     try {
       ;({ taskId } = await api.ai.generate(projectId, requirementId, {
         modelId: generationForm.value.modelId ?? undefined,
-        rules: generationForm.value.rules
+        rules: generationForm.value.rules,
+        suiteType: generationForm.value.suiteType
       }))
     } catch (error) {
       isGenerating.value = false
@@ -229,14 +325,19 @@ export const useAiStore = defineStore('ai', () => {
       onSuccess: async (result) => {
         generatedCaseList.value.splice(0, generatedCaseList.value.length, ...result.testCases)
         generationDone.value = true
-        await useTestcaseStore().loadTestCases()
-        if (ui.modal === 'case') {
-          ui.closeModal()
-          ui.activeProjectTab = 'cases'
-        }
+        const testcaseStore = useTestcaseStore()
+        await testcaseStore.loadTestCases({
+          source: 'AI',
+          status: '',
+          keyword: '',
+          priority: '',
+          caseType: '',
+          suiteType: generationForm.value.suiteType
+        })
+        await testcaseStore.loadAllTestCases()
         isGenerating.value = false
         ui.stopProcessing()
-        ui.showToast(`AI 已生成 ${result.testCases.length} 条测试用例 Draft`)
+        ui.showToast(`AI 已生成 ${result.testCases.length} 条测试用例`)
       },
       onFailure: (message) => {
         isGenerating.value = false
@@ -244,6 +345,65 @@ export const useAiStore = defineStore('ai', () => {
         ui.showToast(message)
       }
     })
+  }
+
+  function resetCaseChat() {
+    activeCaseChatSessionId.value = null
+    caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
+    caseChatInput.value = ''
+  }
+
+  async function sendCaseChat() {
+    const projectId = projectStore.currentProject.id
+    const message = caseChatInput.value.trim()
+    if (!projectId || !message) return
+    caseChatMessages.value.push({
+      id: Date.now(),
+      role: 'user',
+      content: message
+    })
+    caseChatInput.value = ''
+    isChatting.value = true
+    try {
+      const reply = await api.ai.caseChat(projectId, {
+        sessionId: activeCaseChatSessionId.value,
+        modelId: generationForm.value.modelId ?? undefined,
+        requirementId: generationForm.value.requirementId ?? requirement.selectedRequirementId,
+        selectedCaseId: generationForm.value.selectedCaseId,
+        suiteType: generationForm.value.suiteType,
+        message
+      })
+      activeCaseChatSessionId.value = reply.sessionId
+      caseChatMessages.value.push({
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: reply.reply
+      })
+      await loadCaseChatHistory(false)
+      if (reply.generatedCases?.length) {
+        const testcaseStore = useTestcaseStore()
+        await testcaseStore.loadTestCases({
+          source: 'AI',
+          status: '',
+          keyword: '',
+          priority: '',
+          caseType: '',
+          suiteType: ui.activeCaseSuiteType
+        })
+        await testcaseStore.loadAllTestCases()
+        ui.activeProjectTab = 'case-ai'
+        ui.showToast(`AI 对话已生成 ${reply.generatedCases.length} 条待处理用例`)
+      }
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : 'AI 对话失败')
+      caseChatMessages.value.push({
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: '刚才这轮对话没有成功，你可以再发一次。'
+      })
+    } finally {
+      isChatting.value = false
+    }
   }
 
   return {
@@ -255,10 +415,14 @@ export const useAiStore = defineStore('ai', () => {
     generationForm,
     promptForm,
     generatedCaseList,
+    caseChatMessages,
+    caseChatHistory,
+    activeCaseChatSessionId,
+    caseChatInput,
     isGenerating,
+    isChatting,
     generationDone,
     loadAiConfig,
-    openGenerationModal,
     saveModel,
     openModelEditor,
     toggleModelEnabled,
@@ -270,6 +434,12 @@ export const useAiStore = defineStore('ai', () => {
     togglePromptEnabled,
     publishPrompt,
     activatePrompt,
-    generateTestCases
+    generateTestCases,
+    loadCaseChatHistory,
+    resetCaseChat,
+    restoreCaseChatSession,
+    deleteCaseChatSession,
+    deleteAllCaseChatSessions,
+    sendCaseChat
   }
 })

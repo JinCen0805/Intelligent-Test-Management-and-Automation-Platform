@@ -1,12 +1,10 @@
 package com.testpilot.platform.requirement;
 
 import com.testpilot.platform.common.BusinessException;
-import com.testpilot.platform.project.ProjectRepository;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -21,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class RequirementService {
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
-    private static final List<String> ALLOWED_TYPES = List.of("pdf", "docx", "md", "markdown", "txt");
+    private static final List<String> LEGACY_ALLOWED_TYPES = List.of("pdf", "docx", "md", "markdown", "txt");
 
     private final RequirementRepository requirementRepository;
     private final ProjectAccessService projectAccessService;
@@ -57,9 +55,20 @@ public class RequirementService {
             String version,
             User currentUser
     ) {
+        return upload(projectId, file, version, currentUser, false);
+    }
+
+    @Transactional
+    public RequirementDtos.Response upload(
+            Long projectId,
+            MultipartFile file,
+            String version,
+            User currentUser,
+            boolean allowAnyType
+    ) {
         projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.REQUIREMENT_WRITE);
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(40003, "请选择需求文件");
+            throw new BusinessException(40003, "请选择项目文件");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new BusinessException(40002, "文件大小不能超过 10MB");
@@ -67,29 +76,22 @@ public class RequirementService {
 
         String originalName = safeFileName(file.getOriginalFilename());
         String extension = extensionOf(originalName);
-        if (!ALLOWED_TYPES.contains(extension)) {
+        if (!allowAnyType && !LEGACY_ALLOWED_TYPES.contains(extension)) {
             throw new BusinessException(40004, "仅支持 PDF、DOCX、Markdown 和 TXT 文件");
         }
-
         Path uploadDirectory = Path.of("data", "uploads", String.valueOf(projectId));
         Path target = uploadDirectory.resolve(UUID.randomUUID() + "." + extension);
         try {
             Files.createDirectories(uploadDirectory);
             Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
-            throw new BusinessException(50002, "需求文件保存失败");
+            throw new BusinessException(50002, "项目文件保存失败");
         }
 
+        // 项目文件管理只负责保存原文件。文件内容由使用方（例如 AI 生成）按需读取。
         String contentText = null;
-        String parseStatus = "PARSING";
-        String parseError = null;
-        try {
-            contentText = requirementParser.parse(extension, Files.newInputStream(target));
-            parseStatus = "PARSED";
-        } catch (IOException exception) {
-            parseStatus = "FAILED";
-            parseError = exception.getMessage();
-        }
+        // Keep the legacy status value for API compatibility; the file itself is not parsed here.
+        String parseStatus = "PARSED";
 
         Requirement requirement = new Requirement(
                 projectId,
@@ -101,7 +103,6 @@ public class RequirementService {
                 contentText,
                 currentUser.getId()
         );
-        requirement.setParseError(parseError);
         return RequirementDtos.Response.from(requirementRepository.save(requirement));
     }
 
@@ -127,7 +128,7 @@ public class RequirementService {
 
     private Requirement findRequirement(Long projectId, Long requirementId) {
         return requirementRepository.findByIdAndProjectId(requirementId, projectId)
-                .orElseThrow(() -> new BusinessException(40402, "需求文档不存在"));
+                .orElseThrow(() -> new BusinessException(40402, "项目文件不存在"));
     }
 
     private String safeFileName(String originalName) {

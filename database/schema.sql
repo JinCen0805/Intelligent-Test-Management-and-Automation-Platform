@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS test_cases (
   priority VARCHAR(8) NOT NULL,
   case_type VARCHAR(32) NOT NULL,
   tags VARCHAR(500),
+  extra_fields_json LONGTEXT,
   status VARCHAR(16) NOT NULL,
   source VARCHAR(16) NOT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -179,12 +179,49 @@ class ApiSmokeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"APPROVED\"}"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        MvcResult manualCaseResult = mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-cases",
+                        projectId
+                )
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"手工草稿状态流转测试",
+                                  "precondition":"测试环境可用",
+                                  "steps":"执行测试步骤",
+                                  "testData":"测试数据",
+                                  "expectedResult":"符合预期",
+                                  "priority":"P1",
+                                  "caseType":"FUNCTIONAL",
+                                  "suiteType":"FUNCTIONAL"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andReturn();
+        Long manualCaseId = ((Number) JsonPath.read(
+                manualCaseResult.getResponse().getContentAsString(),
+                "$.data.id"
+        )).longValue();
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-cases/{testCaseId}/status",
+                        projectId,
+                        manualCaseId
+                )
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"APPROVED\"}"))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(40005));
 
         mockMvc.perform(post(
                         "/api/projects/{projectId}/test-cases/{testCaseId}/status",
                         projectId,
-                        testCaseId
+                        manualCaseId
                 )
                         .header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -195,7 +232,7 @@ class ApiSmokeTest {
         mockMvc.perform(post(
                         "/api/projects/{projectId}/test-cases/{testCaseId}/status",
                         projectId,
-                        testCaseId
+                        manualCaseId
                 )
                         .header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -654,6 +691,15 @@ class ApiSmokeTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("base_url"));
+
+        mockMvc.perform(get(
+                        "/api/projects/{projectId}/api-workbench/variables",
+                        projectId
+                )
+                        .param("environment", "TEST")
+                        .header("Authorization", auth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].name").value("base_url"));
     }
 
     @Test

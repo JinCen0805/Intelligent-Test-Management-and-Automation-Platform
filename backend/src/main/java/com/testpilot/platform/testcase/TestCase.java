@@ -22,7 +22,9 @@ public class TestCase {
     private String expectedResult;
     private String priority;
     private String caseType;
+    private String suiteType;
     private String tags;
+    private String extraFieldsJson;
     private String status;
     private String source;
     private Long createdBy;
@@ -44,10 +46,34 @@ public class TestCase {
             String expectedResult,
             String priority,
             String caseType,
+            String suiteType,
             String tags,
             String status,
             String source,
             Long createdBy
+    ) {
+        this(projectId, requirementId, caseNo, title, moduleName, precondition, steps, testData,
+                expectedResult, priority, caseType, suiteType, tags, status, source, createdBy, null);
+    }
+
+    public TestCase(
+            Long projectId,
+            Long requirementId,
+            String caseNo,
+            String title,
+            String moduleName,
+            String precondition,
+            String steps,
+            String testData,
+            String expectedResult,
+            String priority,
+            String caseType,
+            String suiteType,
+            String tags,
+            String status,
+            String source,
+            Long createdBy,
+            String extraFieldsJson
     ) {
         this.projectId = projectId;
         this.requirementId = requirementId;
@@ -60,7 +86,9 @@ public class TestCase {
         this.expectedResult = expectedResult;
         this.priority = priority;
         this.caseType = caseType;
+        this.suiteType = suiteType;
         this.tags = tags;
+        this.extraFieldsJson = extraFieldsJson;
         this.status = status;
         this.source = source;
         this.createdBy = createdBy;
@@ -86,7 +114,9 @@ public class TestCase {
     public String getExpectedResult() { return expectedResult; }
     public String getPriority() { return priority; }
     public String getCaseType() { return caseType; }
+    public String getSuiteType() { return suiteType; }
     public String getTags() { return tags; }
+    public String getExtraFieldsJson() { return extraFieldsJson; }
     public String getStatus() { return status; }
     public String getSource() { return source; }
     public Long getCreatedBy() { return createdBy; }
@@ -103,10 +133,14 @@ public class TestCase {
         this.expectedResult = request.expectedResult();
         this.priority = request.priority().trim().toUpperCase();
         this.caseType = request.caseType().trim().toUpperCase();
+        this.suiteType = request.suiteType() == null || request.suiteType().isBlank()
+                ? "FUNCTIONAL"
+                : request.suiteType().trim().toUpperCase();
         this.tags = request.tags();
     }
 
     public void setStatus(String status) { this.status = status; }
+    public void setExtraFieldsJson(String extraFieldsJson) { this.extraFieldsJson = extraFieldsJson; }
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();

@@ -1,11 +1,16 @@
 package com.testpilot.platform.testcase;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 public final class TestCaseDtos {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private TestCaseDtos() {
     }
@@ -29,6 +34,8 @@ public final class TestCaseDtos {
             @NotBlank(message = "不能为空")
             @Size(max = 32, message = "长度不能超过 32 个字符")
             String caseType,
+            @Pattern(regexp = "FUNCTIONAL|API|functional|api", message = "必须是 FUNCTIONAL/API")
+            String suiteType,
             @Size(max = 500, message = "长度不能超过 500 个字符")
             String tags
     ) {
@@ -54,7 +61,9 @@ public final class TestCaseDtos {
             String expectedResult,
             String priority,
             String caseType,
+            String suiteType,
             String tags,
+            Map<String, Object> extraFields,
             String status,
             String source,
             Long createdBy,
@@ -75,13 +84,27 @@ public final class TestCaseDtos {
                     testCase.getExpectedResult(),
                     testCase.getPriority(),
                     testCase.getCaseType(),
+                    testCase.getSuiteType(),
                     testCase.getTags(),
+                    parseExtraFields(testCase.getExtraFieldsJson()),
                     testCase.getStatus(),
                     testCase.getSource(),
                     testCase.getCreatedBy(),
                     testCase.getCreatedAt(),
                     testCase.getUpdatedAt()
             );
+        }
+
+        private static Map<String, Object> parseExtraFields(String value) {
+            if (value == null || value.isBlank()) {
+                return Map.of();
+            }
+            try {
+                Map<String, Object> parsed = OBJECT_MAPPER.readValue(value, new TypeReference<>() {});
+                return parsed == null ? Map.of() : parsed;
+            } catch (Exception ignored) {
+                return Map.of();
+            }
         }
     }
 }

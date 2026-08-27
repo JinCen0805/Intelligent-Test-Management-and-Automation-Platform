@@ -20,8 +20,7 @@ const { authState } = storeToRefs(auth)
 const { projects } = storeToRefs(projectStore)
 const { openProject } = projectStore
 const { reportItems, failedReports, reportSummary } = storeToRefs(reportStore)
-const { loadReportCenter } = reportStore
-const { testCases } = storeToRefs(testcaseStore)
+const { allTestCases } = storeToRefs(testcaseStore)
 const isRefreshing = ref(false)
 
 async function refreshHomeData() {
@@ -32,7 +31,7 @@ async function refreshHomeData() {
     await projectStore.loadProjects()
     await Promise.all([
       reportStore.loadReportCenter(),
-      testcaseStore.loadTestCases()
+      testcaseStore.loadAllTestCases()
     ])
   } catch (error) {
     const message = error instanceof Error ? error.message : '首页数据刷新失败'
@@ -59,9 +58,9 @@ const homeAveragePassRate = computed(() => {
     : '--'
 })
 
-const testCasesPendingReview = computed(() => testCases.value.filter((item) => item.status === 'REVIEW').length)
+const testCasesPendingReview = computed(() => allTestCases.value.filter((item) => item.status === 'REVIEW').length)
 
-onMounted(() => { void loadReportCenter() })
+onMounted(() => { void refreshHomeData() })
 </script>
 
 <template>
@@ -128,9 +127,9 @@ onMounted(() => { void loadReportCenter() })
     </div>
 
     <div class="card pipeline-card">
-      <div class="card-head"><div class="card-title"><span class="panel-index">03</span><h3>测试质量流水线</h3></div><span class="muted">从需求到报告的全链路状态</span></div>
+      <div class="card-head"><div class="card-title"><span class="panel-index">03</span><h3>测试质量流水线</h3></div><span class="muted">从项目文件到报告的全链路状态</span></div>
       <div class="quality-pipeline">
-        <div class="pipeline-step done"><b>▤</b><strong>需求解析</strong><small>查看项目需求</small></div>
+        <div class="pipeline-step done"><b>▤</b><strong>项目文件</strong><small>管理项目资料</small></div>
         <div class="pipeline-step done"><b>✦</b><strong>用例生成</strong><small>{{ testCasesPendingReview }} 条待 Review</small></div>
         <div class="pipeline-step active"><b>▶</b><strong>自动化执行</strong><small>{{ reportItems.filter((item) => item.status === 'RUNNING' || item.status === 'QUEUED').length }} 个任务运行中</small></div>
         <div class="pipeline-step"><b>▥</b><strong>报告聚合</strong><small>{{ reportItems.length }} 条最近执行</small></div>

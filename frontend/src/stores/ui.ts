@@ -16,6 +16,7 @@ export const useUiStore = defineStore('ui', () => {
   const caseStatusFilter = ref('')
   const casePriorityFilter = ref('')
   const caseTypeFilter = ref('')
+  const activeCaseSuiteType = ref<'FUNCTIONAL' | 'API'>('FUNCTIONAL')
 
   function openModal(name: ModalName) {
     modal.value = name
@@ -55,6 +56,7 @@ export const useUiStore = defineStore('ui', () => {
     caseStatusFilter,
     casePriorityFilter,
     caseTypeFilter,
+    activeCaseSuiteType,
     openModal,
     closeModal,
     showToast,

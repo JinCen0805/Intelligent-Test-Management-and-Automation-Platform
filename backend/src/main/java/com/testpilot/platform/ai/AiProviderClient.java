@@ -60,6 +60,13 @@ public class AiProviderClient {
         return complete(model, JSON_SYSTEM_PROMPT, userPrompt);
     }
 
+    public String completeJson(AiModel model, String systemPrompt, String userPrompt) {
+        String prompt = systemPrompt == null || systemPrompt.isBlank()
+                ? JSON_SYSTEM_PROMPT
+                : systemPrompt.trim() + "\n\n" + JSON_SYSTEM_PROMPT;
+        return complete(model, prompt, userPrompt);
+    }
+
     public String complete(AiModel model, String systemPrompt, String userPrompt) {
         String safeUserPrompt = sensitiveDataSanitizer.sanitize(userPrompt);
         String endpoint = model.getEndpoint();

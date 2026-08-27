@@ -12,9 +12,14 @@ import com.testpilot.platform.testcase.TestCaseRepository;
 import com.testpilot.platform.user.User;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.testpilot.platform.requirement.RequirementParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,7 +28,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AiGenerationService {
 
+    public static final String SUITE_FUNCTIONAL = "FUNCTIONAL";
+    public static final String SUITE_API = "API";
+
     private static final Logger log = LoggerFactory.getLogger(AiGenerationService.class);
+    private static final Set<String> STANDARD_CASE_FIELDS = Set.of(
+            "caseno", "case_no", "title", "modulename", "module_name", "module", "模块", "precondition", "pre_condition", "前置条件",
+            "steps", "测试步骤", "testdata", "test_data", "测试数据", "expectedresult", "expected_result", "预期结果",
+            "priority", "优先级", "casetype", "case_type", "type", "测试类型", "suitetype", "suite_type", "套件类型", "tags", "标签"
+    );
 
     private final AiModelService aiModelService;
     private final RequirementRepository requirementRepository;
@@ -32,6 +45,7 @@ public class AiGenerationService {
     private final ObjectMapper objectMapper;
     private final AiProviderClient aiProviderClient;
     private final AiCallAuditService aiCallAuditService;
+    private final RequirementParser requirementParser;
 
     public AiGenerationService(
             AiModelService aiModelService,
@@ -40,7 +54,8 @@ public class AiGenerationService {
             ProjectAccessService projectAccessService,
             ObjectMapper objectMapper,
             AiProviderClient aiProviderClient,
-            AiCallAuditService aiCallAuditService
+            AiCallAuditService aiCallAuditService,
+            RequirementParser requirementParser
     ) {
         this.aiModelService = aiModelService;
         this.requirementRepository = requirementRepository;
@@ -49,6 +64,7 @@ public class AiGenerationService {
         this.objectMapper = objectMapper;
         this.aiProviderClient = aiProviderClient;
         this.aiCallAuditService = aiCallAuditService;
+        this.requirementParser = requirementParser;
     }
 
     @Transactional
@@ -60,12 +76,8 @@ public class AiGenerationService {
     ) {
         projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         Requirement requirement = requirementRepository.findByIdAndProjectId(requirementId, projectId)
-                .orElseThrow(() -> new BusinessException(40402, "需求文档不存在"));
-        if (!"PARSED".equals(requirement.getParseStatus())
-                || requirement.getContentText() == null
-                || requirement.getContentText().isBlank()) {
-            throw new BusinessException(40006, "需求文档尚未解析完成，无法生成测试用例");
-        }
+                .orElseThrow(() -> new BusinessException(40402, "项目文件不存在"));
+        String requirementText = readFileContent(requirement);
 
         AiModel model = aiModelService.findModel(request == null ? null : request.modelId());
         PromptTemplate prompt = aiModelService.findPrompt(
@@ -75,12 +87,13 @@ public class AiGenerationService {
         String rules = request == null || request.rules() == null || request.rules().isBlank()
                 ? "覆盖正向、异常和边界场景，输出结构化测试用例。"
                 : request.rules().trim();
+        String suiteType = normalizeSuiteType(request == null ? null : request.suiteType());
         long start = System.nanoTime();
         List<GeneratedCase> generatedCases;
         try {
             String generatedJson = "MOCK".equalsIgnoreCase(model.getProvider())
-                    ? mockResponse(requirement, rules)
-                    : callModel(model, prompt, requirement.getContentText(), rules);
+                    ? mockResponse(requirementText, rules)
+                    : callModel(model, prompt, requirementText, rules, suiteType);
             generatedCases = parseGeneratedCases(generatedJson);
             aiCallAuditService.record(projectId, currentUser, "TEST_CASE_GENERATION", model,
                     prompt.getId(), prompt.getName(), prompt.getVersion(),
@@ -97,8 +110,8 @@ public class AiGenerationService {
             String caseNo = generated.caseNo();
             if (caseNo == null || caseNo.isBlank()
                     || assignedCaseNos.contains(caseNo)
-                    || testCaseRepository.existsByProjectIdAndCaseNo(projectId, caseNo)) {
-                caseNo = nextCaseNo(projectId, assignedCaseNos);
+                    || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
+                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos);
             }
             assignedCaseNos.add(caseNo);
             TestCase testCase = new TestCase(
@@ -113,10 +126,12 @@ public class AiGenerationService {
                     generated.expectedResult(),
                     generated.priority(),
                     generated.caseType(),
+                    suiteType,
                     generated.tags(),
                     "DRAFT",
                     "AI",
-                    currentUser.getId()
+                    currentUser.getId(),
+                    generated.extraFieldsJson()
             );
             TestCase saved = testCaseRepository.save(testCase);
             savedCases.add(new AiDtos.TestCaseView(
@@ -138,11 +153,14 @@ public class AiGenerationService {
             AiModel model,
             PromptTemplate prompt,
             String requirementText,
-            String rules
+            String rules,
+            String suiteType
     ) {
         String userPrompt = prompt.getContent()
                 + "\n\n生成规则:\n"
                 + rules
+                + "\n\n测试范围:\n"
+                + suiteType
                 + "\n\n需求正文:\n"
                 + requirementText;
         return aiProviderClient.completeJson(model, userPrompt);
@@ -182,7 +200,8 @@ public class AiGenerationService {
                         expectedResult,
                         priority,
                         caseType,
-                        text(item, "tags")
+                        text(item, "tags"),
+                        extractExtraFieldsJson(item)
                 ));
                 if (result.size() >= 50) {
                     break;
@@ -201,8 +220,8 @@ public class AiGenerationService {
         }
     }
 
-    private String mockResponse(Requirement requirement, String rules) {
-        String module = firstModule(requirement.getContentText());
+    private String mockResponse(String requirementText, String rules) {
+        String module = firstModule(requirementText);
         return """
                 {
                   "testCases": [
@@ -312,6 +331,28 @@ public class AiGenerationService {
         return "";
     }
 
+    private String extractExtraFieldsJson(JsonNode node) {
+        if (!node.isObject()) {
+            return "{}";
+        }
+        ObjectNode extras = objectMapper.createObjectNode();
+        node.fields().forEachRemaining(entry -> {
+            String key = entry.getKey();
+            if (!STANDARD_CASE_FIELDS.contains(key.trim().toLowerCase(Locale.ROOT))) {
+                extras.set(key, entry.getValue());
+            }
+        });
+        if (extras.isEmpty()) {
+            return "{}";
+        }
+        try {
+            return objectMapper.writeValueAsString(extras);
+        } catch (Exception exception) {
+            log.warn("AI 扩展字段序列化失败，已忽略", exception);
+            return "{}";
+        }
+    }
+
     private String normalizePriority(String priority) {
         String value = priority == null ? "" : priority.trim().toUpperCase(Locale.ROOT);
         return switch (value) {
@@ -339,6 +380,35 @@ public class AiGenerationService {
         };
     }
 
+    private String readFileContent(Requirement requirement) {
+        if (requirement.getContentText() != null && !requirement.getContentText().isBlank()) {
+            return requirement.getContentText();
+        }
+        if (requirement.getFilePath() == null || requirement.getFilePath().isBlank()) {
+            throw new BusinessException(40006, "项目文件没有可读取的内容，无法生成测试用例");
+        }
+        try (var inputStream = Files.newInputStream(Path.of(requirement.getFilePath()))) {
+            String content = requirementParser.parse(requirement.getFileType(), inputStream);
+            if (content == null || content.isBlank()) {
+                throw new BusinessException(40006, "项目文件没有可读取的内容，无法生成测试用例");
+            }
+            return content;
+        } catch (IOException | RuntimeException exception) {
+            if (exception instanceof BusinessException businessException) {
+                throw businessException;
+            }
+            throw new BusinessException(40006, "该文件格式暂不支持 AI 读取");
+        }
+    }
+
+    private String normalizeSuiteType(String suiteType) {
+        String value = suiteType == null ? "" : suiteType.trim().toUpperCase(Locale.ROOT);
+        return switch (value) {
+            case SUITE_FUNCTIONAL, SUITE_API -> value;
+            default -> SUITE_FUNCTIONAL;
+        };
+    }
+
     private String requiredText(JsonNode node, String... names) {
         String value = text(node, names);
         if (value.isBlank()) {
@@ -347,13 +417,13 @@ public class AiGenerationService {
         return value;
     }
 
-    private String nextCaseNo(Long projectId, Set<String> reservedCaseNos) {
-        long next = testCaseRepository.countByProjectId(projectId) + 1;
+    private String nextCaseNo(Long projectId, String suiteType, Set<String> reservedCaseNos) {
+        long next = testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1;
         String caseNo;
         do {
             caseNo = "TC-AI-" + String.format("%03d", next++);
         } while (reservedCaseNos.contains(caseNo)
-                || testCaseRepository.existsByProjectIdAndCaseNo(projectId, caseNo));
+                || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo));
         return caseNo;
     }
 
@@ -367,7 +437,8 @@ public class AiGenerationService {
             String expectedResult,
             String priority,
             String caseType,
-            String tags
+            String tags,
+            String extraFieldsJson
     ) {
     }
 }

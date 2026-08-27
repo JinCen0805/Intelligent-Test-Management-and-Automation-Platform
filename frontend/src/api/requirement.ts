@@ -14,15 +14,16 @@ export interface ApiRequirement {
 }
 
 export const requirements = {
-  list: (projectId: number) => request<ApiRequirement[]>(`/projects/${projectId}/requirements`),
+  list: (projectId: number) => request<ApiRequirement[]>(`/projects/${projectId}/files`),
+  files: (projectId: number) => request<ApiRequirement[]>(`/projects/${projectId}/files`),
   upload: async (projectId: number, file: File, version: string) => {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('version', version)
-    return requestFormData<ApiRequirement>(`/projects/${projectId}/requirements/upload`, formData)
+    return requestFormData<ApiRequirement>(`/projects/${projectId}/files/upload`, formData)
   },
   parse: (projectId: number, requirementId: number) => request<ApiRequirement>(
-    `/projects/${projectId}/requirements/${requirementId}/parse`,
+    `/projects/${projectId}/files/${requirementId}/parse`,
     { method: 'POST' }
   ),
   detail: (projectId: number, requirementId: number) => request<{
@@ -37,5 +38,5 @@ export const requirements = {
     uploadedBy: number
     createdAt: string
     updatedAt: string
-  }>(`/projects/${projectId}/requirements/${requirementId}`)
+  }>(`/projects/${projectId}/files/${requirementId}`)
 }

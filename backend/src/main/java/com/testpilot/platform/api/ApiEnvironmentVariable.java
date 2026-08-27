@@ -18,7 +18,7 @@ public class ApiEnvironmentVariable {
     @TableField("value_text")
     private String valueText;
     @TableField("sensitive_flag")
-    private boolean sensitive;
+    private boolean sensitiveFlag;
     private String source;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -31,7 +31,7 @@ public class ApiEnvironmentVariable {
         this.environment = environment;
         this.name = name;
         this.valueText = value;
-        this.sensitive = sensitive;
+        this.sensitiveFlag = sensitive;
         this.source = source;
     }
     void onCreate() {
@@ -48,13 +48,13 @@ public class ApiEnvironmentVariable {
     public String getEnvironment() { return environment; }
     public String getName() { return name; }
     public String getValue() { return valueText; }
-    public boolean isSensitive() { return sensitive; }
+    public boolean isSensitive() { return sensitiveFlag; }
     public String getSource() { return source; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void update(String value, boolean sensitive, String source) {
         this.valueText = value;
-        this.sensitive = sensitive;
+        this.sensitiveFlag = sensitive;
         this.source = source;
     }
 }

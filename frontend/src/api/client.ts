@@ -22,6 +22,23 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   return payload.data
 }
 
+export async function download(path: string, init: RequestInit = {}): Promise<Blob> {
+  const token = storage.token
+  const headers = new Headers(init.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const response = await fetch(`${apiBase}${path}`, { ...init, headers })
+  if (!response.ok) {
+    let message = `请求失败 (${response.status})`
+    try {
+      const payload = await response.json() as ApiResponse<unknown>
+      message = payload.message || message
+    } catch {
+    }
+    throw new Error(message)
+  }
+  return response.blob()
+}
+
 export async function requestFormData<T>(path: string, formData: FormData): Promise<T> {
   const token = storage.token
   const headers = new Headers()

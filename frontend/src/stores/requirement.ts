@@ -16,9 +16,7 @@ export const useRequirementStore = defineStore('requirement', () => {
   const requirementVersion = ref('V1.0')
 
   const selectedRequirementId = computed(() => {
-    return requirements.value.find((item) => item.id && item.status === '已解析')?.id
-      ?? requirements.value.find((item) => item.id)?.id
-      ?? null
+    return requirements.value.find((item) => item.id)?.id ?? null
   })
 
   function fromApiRequirement(requirement: ApiRequirement): Requirement {
@@ -30,7 +28,8 @@ export const useRequirementStore = defineStore('requirement', () => {
       TXT: 'TXT'
     }
     const statusMap: Record<string, Requirement['status']> = {
-      PARSED: '已解析',
+      STORED: '已存储',
+      PARSED: '已存储',
       FAILED: '解析失败',
       PARSING: '解析中'
     }
@@ -39,7 +38,7 @@ export const useRequirementStore = defineStore('requirement', () => {
       name: requirement.name,
       version: requirement.version,
       type: typeMap[requirement.fileType] || requirement.fileType,
-      status: statusMap[requirement.parseStatus] || '解析中',
+      status: statusMap[requirement.parseStatus] || '已存储',
       updated: new Date(requirement.updatedAt).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     }
   }
@@ -56,14 +55,14 @@ export const useRequirementStore = defineStore('requirement', () => {
     requirementFile.value = input.files?.[0] ?? null
   }
 
-  async function uploadRequirement() {
+  async function uploadRequirement(options: { keepModal?: boolean } = {}) {
     const projectId = projectStore.currentProject.id
     if (!projectId) {
       ui.showToast('当前项目尚未加载')
       return
     }
     if (!requirementFile.value) {
-      ui.showToast('请选择需求文件')
+      ui.showToast('请选择项目文件')
       return
     }
     try {
@@ -71,11 +70,13 @@ export const useRequirementStore = defineStore('requirement', () => {
       requirements.value.unshift(fromApiRequirement(uploaded))
       requirementFile.value = null
       requirementVersion.value = 'V1.0'
-      ui.closeModal()
-      ui.activeProjectTab = 'requirements'
-      ui.showToast('需求已上传')
+      if (!options.keepModal) {
+        ui.closeModal()
+        ui.activeProjectTab = 'requirements'
+      }
+      ui.showToast('文件已保存到项目文件')
     } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '需求上传失败')
+      ui.showToast(error instanceof Error ? error.message : '文件上传失败')
     }
   }
 
@@ -85,9 +86,9 @@ export const useRequirementStore = defineStore('requirement', () => {
     try {
       await api.requirements.parse(projectId, requirement.id)
       await loadRequirements()
-      ui.showToast('需求解析完成')
+      ui.showToast('文件已更新')
     } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '需求解析失败')
+      ui.showToast(error instanceof Error ? error.message : '文件处理失败')
     }
   }
 
@@ -106,7 +107,7 @@ export const useRequirementStore = defineStore('requirement', () => {
       }
       ui.openModal('requirementDetail')
     } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '需求详情加载失败')
+      ui.showToast(error instanceof Error ? error.message : '文件信息加载失败')
     }
   }
 

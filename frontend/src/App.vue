@@ -48,7 +48,7 @@ onMounted(() => { void bootstrapAuth() })
       <div class="brand-mark auth-brand"><span class="brand-dot">T</span> TestPilot AI</div>
       <p class="auth-kicker">智能测试管理与自动化平台</p>
       <h1>登录工作台</h1>
-      <p class="auth-copy">登录后管理项目、需求、测试用例和自动化执行。</p>
+      <p class="auth-copy">登录后管理项目文件、测试用例和自动化执行。</p>
       <form class="auth-form" @submit.prevent="login">
         <div class="field"><label for="login-username">用户名</label><input id="login-username" v-model="authState.username" autocomplete="username" /></div>
         <div class="field"><label for="login-password">密码</label><input id="login-password" v-model="authState.password" type="password" autocomplete="current-password" /></div>

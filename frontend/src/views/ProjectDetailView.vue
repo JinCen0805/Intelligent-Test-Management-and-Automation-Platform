@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import type { ProjectTab } from '@/types'
 import ApiWorkbenchView from '@/components/ApiWorkbenchView.vue'
+import ProjectCaseAiView from '@/components/project/ProjectCaseAiView.vue'
+import ProjectCaseLibraryView from '@/components/project/ProjectCaseLibraryView.vue'
 import { useUiStore } from '@/stores/ui'
 import { useProjectStore } from '@/stores/project'
 import { useRequirementStore } from '@/stores/requirement'
@@ -27,9 +29,6 @@ const adminStore = useAdminStore()
 
 const {
   activeProjectTab,
-  caseStatusFilter,
-  casePriorityFilter,
-  caseTypeFilter
 } = storeToRefs(ui)
 const {
   projects,
@@ -40,7 +39,7 @@ const {
   canManageCurrentProject
 } = storeToRefs(projectStore)
 const { requirements } = storeToRefs(requirementStore)
-const { testCases, filteredCases } = storeToRefs(testcaseStore)
+const { allTestCases } = storeToRefs(testcaseStore)
 const { automationProjects, automationTasks, executableTasks, executionRecords } = storeToRefs(automationStore)
 const { failedReports, projectExecutionSummary, analyzingExecutionId, loadingExecutionDetailId } = storeToRefs(reportStore)
 
@@ -55,8 +54,8 @@ const {
   removeProjectMember,
   updateProjectMemberRole
 } = projectStore
-const { loadRequirements, parseRequirement, openRequirementDetail } = requirementStore
-const { loadTestCases, caseStatusLabel, openNewCase, editCase, changeCaseStatus, deleteCase } = testcaseStore
+const { loadRequirements, openRequirementDetail } = requirementStore
+const { loadTestCases } = testcaseStore
 const {
   loadAutomationData,
   openNewAutomationProject,
@@ -83,14 +82,17 @@ const {
   downloadAllure,
   openReference
 } = reportStore
-const { openGenerationModal } = aiStore
 const { loadAiConfig } = aiStore
 const { loadCredentialGrants } = adminStore
 
+const caseTabs: { key: Extract<ProjectTab, 'case-ai' | 'case-library'>; label: string; icon: string }[] = [
+  { key: 'case-ai', label: 'AI 生成测试用例', icon: '✦' },
+  { key: 'case-library', label: '用例库', icon: '▤' }
+]
+
 const projectTabs: { key: ProjectTab; label: string; icon: string }[] = [
   { key: 'overview', label: '项目概览', icon: '▦' },
-  { key: 'requirements', label: '需求管理', icon: '◫' },
-  { key: 'cases', label: '测试用例', icon: '▤' },
+  { key: 'requirements', label: '项目文件管理', icon: '◫' },
   { key: 'api-workbench', label: '接口测试工作台', icon: '⌁' },
   { key: 'api-code', label: '接口自动化代码', icon: '⌘' },
   { key: 'ui', label: 'UI 自动化', icon: '⌗' },
@@ -99,14 +101,22 @@ const projectTabs: { key: ProjectTab; label: string; icon: string }[] = [
   { key: 'settings', label: '项目设置', icon: '⚙' }
 ]
 
-const PROJECT_TAB_KEYS = projectTabs.map((tab) => tab.key)
+const PROJECT_TAB_KEYS = [...projectTabs.map((tab) => tab.key), ...caseTabs.map((tab) => tab.key)]
+const caseMenuOpen = ref(false)
 
 function isProjectTab(value: unknown): value is ProjectTab {
   return typeof value === 'string' && (PROJECT_TAB_KEYS as string[]).includes(value)
 }
 
+function isCaseTab(value: unknown): value is Extract<ProjectTab, 'case-ai' | 'case-library'> {
+  return typeof value === 'string' && (caseTabs.map((tab) => tab.key) as string[]).includes(value)
+}
+
 function selectTab(key: ProjectTab) {
   activeProjectTab.value = key
+  if (isCaseTab(key)) {
+    caseMenuOpen.value = true
+  }
   if (route.query.tab !== key) {
     void router.replace({ query: { ...route.query, tab: key } })
   }
@@ -116,7 +126,8 @@ function selectTab(key: ProjectTab) {
 async function loadCurrentProjectData() {
   await Promise.all([
     loadRequirements(),
-    loadTestCases(),
+    loadTestCases({ source: 'AI', status: '', keyword: '', priority: '', caseType: '', suiteType: ui.activeCaseSuiteType }),
+    testcaseStore.loadAllTestCases(),
     loadAutomationData(),
     loadProjectMembers(),
     loadCredentialGrants(),
@@ -149,10 +160,17 @@ watch(
   (tab) => {
     if (isProjectTab(tab) && tab !== activeProjectTab.value) {
       activeProjectTab.value = tab
+      caseMenuOpen.value = isCaseTab(tab)
     }
   },
   { immediate: true }
 )
+
+watch(activeProjectTab, (tab) => {
+  if (isCaseTab(tab)) {
+    caseMenuOpen.value = true
+  }
+})
 </script>
 
 <template>
@@ -160,21 +178,37 @@ watch(
     <div class="project-top"><div class="project-title"><div class="project-logo">{{ currentProject.name.slice(0, 1) }}</div><div><h2>{{ currentProject.name }} <span class="role-chip">{{ currentProject.code }}</span></h2><p>负责人 {{ currentProject.owner }} · {{ currentProject.members }} 位项目成员 · 创建于 {{ currentProject.createdAt ? new Date(currentProject.createdAt).toLocaleDateString('zh-CN') : '--' }}</p></div></div></div>
     <div class="project-layout">
       <nav class="project-nav card">
-        <button v-for="tab in projectTabs" :key="tab.key" :class="{ active: activeProjectTab === tab.key }" @click="selectTab(tab.key)"><span>{{ tab.icon }}</span>{{ tab.label }}</button>
+        <template v-for="tab in projectTabs" :key="tab.key">
+          <button :class="{ active: activeProjectTab === tab.key }" @click="selectTab(tab.key)"><span>{{ tab.icon }}</span>{{ tab.label }}</button>
+          <div v-if="tab.key === 'requirements'" class="project-nav-group" :class="{ active: isCaseTab(activeProjectTab), open: caseMenuOpen }">
+            <button class="project-nav-parent" type="button" @click="caseMenuOpen = !caseMenuOpen">
+              <span>▤</span>
+              测试用例
+              <i>⌄</i>
+            </button>
+            <div v-show="caseMenuOpen" class="project-nav-submenu">
+              <button v-for="caseTab in caseTabs" :key="caseTab.key" :class="{ active: activeProjectTab === caseTab.key }" @click="selectTab(caseTab.key)">
+                <span>{{ caseTab.icon }}</span>{{ caseTab.label }}
+              </button>
+            </div>
+          </div>
+        </template>
       </nav>
       <div class="project-content">
         <template v-if="activeProjectTab === 'overview'">
           <div class="page-head compact"><div><h1>项目概览</h1><p>查看项目质量趋势、AI 分析和最近执行。</p></div></div>
-          <div class="stats-grid grid"><div class="card stat"><span class="stat-label">需求文档</span><strong class="stat-value">{{ requirements.length }}</strong><span class="stat-foot">{{ requirements.filter((item) => item.status === '已解析').length }} 份已解析</span></div><div class="card stat"><span class="stat-label">测试用例</span><strong class="stat-value">{{ testCases.length }}</strong><span class="stat-foot trend-up">{{ testCases.filter((item) => item.status === 'REVIEW').length }} 条待 Review</span></div><div class="card stat"><span class="stat-label">接口自动化</span><strong class="stat-value">{{ automationProjects.filter((item) => item.automationType === 'API').length }}</strong><span class="stat-foot">来自自动化项目配置</span></div><div class="card stat"><span class="stat-label">UI 自动化</span><strong class="stat-value">{{ automationProjects.filter((item) => item.automationType === 'UI').length }}</strong><span class="stat-foot">来自自动化项目配置</span></div></div>
-          <div class="section-grid grid"><div class="card"><div class="card-head"><h3>AI 工作流</h3></div><div class="card-body"><div class="flow compact-flow"><span class="done">1 创建项目</span><i>→</i><span class="done">2 上传 PRD</span><i>→</i><span class="done">3 生成用例</span><i>→</i><span class="current">4 Review</span><i>→</i><span>5 自动化执行</span></div><div class="ai-callout"><strong>建议动作</strong><p>当前有 {{ testCases.filter((item) => item.status === 'DRAFT').length }} 条 AI Draft 等待人工 Review，完成后可以关联接口自动化项目。</p><button class="btn" @click="selectTab('cases')">去 Review 用例</button></div></div></div><div class="card"><div class="card-head"><h3>最近失败</h3><span class="muted">执行报告</span></div><div class="card-body"><div v-if="failedReports[0]" class="failure-box"><strong>Execution #{{ failedReports[0].id }} · {{ failedReports[0].status }}</strong><p>{{ failedReports[0].report?.failureDetail || failedReports[0].report?.aiAnalysis || '暂无失败详情' }}</p><button class="btn" @click="selectTab('reports')">查看执行报告</button></div><div v-else class="muted">当前没有失败执行。</div></div></div></div>
+          <div class="stats-grid grid"><div class="card stat"><span class="stat-label">项目文件</span><strong class="stat-value">{{ requirements.length }}</strong><span class="stat-foot">集中存储的项目资料</span></div><div class="card stat"><span class="stat-label">测试用例</span><strong class="stat-value">{{ allTestCases.length }}</strong><span class="stat-foot trend-up">{{ allTestCases.filter((item) => item.source === 'AI' && item.status !== 'APPROVED').length }} 条待处理</span></div><div class="card stat"><span class="stat-label">接口自动化</span><strong class="stat-value">{{ automationProjects.filter((item) => item.automationType === 'API').length }}</strong><span class="stat-foot">来自自动化项目配置</span></div><div class="card stat"><span class="stat-label">UI 自动化</span><strong class="stat-value">{{ automationProjects.filter((item) => item.automationType === 'UI').length }}</strong><span class="stat-foot">来自自动化项目配置</span></div></div>
+          <div class="section-grid grid"><div class="card"><div class="card-head"><h3>AI 工作流</h3></div><div class="card-body"><div class="flow compact-flow"><span class="done">1 创建项目</span><i>→</i><span class="done">2 添加文件</span><i>→</i><span class="done">3 生成用例</span><i>→</i><span class="current">4 人工确认</span><i>→</i><span>5 自动化执行</span></div><div class="ai-callout"><strong>建议动作</strong><p>当前有 {{ allTestCases.filter((item) => item.source === 'AI' && item.status !== 'APPROVED').length }} 条 AI 用例待处理，完成后可以关联接口自动化项目。</p><button class="btn" @click="selectTab('case-ai')">去 AI 生成用例</button></div></div></div><div class="card"><div class="card-head"><h3>最近失败</h3><span class="muted">执行报告</span></div><div class="card-body"><div v-if="failedReports[0]" class="failure-box"><strong>Execution #{{ failedReports[0].id }} · {{ failedReports[0].status }}</strong><p>{{ failedReports[0].report?.failureDetail || failedReports[0].report?.aiAnalysis || '暂无失败详情' }}</p><button class="btn" @click="selectTab('reports')">查看执行报告</button></div><div v-else class="muted">当前没有失败执行。</div></div></div></div>
         </template>
         <template v-else-if="activeProjectTab === 'requirements'">
-          <div class="page-head compact"><div><h1>需求管理</h1><p>上传 PRD，跟踪解析状态并沉淀需求到测试用例。</p></div><div class="head-actions"><button class="btn" @click="openModal('requirement')">⇧ 上传需求</button></div></div>
-           <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>文档名称</th><th>版本</th><th>格式</th><th>解析状态</th><th>更新时间</th><th></th></tr></thead><tbody><tr v-for="requirement in requirements" :key="requirement.id || requirement.name"><td><strong>{{ requirement.name }}</strong></td><td>{{ requirement.version }}</td><td><span class="tag blue">{{ requirement.type }}</span></td><td><span class="tag" :class="requirement.status === '已解析' ? 'green' : requirement.status === '解析失败' ? 'red' : 'orange'">{{ requirement.status }}</span></td><td>{{ requirement.updated }}</td><td><button class="btn" @click="requirement.status === '解析中' || requirement.status === '解析失败' ? parseRequirement(requirement) : openRequirementDetail(requirement)">{{ requirement.status === '解析中' || requirement.status === '解析失败' ? '解析' : '查看' }}</button></td></tr><tr v-if="requirements.length === 0"><td colspan="6" class="muted">暂无需求文档</td></tr></tbody></table></div></div>
+          <div class="page-head compact"><div><h1>项目文件管理</h1><p>集中保存当前项目使用的文件，供团队和 AI 用例生成选择。</p></div><div class="head-actions"><button class="btn primary" @click="openModal('requirement')">＋ 添加文件</button></div></div>
+           <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>文件名称</th><th>备注</th><th>格式</th><th>存储状态</th><th>更新时间</th><th></th></tr></thead><tbody><tr v-for="requirement in requirements" :key="requirement.id || requirement.name"><td><strong>{{ requirement.name }}</strong></td><td>{{ requirement.version || '--' }}</td><td><span class="tag blue">{{ requirement.type }}</span></td><td><span class="tag green">已存储</span></td><td>{{ requirement.updated }}</td><td><button class="btn" @click="openRequirementDetail(requirement)">查看信息</button></td></tr><tr v-if="requirements.length === 0"><td colspan="6" class="muted">暂无项目文件</td></tr></tbody></table></div></div>
         </template>
-        <template v-else-if="activeProjectTab === 'cases'">
-          <div class="page-head compact"><div><h1>测试用例</h1><p>维护 AI Draft、人工 Review 和正式测试用例。</p></div><div class="head-actions"><button class="btn" @click="openNewCase">＋ 新建用例</button><button class="btn primary" @click="openGenerationModal">✦ AI 生成用例</button></div></div>
-          <div class="card"><div class="card-head"><div class="subtabs"><button :class="{ active: !caseStatusFilter }" @click="caseStatusFilter = ''">全部 <span class="count">{{ testCases.length }}</span></button><button :class="{ active: caseStatusFilter === 'REVIEW' }" @click="caseStatusFilter = 'REVIEW'">待 Review <span class="count">{{ testCases.filter((item) => item.status === 'REVIEW').length }}</span></button><button :class="{ active: caseStatusFilter === 'APPROVED' }" @click="caseStatusFilter = 'APPROVED'">已通过 <span class="count">{{ testCases.filter((item) => item.status === 'APPROVED').length }}</span></button></div><div class="head-actions case-filters"><select class="toolbar-select" v-model="casePriorityFilter" aria-label="按优先级筛选"><option value="">全部优先级</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select><select class="toolbar-select" v-model="caseTypeFilter" aria-label="按类型筛选"><option value="">全部类型</option><option value="功能">功能</option><option value="异常">异常</option><option value="边界">边界</option><option value="其他">其他</option></select><button class="btn" @click="loadTestCases">刷新</button></div></div><div class="card-body table-wrap"><table><thead><tr><th>编号</th><th>标题</th><th>模块</th><th>优先级</th><th>类型</th><th>来源</th><th>状态</th><th>操作</th></tr></thead><tbody><tr v-for="testCase in filteredCases" :key="testCase.id"><td><strong>{{ testCase.no }}</strong></td><td>{{ testCase.title }}</td><td>{{ testCase.module }}</td><td><span class="tag" :class="testCase.priority === 'P0' ? 'red' : 'orange'">{{ testCase.priority }}</span></td><td>{{ testCase.type }}</td><td>{{ testCase.source === 'AI' ? 'AI' : '手工' }}</td><td><span class="tag" :class="testCase.status === 'APPROVED' ? 'green' : testCase.status === 'REVIEW' ? 'orange' : testCase.status === 'REJECTED' ? 'red' : 'gray'">{{ caseStatusLabel(testCase.status) }}</span></td><td><div class="head-actions"><button class="btn" @click="editCase(testCase)">编辑</button><button v-if="testCase.status === 'DRAFT' || testCase.status === 'REJECTED'" class="btn" @click="changeCaseStatus(testCase, 'REVIEW')">送 Review</button><button v-if="testCase.status === 'REVIEW'" class="btn primary" @click="changeCaseStatus(testCase, 'APPROVED')">通过</button><button v-if="testCase.status === 'REVIEW'" class="btn" @click="changeCaseStatus(testCase, 'REJECTED')">退回</button><button class="btn" @click="deleteCase(testCase)">删除</button></div></td></tr><tr v-if="filteredCases.length === 0"><td colspan="8" class="muted">暂无测试用例</td></tr></tbody></table></div></div>
+        <template v-else-if="activeProjectTab === 'case-ai'">
+          <ProjectCaseAiView />
+        </template>
+        <template v-else-if="activeProjectTab === 'case-library'">
+          <ProjectCaseLibraryView />
         </template>
         <template v-else-if="activeProjectTab === 'api-workbench'">
           <ApiWorkbenchView />

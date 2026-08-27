@@ -27,7 +27,7 @@ public class RequirementController {
         this.authService = authService;
     }
 
-    @GetMapping("/projects/{projectId}/requirements")
+    @GetMapping({"/projects/{projectId}/requirements", "/projects/{projectId}/files"})
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:read')")
     public ApiResponse<List<RequirementDtos.Response>> list(
             @PathVariable Long projectId,
@@ -39,7 +39,7 @@ public class RequirementController {
         ));
     }
 
-    @GetMapping("/projects/{projectId}/requirements/{requirementId}")
+    @GetMapping({"/projects/{projectId}/requirements/{requirementId}", "/projects/{projectId}/files/{requirementId}"})
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:read')")
     public ApiResponse<RequirementDtos.DetailResponse> get(
             @PathVariable Long projectId,
@@ -69,7 +69,24 @@ public class RequirementController {
         ));
     }
 
-    @PostMapping("/projects/{projectId}/requirements/{requirementId}/parse")
+    @PostMapping("/projects/{projectId}/files/upload")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:write')")
+    public ApiResponse<RequirementDtos.Response> uploadFile(
+            @PathVariable Long projectId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "version", required = false, defaultValue = "V1.0") String version,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        return ApiResponse.success(requirementService.upload(
+                projectId,
+                file,
+                version,
+                authService.currentUser(authorization),
+                true
+        ));
+    }
+
+    @PostMapping({"/projects/{projectId}/requirements/{requirementId}/parse", "/projects/{projectId}/files/{requirementId}/parse"})
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:write')")
     public ApiResponse<RequirementDtos.Response> parse(
             @PathVariable Long projectId,

@@ -2,8 +2,13 @@ package com.testpilot.platform.testcase;
 
 import com.testpilot.platform.auth.AuthService;
 import com.testpilot.platform.common.ApiResponse;
+import java.util.List;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,6 +41,8 @@ public class TestCaseController {
             @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "priority", required = false) String priority,
             @RequestParam(value = "caseType", required = false) String caseType,
+            @RequestParam(value = "source", required = false) String source,
+            @RequestParam(value = "suiteType", required = false) String suiteType,
             @RequestParam(value = "page", required = false, defaultValue = "0") int page,
             @RequestParam(value = "size", required = false, defaultValue = "50") int size,
             @RequestHeader(value = "Authorization", required = false) String authorization
@@ -46,10 +53,43 @@ public class TestCaseController {
                 keyword,
                 priority,
                 caseType,
+                source,
+                suiteType,
                 page,
                 size,
                 authService.currentUser(authorization)
         ));
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:read')")
+    public ResponseEntity<byte[]> export(
+            @PathVariable Long projectId,
+            @RequestParam(value = "status", required = false) String status,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "priority", required = false) String priority,
+            @RequestParam(value = "caseType", required = false) String caseType,
+            @RequestParam(value = "source", required = false) String source,
+            @RequestParam(value = "suiteType", required = false) String suiteType,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        List<TestCaseDtos.Response> rows = testCaseService.export(
+                projectId,
+                status,
+                keyword,
+                priority,
+                caseType,
+                source,
+                suiteType,
+                authService.currentUser(authorization)
+        );
+        byte[] content = testCaseService.exportToExcel(rows);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("test-cases-" + projectId + ".xlsx").build().toString())
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(content);
     }
 
     @GetMapping("/{testCaseId}")

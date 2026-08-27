@@ -106,6 +106,7 @@ public final class AiDtos {
     public record GenerateRequest(
             Long modelId,
             Long promptId,
+            String suiteType,
             @Size(max = 1000, message = "生成规则长度不能超过 1000 个字符")
             String rules
     ) {
@@ -116,6 +117,49 @@ public final class AiDtos {
             Long modelId,
             String provider,
             List<TestCaseView> testCases
+    ) {
+    }
+
+    public record CaseChatRequest(
+            Long sessionId,
+            Long modelId,
+            Long requirementId,
+            Long selectedCaseId,
+            String suiteType,
+            @NotBlank(message = "对话内容不能为空")
+            @Size(max = 2000, message = "对话内容长度不能超过 2000 个字符")
+            String message
+    ) {
+    }
+
+    public record CaseChatResponse(
+            Long sessionId,
+            Long modelId,
+            String provider,
+            String reply,
+            List<TestCaseView> generatedCases
+    ) {
+    }
+
+    public record CaseChatMessageResponse(
+            Long id,
+            String role,
+            String content
+    ) {
+    }
+
+    public record CaseChatSessionResponse(
+            Long sessionId,
+            String title,
+            List<CaseChatMessageResponse> messages,
+            String suiteType,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt
+    ) {
+    }
+
+    public record CaseChatHistoryResponse(
+            List<CaseChatSessionResponse> sessions
     ) {
     }
 

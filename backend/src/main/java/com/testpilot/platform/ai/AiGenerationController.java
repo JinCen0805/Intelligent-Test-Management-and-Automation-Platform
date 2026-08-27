@@ -12,7 +12,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/projects/{projectId}/requirements/{requirementId}/test-cases")
+@RequestMapping({
+        "/api/projects/{projectId}/requirements/{requirementId}/test-cases",
+        "/api/projects/{projectId}/files/{requirementId}/test-cases"
+})
 @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'ai:generate')")
 public class AiGenerationController {
 
@@ -34,7 +37,7 @@ public class AiGenerationController {
         return ApiResponse.success(service.generate(
                 projectId,
                 requirementId,
-                request == null ? new AiDtos.GenerateRequest(null, null, null) : request,
+                request == null ? new AiDtos.GenerateRequest(null, null, AiGenerationService.SUITE_FUNCTIONAL, null) : request,
                 authService.currentUser(authorization)
         ));
     }

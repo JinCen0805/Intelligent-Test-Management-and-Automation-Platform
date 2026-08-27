@@ -29,7 +29,14 @@ export type { ApiUser } from './user'
 export type { ApiProject, ApiProjectMember } from './project'
 export type { ApiRequirement } from './requirement'
 export type { ApiTestCase, ApiTestCasePage } from './testcase'
-export type { ApiGeneratedCase, ApiAiModel, ApiPromptTemplate } from './ai'
+export type {
+  ApiGeneratedCase,
+  ApiAiModel,
+  ApiPromptTemplate,
+  ApiCaseChatMessage,
+  ApiCaseChatResponse,
+  ApiCaseChatSession
+} from './ai'
 export type { ApiAiTaskSubmit, ApiAiTaskStatus } from './aiTasks'
 export type {
   ApiExecution,

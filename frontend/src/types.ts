@@ -3,7 +3,8 @@ export type View = 'home' | 'projects' | 'project' | 'ai' | 'reports' | 'admin'
 export type ProjectTab =
   | 'overview'
   | 'requirements'
-  | 'cases'
+  | 'case-ai'
+  | 'case-library'
   | 'api-workbench'
   | 'api-code'
   | 'ui'
@@ -16,7 +17,6 @@ export type ModalName =
   | 'requirement'
   | 'requirementDetail'
   | 'run'
-  | 'case'
   | 'caseEdit'
   | 'analysis'
   | 'model'
@@ -32,6 +32,7 @@ export type ModalName =
   | 'createJob'
   | 'onboarding'
   | 'executionDetail'
+  | 'caseChatHistory'
 
 export interface Project {
   id?: number
@@ -53,6 +54,7 @@ export interface TestCase {
   module: string
   priority: 'P0' | 'P1' | 'P2' | 'P3'
   type: '功能' | '异常' | '边界' | '其他'
+  suiteType: '功能测试' | '接口测试'
   status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'REJECTED'
   source: string
   precondition: string
@@ -60,6 +62,7 @@ export interface TestCase {
   testData: string
   expectedResult: string
   tags: string
+  extraFields: Record<string, unknown>
 }
 
 export interface Requirement {
@@ -67,7 +70,7 @@ export interface Requirement {
   name: string
   version: string
   type: string
-  status: '已解析' | '解析中' | '解析失败'
+  status: '已存储' | '已解析' | '解析中' | '解析失败'
   updated: string
 }
 

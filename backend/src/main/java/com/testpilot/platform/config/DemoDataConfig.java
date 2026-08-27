@@ -95,7 +95,7 @@ public class DemoDataConfig {
                 promptTemplateRepository.save(new PromptTemplate(
                         "测试用例生成规范",
                         "TEST_CASE_GENERATION",
-                        "根据需求正文生成测试用例，覆盖正向、异常、边界场景。仅输出 JSON 数组，不要 Markdown 代码块。数组中每个元素是一个测试用例对象，包含以下字段且均为字符串类型：title（用例标题）、module（所属模块）、precondition（前置条件）、steps（测试步骤，多步用换行分隔）、testData（测试数据）、expectedResult（预期结果）、priority（优先级，只能取值 P0、P1、P2、P3 之一）、type（测试类型，只能取值 FUNCTIONAL、EXCEPTION、BOUNDARY 之一）、tags（标签，多个用逗号分隔）。",
+                        "根据需求正文生成测试用例，覆盖正向、异常、边界场景。仅输出 JSON 数组，不要 Markdown 代码块。数组中每个元素是一个测试用例对象，包含以下字段且均为字符串类型：title（用例标题）、module（所属模块）、precondition（前置条件）、steps（测试步骤，多步用换行分隔）、testData（测试数据）、expectedResult（预期结果）、priority（优先级，只能取值 P0、P1、P2、P3 之一）、type（测试类型，只能取值 FUNCTIONAL、EXCEPTION、BOUNDARY 之一）、tags（标签，多个用逗号分隔）。如果需求中存在接口、设备、性能、权限等额外信息，可在对象中增加对应字段，系统会原样保留。",
                         "V1.0",
                         true
                 ));

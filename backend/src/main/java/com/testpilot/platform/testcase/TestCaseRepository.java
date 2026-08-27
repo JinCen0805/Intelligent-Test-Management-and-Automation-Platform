@@ -21,13 +21,17 @@ public class TestCaseRepository extends MybatisRepository<TestCase, Long> {
             String keyword,
             String priority,
             String caseType,
+            String source,
+            String suiteType,
             Pageable pageable
     ) {
         var wrapper = Wrappers.<TestCase>lambdaQuery()
                 .eq(TestCase::getProjectId, projectId)
                 .eq(status != null && !status.isBlank(), TestCase::getStatus, status)
                 .eq(priority != null && !priority.isBlank(), TestCase::getPriority, priority)
-                .eq(caseType != null && !caseType.isBlank(), TestCase::getCaseType, caseType);
+                .eq(caseType != null && !caseType.isBlank(), TestCase::getCaseType, caseType)
+                .eq(source != null && !source.isBlank(), TestCase::getSource, source)
+                .eq(suiteType != null && !suiteType.isBlank(), TestCase::getSuiteType, suiteType);
         if (keyword != null && !keyword.isBlank()) {
             String like = "%" + keyword + "%";
             wrapper.and(w -> w.apply("lower(case_no) like lower({0})", like)
@@ -40,9 +44,44 @@ public class TestCaseRepository extends MybatisRepository<TestCase, Long> {
         return page(pageable, wrapper);
     }
 
+    public List<TestCase> searchAll(
+            Long projectId,
+            String status,
+            String keyword,
+            String priority,
+            String caseType,
+            String source,
+            String suiteType
+    ) {
+        return list(Wrappers.<TestCase>lambdaQuery()
+                .eq(TestCase::getProjectId, projectId)
+                .eq(status != null && !status.isBlank(), TestCase::getStatus, status)
+                .eq(priority != null && !priority.isBlank(), TestCase::getPriority, priority)
+                .eq(caseType != null && !caseType.isBlank(), TestCase::getCaseType, caseType)
+                .eq(source != null && !source.isBlank(), TestCase::getSource, source)
+                .eq(suiteType != null && !suiteType.isBlank(), TestCase::getSuiteType, suiteType)
+                .and(keyword != null && !keyword.isBlank(), w -> {
+                    String like = "%" + keyword + "%";
+                    w.apply("lower(case_no) like lower({0})", like)
+                            .or()
+                            .apply("lower(title) like lower({0})", like)
+                            .or()
+                            .apply("lower(coalesce(module_name, '')) like lower({0})", like);
+                })
+                .orderByDesc(TestCase::getCreatedAt));
+    }
+
     public List<TestCase> findTop200ByProjectIdOrderByCreatedAtDesc(Long projectId) {
         return list(Wrappers.<TestCase>lambdaQuery()
                 .eq(TestCase::getProjectId, projectId)
+                .orderByDesc(TestCase::getCreatedAt)
+                .last("limit 200"));
+    }
+
+    public List<TestCase> findTop200ByProjectIdAndSuiteTypeOrderByCreatedAtDesc(Long projectId, String suiteType) {
+        return list(Wrappers.<TestCase>lambdaQuery()
+                .eq(TestCase::getProjectId, projectId)
+                .eq(TestCase::getSuiteType, suiteType)
                 .orderByDesc(TestCase::getCreatedAt)
                 .last("limit 200"));
     }
@@ -53,9 +92,10 @@ public class TestCaseRepository extends MybatisRepository<TestCase, Long> {
                 .eq(TestCase::getProjectId, projectId));
     }
 
-    public boolean existsByProjectIdAndCaseNo(Long projectId, String caseNo) {
+    public boolean existsByProjectIdAndSuiteTypeAndCaseNo(Long projectId, String suiteType, String caseNo) {
         return exists(Wrappers.<TestCase>lambdaQuery()
                 .eq(TestCase::getProjectId, projectId)
+                .eq(TestCase::getSuiteType, suiteType)
                 .eq(TestCase::getCaseNo, caseNo));
     }
 
@@ -67,5 +107,11 @@ public class TestCaseRepository extends MybatisRepository<TestCase, Long> {
 
     public long countByProjectId(Long projectId) {
         return count(Wrappers.<TestCase>lambdaQuery().eq(TestCase::getProjectId, projectId));
+    }
+
+    public long countByProjectIdAndSuiteType(Long projectId, String suiteType) {
+        return count(Wrappers.<TestCase>lambdaQuery()
+                .eq(TestCase::getProjectId, projectId)
+                .eq(TestCase::getSuiteType, suiteType));
     }
 }

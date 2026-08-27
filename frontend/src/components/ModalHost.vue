@@ -5,7 +5,6 @@ import ProjectModal from '@/components/modals/ProjectModal.vue'
 import RequirementUploadModal from '@/components/modals/RequirementUploadModal.vue'
 import RequirementDetailModal from '@/components/modals/RequirementDetailModal.vue'
 import RunModal from '@/components/modals/RunModal.vue'
-import CaseGenerateModal from '@/components/modals/CaseGenerateModal.vue'
 import CaseEditModal from '@/components/modals/CaseEditModal.vue'
 import ModelModal from '@/components/modals/ModelModal.vue'
 import PromptModal from '@/components/modals/PromptModal.vue'
@@ -21,6 +20,7 @@ import CreateJobModal from '@/components/modals/CreateJobModal.vue'
 import OnboardingModal from '@/components/modals/OnboardingModal.vue'
 import ExecutionDetailModal from '@/components/modals/ExecutionDetailModal.vue'
 import AnalysisModal from '@/components/modals/AnalysisModal.vue'
+import CaseChatHistoryModal from '@/components/modals/CaseChatHistoryModal.vue'
 
 const { modal } = storeToRefs(useUiStore())
 </script>
@@ -30,7 +30,6 @@ const { modal } = storeToRefs(useUiStore())
   <RequirementUploadModal v-else-if="modal === 'requirement'" />
   <RequirementDetailModal v-else-if="modal === 'requirementDetail'" />
   <RunModal v-else-if="modal === 'run'" />
-  <CaseGenerateModal v-else-if="modal === 'case'" />
   <CaseEditModal v-else-if="modal === 'caseEdit'" />
   <ModelModal v-else-if="modal === 'model'" />
   <PromptModal v-else-if="modal === 'prompt'" />
@@ -46,4 +45,5 @@ const { modal } = storeToRefs(useUiStore())
   <OnboardingModal v-else-if="modal === 'onboarding'" />
   <ExecutionDetailModal v-else-if="modal === 'executionDetail'" />
   <AnalysisModal v-else-if="modal === 'analysis'" />
+  <CaseChatHistoryModal v-else-if="modal === 'caseChatHistory'" />
 </template>

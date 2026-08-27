@@ -10,16 +10,15 @@ const { requirementDetail } = storeToRefs(useRequirementStore())
 </script>
 
 <template>
-  <BaseModal title="需求详情">
+  <BaseModal title="文件信息">
     <div class="modal-body">
       <div class="detail-grid">
-        <div><span class="muted">文档名称</span><strong>{{ requirementDetail?.name }}</strong></div>
-        <div><span class="muted">版本</span><strong>{{ requirementDetail?.version }}</strong></div>
+        <div><span class="muted">文件名称</span><strong>{{ requirementDetail?.name }}</strong></div>
+        <div><span class="muted">备注</span><strong>{{ requirementDetail?.version || '--' }}</strong></div>
         <div><span class="muted">格式</span><strong>{{ requirementDetail?.fileType }}</strong></div>
-        <div><span class="muted">解析状态</span><strong>{{ requirementDetail?.parseStatus }}</strong></div>
+        <div><span class="muted">存储状态</span><strong>已存储</strong></div>
       </div>
-      <div v-if="requirementDetail?.parseError" class="auth-error">{{ requirementDetail.parseError }}</div>
-      <pre class="requirement-content">{{ requirementDetail?.contentText || '暂无正文内容' }}</pre>
+      <p class="muted">文件内容仅在 AI 生成测试用例时按需读取。</p>
       <div class="modal-foot"><button class="btn" @click="closeModal">关闭</button></div>
     </div>
   </BaseModal>
