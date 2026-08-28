@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/api'
-import type { ApiAiModel, ApiPromptTemplate, ApiGeneratedCase, ApiCaseChatMessage, ApiCaseChatSession } from '@/api'
+import type { ApiAiModel, ApiPromptTemplate, ApiGeneratedCase, ApiCaseChatMessage, ApiCaseChatSession, ApiAiCallAudit } from '@/api'
 import { useUiStore } from './ui'
 import { useAuthStore } from './auth'
 import { useProjectStore } from './project'
@@ -27,6 +27,7 @@ export const useAiStore = defineStore('ai', () => {
 
   const aiModels = ref<ApiAiModel[]>([])
   const promptTemplates = ref<ApiPromptTemplate[]>([])
+  const aiCallAudits = ref<ApiAiCallAudit[]>([])
   const modelForm = ref({ name: '', provider: '', endpoint: '', apiKey: '' })
   const editingModelId = ref<number | null>(null)
   const editingPromptId = ref<number | null>(null)
@@ -35,7 +36,7 @@ export const useAiStore = defineStore('ai', () => {
     selectedCaseId: null as number | null,
     modelId: null as number | null,
     suiteType: ui.activeCaseSuiteType,
-    rules: '覆盖正向、异常、边界场景；输出结构化字段。'
+    rules: '按项目文件中的业务能力和风险生成可执行测试用例；覆盖主流程、必填校验、有效/无效等价类、明确边界值、权限、状态流转、异常、回显和一致性；不明确规则放入待确认事项。'
   })
   const promptForm = ref({ name: '', taskType: '', content: '', version: '' })
   const generatedCaseList = ref<ApiGeneratedCase[]>([])
@@ -43,6 +44,7 @@ export const useAiStore = defineStore('ai', () => {
   const caseChatHistory = ref<ApiCaseChatSession[]>([])
   const activeCaseChatSessionId = ref<number | null>(null)
   const caseChatInput = ref('')
+  const caseChatFile = ref<File | null>(null)
   const isGenerating = ref(false)
   const isChatting = ref(false)
   const generationDone = ref(false)
@@ -58,6 +60,7 @@ export const useAiStore = defineStore('ai', () => {
       activeCaseChatSessionId.value = null
       caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
       caseChatInput.value = ''
+      caseChatFile.value = null
       void loadCaseChatHistory(true)
     },
     { immediate: true }
@@ -138,12 +141,14 @@ export const useAiStore = defineStore('ai', () => {
   async function loadAiConfig() {
     if (auth.authState.role !== 'ADMIN') return
     try {
-      const [models, prompts] = await Promise.all([
+      const [models, prompts, audits] = await Promise.all([
         api.ai.models(),
-        api.ai.prompts()
+        api.ai.prompts(),
+        api.ai.audits()
       ])
       aiModels.value.splice(0, aiModels.value.length, ...models)
       promptTemplates.value.splice(0, promptTemplates.value.length, ...prompts)
+      aiCallAudits.value.splice(0, aiCallAudits.value.length, ...audits)
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : 'AI 配置加载失败')
     }
@@ -351,11 +356,16 @@ export const useAiStore = defineStore('ai', () => {
     activeCaseChatSessionId.value = null
     caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
     caseChatInput.value = ''
+    caseChatFile.value = null
+  }
+
+  function setCaseChatFile(file: File | null) {
+    caseChatFile.value = file
   }
 
   async function sendCaseChat() {
     const projectId = projectStore.currentProject.id
-    const message = caseChatInput.value.trim()
+    const message = caseChatInput.value.trim() || (caseChatFile.value || generationForm.value.requirementId ? '请根据这个文件内容生成测试用例。' : '')
     if (!projectId || !message) return
     caseChatMessages.value.push({
       id: Date.now(),
@@ -365,20 +375,26 @@ export const useAiStore = defineStore('ai', () => {
     caseChatInput.value = ''
     isChatting.value = true
     try {
-      const reply = await api.ai.caseChat(projectId, {
+      const chatPayload = {
         sessionId: activeCaseChatSessionId.value,
         modelId: generationForm.value.modelId ?? undefined,
-        requirementId: generationForm.value.requirementId ?? requirement.selectedRequirementId,
         selectedCaseId: generationForm.value.selectedCaseId,
         suiteType: generationForm.value.suiteType,
         message
-      })
+      }
+      const reply = caseChatFile.value
+        ? await api.ai.caseChatWithFile(projectId, caseChatFile.value, chatPayload)
+        : await api.ai.caseChat(projectId, {
+            ...chatPayload,
+            requirementId: generationForm.value.requirementId ?? requirement.selectedRequirementId
+          })
       activeCaseChatSessionId.value = reply.sessionId
       caseChatMessages.value.push({
         id: Date.now() + 1,
         role: 'assistant',
         content: reply.reply
       })
+      caseChatFile.value = null
       await loadCaseChatHistory(false)
       if (reply.generatedCases?.length) {
         const testcaseStore = useTestcaseStore()
@@ -409,6 +425,7 @@ export const useAiStore = defineStore('ai', () => {
   return {
     aiModels,
     promptTemplates,
+    aiCallAudits,
     modelForm,
     editingModelId,
     editingPromptId,
@@ -419,6 +436,7 @@ export const useAiStore = defineStore('ai', () => {
     caseChatHistory,
     activeCaseChatSessionId,
     caseChatInput,
+    caseChatFile,
     isGenerating,
     isChatting,
     generationDone,
@@ -437,6 +455,7 @@ export const useAiStore = defineStore('ai', () => {
     generateTestCases,
     loadCaseChatHistory,
     resetCaseChat,
+    setCaseChatFile,
     restoreCaseChatSession,
     deleteCaseChatSession,
     deleteAllCaseChatSessions,

@@ -3,6 +3,7 @@ package com.testpilot.platform.requirement;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.rbac.RbacPermissions;
+import com.testpilot.platform.testcase.TestCaseRepository;
 import com.testpilot.platform.user.User;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -24,15 +25,18 @@ public class RequirementService {
     private final RequirementRepository requirementRepository;
     private final ProjectAccessService projectAccessService;
     private final RequirementParser requirementParser;
+    private final TestCaseRepository testCaseRepository;
 
     public RequirementService(
             RequirementRepository requirementRepository,
             ProjectAccessService projectAccessService,
-            RequirementParser requirementParser
+            RequirementParser requirementParser,
+            TestCaseRepository testCaseRepository
     ) {
         this.requirementRepository = requirementRepository;
         this.projectAccessService = projectAccessService;
         this.requirementParser = requirementParser;
+        this.testCaseRepository = testCaseRepository;
     }
 
     public List<RequirementDtos.Response> list(Long projectId, User currentUser) {
@@ -124,6 +128,23 @@ public class RequirementService {
             requirement.setParseError(exception.getMessage());
         }
         return RequirementDtos.Response.from(requirementRepository.save(requirement));
+    }
+
+    @Transactional
+    public void delete(Long projectId, Long requirementId, User currentUser) {
+        projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.REQUIREMENT_WRITE);
+        Requirement requirement = findRequirement(projectId, requirementId);
+        if (testCaseRepository.countByProjectIdAndRequirementId(projectId, requirementId) > 0) {
+            throw new BusinessException(40902, "该文件已关联测试用例，暂不能删除");
+        }
+        try {
+            if (requirement.getFilePath() != null && !requirement.getFilePath().isBlank()) {
+                Files.deleteIfExists(Path.of(requirement.getFilePath()));
+            }
+        } catch (IOException exception) {
+            throw new BusinessException(50003, "项目文件删除失败，请稍后重试");
+        }
+        requirementRepository.delete(requirement);
     }
 
     private Requirement findRequirement(Long projectId, Long requirementId) {

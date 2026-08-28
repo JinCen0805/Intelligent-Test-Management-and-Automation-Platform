@@ -33,9 +33,9 @@ public class AiGenerationService {
 
     private static final Logger log = LoggerFactory.getLogger(AiGenerationService.class);
     private static final Set<String> STANDARD_CASE_FIELDS = Set.of(
-            "caseno", "case_no", "title", "modulename", "module_name", "module", "模块", "precondition", "pre_condition", "前置条件",
-            "steps", "测试步骤", "testdata", "test_data", "测试数据", "expectedresult", "expected_result", "预期结果",
-            "priority", "优先级", "casetype", "case_type", "type", "测试类型", "suitetype", "suite_type", "套件类型", "tags", "标签"
+            "caseno", "case_no", "用例编号", "title", "用例标题", "modulename", "module_name", "module", "模块", "所属模块", "precondition", "pre_condition", "前置条件",
+            "steps", "步骤", "测试步骤", "testdata", "test_data", "测试数据", "expectedresult", "expected_result", "预期", "预期结果",
+            "priority", "优先级", "casetype", "case_type", "type", "类型", "测试类型", "suitetype", "suite_type", "套件类型", "tags", "标签"
     );
 
     private final AiModelService aiModelService;
@@ -80,12 +80,9 @@ public class AiGenerationService {
         String requirementText = readFileContent(requirement);
 
         AiModel model = aiModelService.findModel(request == null ? null : request.modelId());
-        PromptTemplate prompt = aiModelService.findPrompt(
-                request == null ? null : request.promptId(),
-                "TEST_CASE_GENERATION"
-        );
+        PromptTemplate prompt = findGenerationPrompt(request == null ? null : request.promptId());
         String rules = request == null || request.rules() == null || request.rules().isBlank()
-                ? "覆盖正向、异常和边界场景，输出结构化测试用例。"
+                ? "按业务能力和风险生成可执行测试用例，覆盖主流程、必填校验、有效/无效等价类、明确边界值、权限、状态流转、异常、回显和一致性；不明确规则放入 pendingItems。"
                 : request.rules().trim();
         String suiteType = normalizeSuiteType(request == null ? null : request.suiteType());
         long start = System.nanoTime();
@@ -111,7 +108,7 @@ public class AiGenerationService {
             if (caseNo == null || caseNo.isBlank()
                     || assignedCaseNos.contains(caseNo)
                     || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
-                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos);
+                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos, generated.caseNo());
             }
             assignedCaseNos.add(caseNo);
             TestCase testCase = new TestCase(
@@ -166,6 +163,23 @@ public class AiGenerationService {
         return aiProviderClient.completeJson(model, userPrompt);
     }
 
+    private PromptTemplate findGenerationPrompt(Long promptId) {
+        try {
+            return aiModelService.findPrompt(promptId, "TEST_CASE_GENERATION");
+        } catch (BusinessException exception) {
+            if (exception.getCode() == 40421 && promptId == null) {
+                return new PromptTemplate(
+                        "内置测试用例生成规范",
+                        "TEST_CASE_GENERATION",
+                        BuiltInPrompts.TEST_CASE_GENERATION,
+                        "V3.1",
+                        true
+                );
+            }
+            throw exception;
+        }
+    }
+
     private long elapsedMs(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000;
     }
@@ -179,19 +193,21 @@ public class AiGenerationService {
             }
             List<GeneratedCase> result = new ArrayList<>();
             for (JsonNode item : casesNode) {
-                String title = text(item, "title");
+                String title = text(item, "title", "用例标题");
                 if (title.isBlank()) {
                     continue;
                 }
-                String module = requiredText(item, "moduleName", "module", "模块");
+            String module = requiredText(item, "moduleName", "module", "模块", "所属模块");
+            String caseNo = requiredText(item, "caseNo", "case_no", "用例编号");
+            caseNo = validateCaseNo(caseNo);
                 String precondition = requiredText(item, "precondition", "前置条件");
-                String steps = requiredText(item, "steps", "测试步骤");
-                String testData = requiredText(item, "testData", "测试数据");
-                String expectedResult = requiredText(item, "expectedResult", "预期结果");
+                String steps = requiredText(item, "steps", "步骤", "测试步骤");
+                String testData = text(item, "testData", "测试数据");
+                String expectedResult = requiredText(item, "expectedResult", "预期结果", "预期");
                 String priority = normalizePriority(text(item, "priority", "优先级"));
-                String caseType = normalizeType(text(item, "caseType", "type", "测试类型"));
+                String caseType = normalizeType(text(item, "caseType", "type", "类型", "测试类型"));
                 result.add(new GeneratedCase(
-                        text(item, "caseNo"),
+                        caseNo,
                         title,
                         module,
                         precondition,
@@ -200,7 +216,7 @@ public class AiGenerationService {
                         expectedResult,
                         priority,
                         caseType,
-                        text(item, "tags"),
+                        text(item, "tags", "标签"),
                         extractExtraFieldsJson(item)
                 ));
                 if (result.size() >= 50) {
@@ -227,43 +243,40 @@ public class AiGenerationService {
                   "testCases": [
                     {
                       "caseNo": "TC-AI-001",
-                      "title": "核心流程正向场景",
-                      "module": "%s",
-                      "precondition": "测试环境和必要数据已准备完成",
-                      "steps": "1. 按需求输入有效数据\\n2. 提交请求或操作",
-                      "testData": "有效业务数据",
-                      "expectedResult": "操作成功，结果符合需求描述",
+                      "productName": "",
+                      "title": "验证%s核心业务流程处理正确",
+                      "moduleName": "%s",
+                      "precondition": "1. 测试账号已登录并具备当前模块操作权限\\n2. 测试数据处于可提交状态",
+                      "steps": "1. 进入%s页面\\n2. 输入有效业务数据\\n3. 点击提交或保存",
+                      "expectedResult": "1. 页面展示当前模块及可操作控件\\n2. 系统接受有效数据并完成提交\\n3. 页面显示成功反馈，数据状态更新且列表可查询",
                       "priority": "P0",
-                      "type": "FUNCTIONAL",
-                      "tags": "AI,DRAFT"
+                      "type": "FUNCTIONAL"
                     },
                     {
                       "caseNo": "TC-AI-002",
-                      "title": "非法数据异常场景",
-                      "module": "%s",
-                      "precondition": "测试环境可用",
-                      "steps": "1. 输入非法或缺失数据\\n2. 提交请求或操作",
-                      "testData": "非法业务数据",
-                      "expectedResult": "系统拒绝操作并返回明确提示",
+                      "productName": "",
+                      "title": "验证%s必填字段校验有效",
+                      "moduleName": "%s",
+                      "precondition": "1. 测试账号已登录并进入当前模块页面\\n2. 当前页面存在可提交表单",
+                      "steps": "1. 保持必填字段为空\\n2. 填写其他必要字段\\n3. 点击提交或保存",
+                      "expectedResult": "1. 系统阻止提交\\n2. 空值字段被定位或标记\\n3. 页面展示与该字段对应的校验提示，已有数据不被错误保存",
                       "priority": "P1",
-                      "type": "EXCEPTION",
-                      "tags": "AI,DRAFT"
+                      "type": "EXCEPTION"
                     },
                     {
                       "caseNo": "TC-AI-003",
-                      "title": "边界数据校验场景",
-                      "module": "%s",
-                      "precondition": "测试环境可用",
-                      "steps": "1. 输入边界值\\n2. 提交请求或操作",
-                      "testData": "边界业务数据",
-                      "expectedResult": "系统按照边界规则正确处理",
+                      "productName": "",
+                      "title": "验证%s边界数据处理符合规则",
+                      "moduleName": "%s",
+                      "precondition": "1. 测试账号已登录并进入当前模块页面\\n2. 已明确待验证字段的有效边界值",
+                      "steps": "1. 输入边界值及其他有效数据\\n2. 点击提交或保存",
+                      "expectedResult": "1. 边界内数据按业务规则处理\\n2. 边界外数据被阻止并展示明确校验结果\\n3. 系统不产生部分保存或错误状态",
                       "priority": "P1",
-                      "type": "BOUNDARY",
-                      "tags": "AI,DRAFT"
+                      "type": "BOUNDARY"
                     }
                   ]
                 }
-                """.formatted(module, module, module);
+                """.formatted(module, module, module, module, module, module, module);
     }
 
     private String firstModule(String content) {
@@ -417,14 +430,46 @@ public class AiGenerationService {
         return value;
     }
 
-    private String nextCaseNo(Long projectId, String suiteType, Set<String> reservedCaseNos) {
-        long next = testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1;
+    private String nextCaseNo(Long projectId, String suiteType, Set<String> reservedCaseNos, String seedCaseNo) {
+        String prefix = casePrefix(seedCaseNo);
+        long next = sequenceOf(seedCaseNo) + 1;
+        next = Math.max(next, testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1);
         String caseNo;
         do {
-            caseNo = "TC-AI-" + String.format("%03d", next++);
+            caseNo = prefix + "_" + String.format("%03d", next++);
         } while (reservedCaseNos.contains(caseNo)
                 || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo));
         return caseNo;
+    }
+
+    private String casePrefix(String caseNo) {
+        if (caseNo != null) {
+            int separator = caseNo.lastIndexOf('_');
+            if (separator > 0) {
+                String prefix = caseNo.substring(0, separator).trim().toUpperCase(Locale.ROOT);
+                if (!prefix.isBlank()) return prefix;
+            }
+        }
+        return "MODULE";
+    }
+
+    private String validateCaseNo(String value) {
+        String caseNo = value.trim().toUpperCase(Locale.ROOT);
+        if (!caseNo.matches("[A-Z][A-Z0-9-]*_[0-9]{3}")) {
+            throw new BusinessException(50205, "AI 返回的用例编号不符合规范，应为模块大写拼音缩写_三位序号，例如 DENGLU_001");
+        }
+        return caseNo;
+    }
+
+    private long sequenceOf(String caseNo) {
+        if (caseNo == null) return 0;
+        int separator = caseNo.lastIndexOf('_');
+        if (separator < 0) return 0;
+        try {
+            return Long.parseLong(caseNo.substring(separator + 1));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private record GeneratedCase(

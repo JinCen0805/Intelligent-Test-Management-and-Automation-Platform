@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/project'
 import { useTestcaseStore } from '@/stores/testcase'
@@ -13,9 +13,11 @@ const testcaseStore = useTestcaseStore()
 
 const { currentProject } = storeToRefs(projectStore)
 const { casePriorityFilter, caseTypeFilter, search } = storeToRefs(ui)
-const { loadTestCases, loadAllTestCases, casesForSuite, editCase, deleteCase } = testcaseStore
+const { loadTestCases, loadAllTestCases, casesForSuite, caseStatusLabel, editCase } = testcaseStore
 const activeSuiteType = computed(() => ui.activeCaseSuiteType)
 const suiteLabel = computed(() => activeSuiteType.value === 'API' ? '接口测试' : '功能测试')
+const selectedCaseIds = ref<number[]>([])
+const batchWorking = ref(false)
 
 const libraryCases = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -29,6 +31,69 @@ const libraryCases = computed(() => {
     return matchesSource && matchesStatus && matchesSuite && matchesSearch && matchesPriority && matchesType
   })
 })
+
+const extraFieldColumns = computed(() => {
+  const names = new Set<string>()
+  libraryCases.value.forEach((testCase) => {
+    Object.keys(testCase.extraFields ?? {}).forEach((name) => names.add(name))
+  })
+  return [...names]
+})
+
+function formatExtraField(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (Array.isArray(value)) return value.map((item) => formatExtraField(item)).join(', ')
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+const allCasesSelected = computed(() => libraryCases.value.length > 0 && libraryCases.value.every((item) => selectedCaseIds.value.includes(item.id)))
+
+function toggleSelectedCase(caseId: number) {
+  const index = selectedCaseIds.value.indexOf(caseId)
+  if (index >= 0) {
+    selectedCaseIds.value.splice(index, 1)
+  } else {
+    selectedCaseIds.value.push(caseId)
+  }
+}
+
+function toggleAllCases() {
+  selectedCaseIds.value = allCasesSelected.value ? [] : libraryCases.value.map((item) => item.id)
+}
+
+function editSelectedCase() {
+  if (selectedCaseIds.value.length !== 1) return
+  const selected = libraryCases.value.find((item) => item.id === selectedCaseIds.value[0])
+  if (selected) editCase(selected)
+}
+
+async function deleteSelectedCases() {
+  const projectId = currentProject.value.id
+  const items = libraryCases.value.filter((item) => selectedCaseIds.value.includes(item.id))
+  if (!projectId || items.length === 0 || batchWorking.value) return
+  if (!window.confirm(`确认删除当前 ${items.length} 条用例吗？`)) return
+  batchWorking.value = true
+  try {
+    const results = await Promise.allSettled(items.map((item) => api.testCases.remove(projectId, item.id)))
+    await loadTestCases({
+      source: 'AI',
+      status: 'APPROVED',
+      keyword: '',
+      priority: '',
+      caseType: '',
+      suiteType: activeSuiteType.value
+    })
+    await loadAllTestCases()
+    selectedCaseIds.value = []
+    const successCount = results.filter((item) => item.status === 'fulfilled').length
+    ui.showToast(successCount === items.length ? `已删除 ${successCount} 条用例` : `已删除 ${successCount} 条用例，${items.length - successCount} 条失败`)
+  } catch (error) {
+    ui.showToast(error instanceof Error ? error.message : '批量删除失败')
+  } finally {
+    batchWorking.value = false
+  }
+}
 
 function refreshPage() {
   void Promise.all([
@@ -66,6 +131,9 @@ async function exportExcel() {
 }
 
 watch(activeSuiteType, refreshPage)
+watch(libraryCases, () => {
+  selectedCaseIds.value = selectedCaseIds.value.filter((id) => libraryCases.value.some((item) => item.id === id))
+})
 
 onMounted(() => {
   refreshPage()
@@ -100,35 +168,51 @@ onMounted(() => {
             <option value="其他">其他</option>
           </select>
         </div>
+        <div class="head-actions">
+          <button class="btn" :disabled="selectedCaseIds.length !== 1 || batchWorking" @click="editSelectedCase">编辑</button>
+          <button class="btn danger-text" :disabled="selectedCaseIds.length === 0 || batchWorking" @click="deleteSelectedCases">删除</button>
+        </div>
       </div>
       <div class="card-body table-wrap">
         <table>
           <thead>
             <tr>
+              <th><input type="checkbox" :checked="allCasesSelected" aria-label="全选用例" @change="toggleAllCases"></th>
               <th>编号</th>
-              <th>标题</th>
               <th>模块</th>
+              <th>标题</th>
+              <th>前置条件</th>
+              <th>测试步骤</th>
+              <th>预期结果</th>
               <th>优先级</th>
               <th>类型</th>
-              <th>操作</th>
+              <th>状态</th>
+              <th v-for="field in extraFieldColumns" :key="field">{{ field }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="testCase in libraryCases" :key="testCase.id">
+              <td>
+                <input
+                  type="checkbox"
+                  :checked="selectedCaseIds.includes(testCase.id)"
+                  :aria-label="`选择 ${testCase.no}`"
+                  @change="toggleSelectedCase(testCase.id)"
+                >
+              </td>
               <td><strong>{{ testCase.no }}</strong></td>
-              <td class="case-title-cell">{{ testCase.title }}</td>
               <td>{{ testCase.module }}</td>
+              <td class="case-title-cell">{{ testCase.title }}</td>
+              <td class="case-content-cell">{{ testCase.precondition || '--' }}</td>
+              <td class="case-content-cell">{{ testCase.steps || '--' }}</td>
+              <td class="case-content-cell">{{ testCase.expectedResult || '--' }}</td>
               <td><span class="tag" :class="testCase.priority === 'P0' ? 'red' : 'orange'">{{ testCase.priority }}</span></td>
               <td>{{ testCase.type }}</td>
-              <td>
-                <div class="head-actions">
-                  <button class="btn" @click="editCase(testCase)">编辑</button>
-                  <button class="btn" @click="deleteCase(testCase)">删除</button>
-                </div>
-              </td>
+              <td><span class="tag" :class="testCase.status === 'APPROVED' ? 'green' : testCase.status === 'REVIEW' ? 'orange' : testCase.status === 'REJECTED' ? 'red' : 'gray'">{{ caseStatusLabel(testCase.status) }}</span></td>
+              <td v-for="field in extraFieldColumns" :key="field" class="case-extra-field-cell">{{ formatExtraField(testCase.extraFields?.[field]) }}</td>
             </tr>
             <tr v-if="libraryCases.length === 0">
-              <td colspan="6" class="muted">暂无 {{ suiteLabel }}用例</td>
+              <td :colspan="10 + extraFieldColumns.length" class="muted">暂无 {{ suiteLabel }}用例</td>
             </tr>
           </tbody>
         </table>

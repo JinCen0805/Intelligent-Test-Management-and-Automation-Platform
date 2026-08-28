@@ -1,4 +1,4 @@
-import { request } from './client'
+import { request, requestFormData } from './client'
 import type { ApiAiTaskSubmit } from './aiTasks'
 
 export interface ApiGeneratedCase {
@@ -28,6 +28,25 @@ export interface ApiPromptTemplate {
   enabled: boolean
 }
 
+export interface ApiAiCallAudit {
+  id: number
+  projectId?: number | null
+  userId?: number | null
+  userName?: string | null
+  taskType: string
+  modelId?: number | null
+  modelName?: string | null
+  provider?: string | null
+  promptId?: number | null
+  promptName?: string | null
+  promptVersion?: string | null
+  status: string
+  statusCode?: number | null
+  errorMessage?: string | null
+  latencyMs?: number | null
+  createdAt: string
+}
+
 export interface ApiCaseChatResponse {
   sessionId: number
   modelId: number
@@ -54,6 +73,7 @@ export interface ApiCaseChatSession {
 export const ai = {
   models: () => request<ApiAiModel[]>('/ai/models'),
   prompts: () => request<ApiPromptTemplate[]>('/ai/prompts'),
+  audits: () => request<ApiAiCallAudit[]>('/ai/audits'),
   createModel: (payload: {
     name: string
     provider: string
@@ -138,6 +158,22 @@ export const ai = {
     method: 'POST',
     body: JSON.stringify(payload)
   }),
+  caseChatWithFile: (projectId: number, file: File, payload: {
+    sessionId?: number | null
+    modelId?: number | null
+    selectedCaseId?: number | null
+    suiteType: string
+    message: string
+  }) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('message', payload.message)
+    formData.append('suiteType', payload.suiteType)
+    if (payload.sessionId != null) formData.append('sessionId', String(payload.sessionId))
+    if (payload.modelId != null) formData.append('modelId', String(payload.modelId))
+    if (payload.selectedCaseId != null) formData.append('selectedCaseId', String(payload.selectedCaseId))
+    return requestFormData<ApiCaseChatResponse>(`/projects/${projectId}/test-cases/chat/file`, formData)
+  },
   caseChatHistory: (projectId: number, suiteType: string) =>
     request<ApiCaseChatSession[]>(`/projects/${projectId}/test-cases/chat/history?suiteType=${encodeURIComponent(suiteType)}`),
   deleteCaseChatHistory: (projectId: number, sessionId: number, suiteType: string) =>

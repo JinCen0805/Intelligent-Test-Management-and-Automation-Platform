@@ -35,7 +35,8 @@ export type {
   ApiPromptTemplate,
   ApiCaseChatMessage,
   ApiCaseChatResponse,
-  ApiCaseChatSession
+  ApiCaseChatSession,
+  ApiAiCallAudit
 } from './ai'
 export type { ApiAiTaskSubmit, ApiAiTaskStatus } from './aiTasks'
 export type {

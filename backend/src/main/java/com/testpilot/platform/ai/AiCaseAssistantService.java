@@ -12,21 +12,27 @@ import com.testpilot.platform.testcase.TestCaseRepository;
 import com.testpilot.platform.user.User;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.stream.Collectors;
+import com.testpilot.platform.requirement.Requirement;
+import com.testpilot.platform.requirement.RequirementParser;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class AiCaseAssistantService {
 
-    private static final String BUILT_IN_SYSTEM_PROMPT = "你是一名资深测试用例助手，帮助用户优化 AI 生成的测试用例、补充边界场景、梳理 Review 意见，并给出简洁可执行的建议。";
+    private static final String BUILT_IN_SYSTEM_PROMPT = BuiltInPrompts.TEST_CASE_CHAT;
     private static final Set<String> STANDARD_CASE_FIELDS = Set.of(
-            "caseno", "case_no", "title", "modulename", "module_name", "module", "模块", "precondition", "pre_condition", "前置条件",
-            "steps", "测试步骤", "testdata", "test_data", "测试数据", "expectedresult", "expected_result", "预期结果",
-            "priority", "优先级", "casetype", "case_type", "type", "测试类型", "suitetype", "suite_type", "套件类型", "tags", "标签"
+            "caseno", "case_no", "用例编号", "title", "用例标题", "modulename", "module_name", "module", "模块", "所属模块", "precondition", "pre_condition", "前置条件",
+            "steps", "步骤", "测试步骤", "testdata", "test_data", "测试数据", "expectedresult", "expected_result", "预期", "预期结果",
+            "priority", "优先级", "casetype", "case_type", "type", "类型", "测试类型", "suitetype", "suite_type", "套件类型", "tags", "标签"
     );
 
     private final AiModelService aiModelService;
@@ -37,6 +43,7 @@ public class AiCaseAssistantService {
     private final AiProviderClient aiProviderClient;
     private final AiCallAuditService aiCallAuditService;
     private final AiCaseChatSessionService chatSessionService;
+    private final RequirementParser requirementParser;
 
     public AiCaseAssistantService(
             AiModelService aiModelService,
@@ -46,7 +53,8 @@ public class AiCaseAssistantService {
             ObjectMapper objectMapper,
             AiProviderClient aiProviderClient,
             AiCallAuditService aiCallAuditService,
-            AiCaseChatSessionService chatSessionService
+            AiCaseChatSessionService chatSessionService,
+            RequirementParser requirementParser
     ) {
         this.aiModelService = aiModelService;
         this.projectAccessService = projectAccessService;
@@ -56,10 +64,36 @@ public class AiCaseAssistantService {
         this.aiProviderClient = aiProviderClient;
         this.aiCallAuditService = aiCallAuditService;
         this.chatSessionService = chatSessionService;
+        this.requirementParser = requirementParser;
     }
 
     @Transactional
     public AiDtos.CaseChatResponse chat(Long projectId, AiDtos.CaseChatRequest request, User currentUser) {
+        return chatInternal(projectId, request, currentUser, null, null);
+    }
+
+    @Transactional
+    public AiDtos.CaseChatResponse chatWithFile(Long projectId, AiDtos.CaseChatRequest request, MultipartFile file, User currentUser) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(40003, "请选择要添加到对话的文件");
+        }
+        if (file.getSize() > 10 * 1024 * 1024) {
+            throw new BusinessException(40002, "文件大小不能超过 10MB");
+        }
+        String originalName = file.getOriginalFilename() == null ? "对话附件" : Path.of(file.getOriginalFilename()).getFileName().toString();
+        String extension = extensionOf(originalName);
+        try (var inputStream = file.getInputStream()) {
+            String content = requirementParser.parse(extension, inputStream);
+            if (content == null || content.isBlank()) {
+                throw new BusinessException(40004, "无法读取该文件内容，请更换文件后重试");
+            }
+            return chatInternal(projectId, request, currentUser, content, originalName);
+        } catch (IOException | RuntimeException exception) {
+            throw new BusinessException(40004, "无法读取该文件内容，请确认文件格式正确");
+        }
+    }
+
+    private AiDtos.CaseChatResponse chatInternal(Long projectId, AiDtos.CaseChatRequest request, User currentUser, String transientFileContent, String transientFileName) {
         projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         AiModel model = aiModelService.findModel(request.modelId());
         PromptTemplate prompt = findPrompt();
@@ -67,7 +101,7 @@ public class AiCaseAssistantService {
         String normalizedSuiteType = normalizeSuiteType(request.suiteType());
         validateRequirement(projectId, request.requirementId());
         validateSelectedCase(projectId, request.selectedCaseId(), normalizedSuiteType);
-        String context = buildContext(projectId, request.requirementId(), normalizedSuiteType);
+        String context = buildContext(projectId, request.requirementId(), normalizedSuiteType, transientFileContent, transientFileName);
         String message = request.message().trim();
         String userPrompt = buildChatPrompt(context, message, normalizedSuiteType, request.selectedCaseId());
         long start = System.nanoTime();
@@ -94,7 +128,7 @@ public class AiCaseAssistantService {
                     model,
                     prompt == null ? null : prompt.getId(),
                     prompt == null ? "内置用例对话助手" : prompt.getName(),
-                    prompt == null ? "V1.0" : prompt.getVersion(),
+                    prompt == null ? "V3.1" : prompt.getVersion(),
                     true,
                     null,
                     null,
@@ -123,7 +157,7 @@ public class AiCaseAssistantService {
                     model,
                     prompt == null ? null : prompt.getId(),
                     prompt == null ? "内置用例对话助手" : prompt.getName(),
-                    prompt == null ? "V1.0" : prompt.getVersion(),
+                    prompt == null ? "V3.1" : prompt.getVersion(),
                     false,
                     exception.getCode(),
                     exception.getMessage(),
@@ -144,12 +178,15 @@ public class AiCaseAssistantService {
         }
     }
 
-    private String buildContext(Long projectId, Long requirementId, String suiteType) {
+    private String buildContext(Long projectId, Long requirementId, String suiteType, String transientFileContent, String transientFileName) {
         StringBuilder builder = new StringBuilder();
-        if (requirementId != null) {
+        if (transientFileContent != null && !transientFileContent.isBlank()) {
+            builder.append("本次对话临时附件").append(transientFileName == null ? "" : "（" + transientFileName + "）").append("：\n")
+                    .append(transientFileContent.trim()).append("\n\n");
+        } else if (requirementId != null) {
             requirementRepository.findByIdAndProjectId(requirementId, projectId).ifPresent(requirement -> {
                 builder.append("需求正文：\n")
-                        .append(requirement.getContentText() == null ? "" : requirement.getContentText().trim())
+                        .append(readRequirementContent(requirement))
                         .append("\n\n");
             });
         }
@@ -175,37 +212,36 @@ public class AiCaseAssistantService {
         return builder.toString();
     }
 
+    private String extensionOf(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        if (dot < 0 || dot == fileName.length() - 1) {
+            throw new BusinessException(40004, "无法识别文件类型");
+        }
+        return fileName.substring(dot + 1).toUpperCase(Locale.ROOT);
+    }
+
+    private String readRequirementContent(Requirement requirement) {
+        if (requirement.getContentText() != null && !requirement.getContentText().isBlank()) {
+            return requirement.getContentText().trim();
+        }
+        if (requirement.getFilePath() == null || requirement.getFilePath().isBlank()) {
+            return "（项目文件暂无可读取正文）";
+        }
+        try (var inputStream = Files.newInputStream(Path.of(requirement.getFilePath()))) {
+            String content = requirementParser.parse(requirement.getFileType(), inputStream);
+            return content == null || content.isBlank() ? "（项目文件暂无可读取正文）" : content.trim();
+        } catch (IOException | RuntimeException exception) {
+            return "（项目文件暂不支持读取正文）";
+        }
+    }
+
     private String buildChatPrompt(String context, String message, String suiteType, Long selectedCaseId) {
         String suiteLabel = AiGenerationService.SUITE_API.equalsIgnoreCase(suiteType) ? "接口测试" : "功能测试";
-        return """
-                你是一名资深测试用例助手。请用简洁中文回答用户，并在需要时补充可直接入库的测试用例。
-                你必须只返回 JSON，对象结构如下。除示例中的标准字段外，如果用户要求补充接口、设备、性能、权限等信息，可以增加同名字段，系统会原样保留：
-                {
-                  "reply": "给用户的中文回答",
-                  "testCases": [
-                    {
-                      "caseNo": "可选，留空则由系统自动编号",
-                      "title": "测试标题",
-                      "moduleName": "功能模块",
-                      "precondition": "前置条件",
-                      "steps": "测试步骤",
-                      "testData": "测试数据",
-                      "expectedResult": "预期结果",
-                      "priority": "P0|P1|P2|P3",
-                      "caseType": "FUNCTIONAL|EXCEPTION|BOUNDARY",
-                      "tags": "标签，多个用逗号分隔"
-                    }
-                  ]
-                }
-                如果当前问题不需要新增测试用例，testCases 传空数组。
-                如果用户选中了已有用例并要求修改，返回的第一条 testCases 用例用于覆盖更新该用例，不要新增重复用例。
-                当前选中的已有用例 ID：%s
-                当前测试范围：%s
-                当前项目上下文：
-                %s
-                用户问题：
-                %s
-                """.formatted(selectedCaseId == null ? "无" : selectedCaseId, suiteLabel, context, message);
+        return "如果用户选中了已有用例并要求修改，返回的第一条 testCases 用例用于覆盖更新该用例，不要新增重复用例。"
+                + "\n当前选中的已有用例 ID：" + (selectedCaseId == null ? "无" : selectedCaseId)
+                + "\n当前测试范围：" + suiteLabel
+                + "\n当前项目上下文：\n" + context
+                + "\n用户最新需求（最高业务优先级）：\n" + message;
     }
 
     private String mockReply(String message, String context, String suiteType) {
@@ -216,14 +252,28 @@ public class AiCaseAssistantService {
             if (!hasGenerationIntent(message)) {
                 payload.put("reply", "可以，我可以帮你分析需求、解释测试场景，或根据明确指令生成和优化测试用例。");
                 payload.put("testCases", List.of());
+                payload.put("pendingItems", List.of());
                 return objectMapper.writeValueAsString(payload);
             }
-            payload.put("reply", "可以，我已经按" + suiteLabel + "场景给你整理了可入库版本。你可以先看这三类：正向、异常、边界。");
+            payload.put("reply", "可以，我已经按" + suiteLabel + "场景整理了可入库版本，覆盖主流程、字段校验和边界规则。");
             List<java.util.Map<String, Object>> cases = new ArrayList<>();
-            cases.add(buildMockCase("TC-AI-001", "核心流程正向场景", module, "测试环境和必要数据已准备完成", "1. 按需求输入有效数据\n2. 提交请求或操作", "有效业务数据", "操作成功，结果符合需求描述", "P0", "FUNCTIONAL", "AI,CHAT"));
-            cases.add(buildMockCase("TC-AI-002", "非法数据异常场景", module, "测试环境可用", "1. 输入非法或缺失数据\n2. 提交请求或操作", "非法业务数据", "系统拒绝操作并返回明确提示", "P1", "EXCEPTION", "AI,CHAT"));
-            cases.add(buildMockCase("TC-AI-003", "边界数据校验场景", module, "测试环境可用", "1. 输入边界值\n2. 提交请求或操作", "边界业务数据", "系统按照边界规则正确处理", "P1", "BOUNDARY", "AI,CHAT"));
+            cases.add(buildMockCase("TC-AI-001", "验证" + module + "核心业务流程处理正确", module,
+                    "1. 测试账号已登录并具备当前模块操作权限\n2. 测试数据处于可提交状态",
+                    "1. 进入" + module + "页面\n2. 输入有效业务数据\n3. 点击提交或保存",
+                    "1. 页面展示当前模块及可操作控件\n2. 系统接受有效数据并完成提交\n3. 页面显示成功反馈，数据状态更新且列表可查询",
+                    "P0", "FUNCTIONAL"));
+            cases.add(buildMockCase("TC-AI-002", "验证" + module + "必填字段校验有效", module,
+                    "1. 测试账号已登录并进入当前模块页面\n2. 当前页面存在可提交表单",
+                    "1. 保持必填字段为空\n2. 填写其他必要字段\n3. 点击提交或保存",
+                    "1. 系统阻止提交\n2. 空值字段被定位或标记\n3. 页面展示与该字段对应的校验提示，已有数据不被错误保存",
+                    "P1", "EXCEPTION"));
+            cases.add(buildMockCase("TC-AI-003", "验证" + module + "边界数据处理符合规则", module,
+                    "1. 测试账号已登录并进入当前模块页面\n2. 已明确待验证字段的有效边界值",
+                    "1. 输入边界值及其他有效数据\n2. 点击提交或保存",
+                    "1. 边界内数据按业务规则处理\n2. 边界外数据被阻止并展示明确校验结果\n3. 系统不产生部分保存或错误状态",
+                    "P1", "BOUNDARY"));
             payload.put("testCases", cases);
+            payload.put("pendingItems", List.of("演示模型不会读取业务规则，已使用协议示例数据；配置真实 AI 模型后将按内置 Skill Prompt 生成"));
             return objectMapper.writeValueAsString(payload);
         } catch (Exception exception) {
             throw new BusinessException(50050, "模拟 AI 对话失败");
@@ -246,11 +296,9 @@ public class AiCaseAssistantService {
             String moduleName,
             String precondition,
             String steps,
-            String testData,
             String expectedResult,
             String priority,
-            String caseType,
-            String tags
+            String caseType
     ) {
         java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
         item.put("caseNo", caseNo);
@@ -258,11 +306,9 @@ public class AiCaseAssistantService {
         item.put("moduleName", moduleName);
         item.put("precondition", precondition);
         item.put("steps", steps);
-        item.put("testData", testData);
         item.put("expectedResult", expectedResult);
         item.put("priority", priority);
         item.put("caseType", caseType);
-        item.put("tags", tags);
         return item;
     }
 
@@ -352,7 +398,7 @@ public class AiCaseAssistantService {
             if (caseNo == null || caseNo.isBlank()
                     || assignedCaseNos.contains(caseNo)
                     || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
-                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos);
+                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos, generated.caseNo());
             }
             assignedCaseNos.add(caseNo);
             TestCase testCase = new TestCase(
@@ -399,19 +445,21 @@ public class AiCaseAssistantService {
         }
         List<GeneratedCase> result = new ArrayList<>();
         for (JsonNode item : casesNode) {
-            String title = text(item, "title");
+            String title = text(item, "title", "用例标题");
             if (title.isBlank()) {
                 continue;
             }
-            String module = requiredText(item, "moduleName", "module", "模块");
+            String module = requiredText(item, "moduleName", "module", "模块", "所属模块");
+            String caseNo = requiredText(item, "caseNo", "case_no", "用例编号");
+            caseNo = validateCaseNo(caseNo);
             String precondition = requiredText(item, "precondition", "前置条件");
-            String steps = requiredText(item, "steps", "测试步骤");
-            String testData = requiredText(item, "testData", "测试数据");
-            String expectedResult = requiredText(item, "expectedResult", "预期结果");
+            String steps = requiredText(item, "steps", "步骤", "测试步骤");
+            String testData = text(item, "testData", "测试数据");
+            String expectedResult = requiredText(item, "expectedResult", "预期结果", "预期");
             String priority = normalizePriority(text(item, "priority", "优先级"));
-            String caseType = normalizeType(text(item, "caseType", "type", "测试类型"));
+            String caseType = normalizeType(text(item, "caseType", "type", "类型", "测试类型"));
             result.add(new GeneratedCase(
-                    text(item, "caseNo"),
+                    caseNo,
                     title,
                     module,
                     precondition,
@@ -420,7 +468,7 @@ public class AiCaseAssistantService {
                     expectedResult,
                     priority,
                     caseType,
-                    text(item, "tags"),
+                    text(item, "tags", "标签"),
                     extractExtraFieldsJson(item)
             ));
             if (result.size() >= 50) {
@@ -540,14 +588,46 @@ public class AiCaseAssistantService {
         return AiGenerationService.SUITE_API.equals(value) ? AiGenerationService.SUITE_API : AiGenerationService.SUITE_FUNCTIONAL;
     }
 
-    private String nextCaseNo(Long projectId, String suiteType, Set<String> reservedCaseNos) {
-        long next = testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1;
+    private String nextCaseNo(Long projectId, String suiteType, Set<String> reservedCaseNos, String seedCaseNo) {
+        String prefix = casePrefix(seedCaseNo);
+        long next = sequenceOf(seedCaseNo) + 1;
+        next = Math.max(next, testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1);
         String caseNo;
         do {
-            caseNo = "TC-AI-" + String.format("%03d", next++);
+            caseNo = prefix + "_" + String.format("%03d", next++);
         } while (reservedCaseNos.contains(caseNo)
                 || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo));
         return caseNo;
+    }
+
+    private String casePrefix(String caseNo) {
+        if (caseNo != null) {
+            int separator = caseNo.lastIndexOf('_');
+            if (separator > 0) {
+                String prefix = caseNo.substring(0, separator).trim().toUpperCase(Locale.ROOT);
+                if (!prefix.isBlank()) return prefix;
+            }
+        }
+        return "MODULE";
+    }
+
+    private String validateCaseNo(String value) {
+        String caseNo = value.trim().toUpperCase(Locale.ROOT);
+        if (!caseNo.matches("[A-Z][A-Z0-9-]*_[0-9]{3}")) {
+            throw new BusinessException(50205, "AI 返回的用例编号不符合规范，应为模块大写拼音缩写_三位序号，例如 DENGLU_001");
+        }
+        return caseNo;
+    }
+
+    private long sequenceOf(String caseNo) {
+        if (caseNo == null) return 0;
+        int separator = caseNo.lastIndexOf('_');
+        if (separator < 0) return 0;
+        try {
+            return Long.parseLong(caseNo.substring(separator + 1));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private record ChatPayload(String reply, List<GeneratedCase> generatedCases) {

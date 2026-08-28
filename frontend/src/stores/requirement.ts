@@ -92,6 +92,21 @@ export const useRequirementStore = defineStore('requirement', () => {
     }
   }
 
+  async function deleteRequirement(requirement: Requirement) {
+    const projectId = projectStore.currentProject.id
+    if (!projectId || !requirement.id) return
+    if (!window.confirm(`确认删除项目文件「${requirement.name}」吗？删除后不可恢复。`)) return
+    try {
+      await api.requirements.delete(projectId, requirement.id)
+      const index = requirements.value.findIndex((item) => item.id === requirement.id)
+      if (index >= 0) requirements.value.splice(index, 1)
+      if (requirementDetail.value?.name === requirement.name) requirementDetail.value = null
+      ui.showToast('项目文件已删除')
+    } catch (error) {
+      ui.showToast(error instanceof Error ? error.message : '项目文件删除失败')
+    }
+  }
+
   async function openRequirementDetail(requirement: Requirement) {
     const projectId = projectStore.currentProject.id
     if (!projectId || !requirement.id) return
@@ -121,6 +136,7 @@ export const useRequirementStore = defineStore('requirement', () => {
     handleRequirementFile,
     uploadRequirement,
     parseRequirement,
+    deleteRequirement,
     openRequirementDetail
   }
 })

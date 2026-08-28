@@ -26,6 +26,10 @@ export const requirements = {
     `/projects/${projectId}/files/${requirementId}/parse`,
     { method: 'POST' }
   ),
+  delete: (projectId: number, requirementId: number) => request<void>(
+    `/projects/${projectId}/files/${requirementId}`,
+    { method: 'DELETE' }
+  ),
   detail: (projectId: number, requirementId: number) => request<{
     id: number
     projectId: number

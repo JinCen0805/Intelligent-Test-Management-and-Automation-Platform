@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -98,5 +99,16 @@ public class RequirementController {
                 requirementId,
                 authService.currentUser(authorization)
         ));
+    }
+
+    @DeleteMapping({"/projects/{projectId}/requirements/{requirementId}", "/projects/{projectId}/files/{requirementId}"})
+    @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:write')")
+    public ApiResponse<Void> delete(
+            @PathVariable Long projectId,
+            @PathVariable Long requirementId,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        requirementService.delete(projectId, requirementId, authService.currentUser(authorization));
+        return ApiResponse.success(null);
     }
 }

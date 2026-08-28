@@ -54,7 +54,7 @@ const {
   removeProjectMember,
   updateProjectMemberRole
 } = projectStore
-const { loadRequirements, openRequirementDetail } = requirementStore
+const { loadRequirements, openRequirementDetail, deleteRequirement } = requirementStore
 const { loadTestCases } = testcaseStore
 const {
   loadAutomationData,
@@ -202,7 +202,7 @@ watch(activeProjectTab, (tab) => {
         </template>
         <template v-else-if="activeProjectTab === 'requirements'">
           <div class="page-head compact"><div><h1>项目文件管理</h1><p>集中保存当前项目使用的文件，供团队和 AI 用例生成选择。</p></div><div class="head-actions"><button class="btn primary" @click="openModal('requirement')">＋ 添加文件</button></div></div>
-           <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>文件名称</th><th>备注</th><th>格式</th><th>存储状态</th><th>更新时间</th><th></th></tr></thead><tbody><tr v-for="requirement in requirements" :key="requirement.id || requirement.name"><td><strong>{{ requirement.name }}</strong></td><td>{{ requirement.version || '--' }}</td><td><span class="tag blue">{{ requirement.type }}</span></td><td><span class="tag green">已存储</span></td><td>{{ requirement.updated }}</td><td><button class="btn" @click="openRequirementDetail(requirement)">查看信息</button></td></tr><tr v-if="requirements.length === 0"><td colspan="6" class="muted">暂无项目文件</td></tr></tbody></table></div></div>
+          <div class="card"><div class="card-body table-wrap"><table><thead><tr><th>文件名称</th><th>备注</th><th>格式</th><th>存储状态</th><th>更新时间</th><th></th></tr></thead><tbody><tr v-for="requirement in requirements" :key="requirement.id || requirement.name"><td><strong>{{ requirement.name }}</strong></td><td>{{ requirement.version || '--' }}</td><td><span class="tag blue">{{ requirement.type }}</span></td><td><span class="tag green">已存储</span></td><td>{{ requirement.updated }}</td><td><div class="head-actions"><button class="btn" @click="openRequirementDetail(requirement)">查看信息</button><button class="btn danger-text" @click="deleteRequirement(requirement)">删除</button></div></td></tr><tr v-if="requirements.length === 0"><td colspan="6" class="muted">暂无项目文件</td></tr></tbody></table></div></div>
         </template>
         <template v-else-if="activeProjectTab === 'case-ai'">
           <ProjectCaseAiView />

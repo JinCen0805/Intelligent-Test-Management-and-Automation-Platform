@@ -15,12 +15,11 @@ const projectStore = useProjectStore()
 const requirementStore = useRequirementStore()
 const testcaseStore = useTestcaseStore()
 
-const { requirements, selectedRequirementId, requirementFile } = storeToRefs(requirementStore)
-const { aiModels, generationForm, caseChatMessages, caseChatInput, isChatting } = storeToRefs(aiStore)
+const { requirements, selectedRequirementId } = storeToRefs(requirementStore)
+const { aiModels, generationForm, caseChatMessages, caseChatInput, caseChatFile, isChatting } = storeToRefs(aiStore)
 const { loadRequirements } = requirementStore
 const { loadTestCases, caseStatusLabel, casesForSuite, loadAllTestCases } = testcaseStore
-const { loadAiConfig, loadCaseChatHistory, resetCaseChat, sendCaseChat } = aiStore
-const { handleRequirementFile, uploadRequirement } = requirementStore
+const { loadAiConfig, loadCaseChatHistory, resetCaseChat, sendCaseChat, setCaseChatFile } = aiStore
 
 const PAGE_SIZE = 10
 const batchWorking = ref(false)
@@ -28,6 +27,7 @@ const currentPage = ref(1)
 const selectedCaseIds = ref<number[]>([])
 const localFileInput = ref<HTMLInputElement | null>(null)
 const caseChatTextarea = ref<HTMLTextAreaElement | null>(null)
+const caseChatStream = ref<HTMLDivElement | null>(null)
 const chatCollapsed = ref(false)
 const activeSuiteType = computed(() => ui.activeCaseSuiteType)
 const suiteLabel = computed(() => activeSuiteType.value === 'API' ? '接口测试' : '功能测试')
@@ -74,11 +74,30 @@ function resizeChatInput() {
   textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
 }
 
+function scrollChatToBottom() {
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      const stream = caseChatStream.value
+      if (!stream) return
+      stream.scrollTo({ top: stream.scrollHeight, behavior: 'smooth' })
+    })
+  })
+}
+
+function handleCaseChatKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter' || event.shiftKey) return
+  event.preventDefault()
+  if (event.isComposing || isChatting.value) return
+  void sendCaseChat()
+}
+
 async function uploadLocalFile(event: Event) {
-  handleRequirementFile(event)
-  if (!requirementFile.value) return
-  await uploadRequirement({ keepModal: true })
-  generationForm.value.requirementId = requirements.value[0]?.id ?? null
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  if (!file) return
+  setCaseChatFile(file)
+  generationForm.value.requirementId = null
+  input.value = ''
 }
 
 function closeFileMenu(event: Event) {
@@ -92,6 +111,7 @@ function openLocalFilePicker(event: Event) {
 
 function selectProjectFile(fileId: number, event: Event) {
   closeFileMenu(event)
+  setCaseChatFile(null)
   generationForm.value.requirementId = fileId
 }
 
@@ -191,10 +211,13 @@ watch(activeSuiteType, () => {
   refreshPage()
 })
 watch(caseChatInput, () => { void nextTick(resizeChatInput) })
+watch(() => caseChatMessages.value.length, scrollChatToBottom)
+watch(isChatting, scrollChatToBottom)
 
 onMounted(() => {
   refreshPage()
   void nextTick(resizeChatInput)
+  scrollChatToBottom()
 })
 </script>
 
@@ -227,7 +250,11 @@ onMounted(() => {
                 <th>编号</th>
                 <th>模块</th>
                 <th>标题</th>
+                <th>前置条件</th>
+                <th>测试步骤</th>
+                <th>预期结果</th>
                 <th>优先级</th>
+                <th>测试类型</th>
                 <th>状态</th>
                 <th v-for="field in extraFieldColumns" :key="field">{{ field }}</th>
               </tr>
@@ -245,12 +272,16 @@ onMounted(() => {
                 <td><strong>{{ testCase.no }}</strong></td>
                 <td>{{ testCase.module }}</td>
                 <td class="case-title-cell">{{ testCase.title }}</td>
+                <td class="case-content-cell">{{ testCase.precondition || '--' }}</td>
+                <td class="case-content-cell">{{ testCase.steps || '--' }}</td>
+                <td class="case-content-cell">{{ testCase.expectedResult || '--' }}</td>
                 <td><span class="tag" :class="testCase.priority === 'P0' ? 'red' : 'orange'">{{ testCase.priority }}</span></td>
+                <td>{{ testCase.type }}</td>
                 <td><span class="tag" :class="testCase.status === 'APPROVED' ? 'green' : testCase.status === 'REVIEW' ? 'orange' : testCase.status === 'REJECTED' ? 'red' : 'gray'">{{ caseStatusLabel(testCase.status) }}</span></td>
                 <td v-for="field in extraFieldColumns" :key="field" class="case-extra-field-cell">{{ formatExtraField(testCase.extraFields?.[field]) }}</td>
               </tr>
               <tr v-if="aiCases.length === 0">
-                <td :colspan="6 + extraFieldColumns.length" class="muted">暂无 {{ suiteLabel }} AI 生成测试用例</td>
+                <td :colspan="10 + extraFieldColumns.length" class="muted">暂无 {{ suiteLabel }} AI 生成测试用例</td>
               </tr>
             </tbody>
           </table>
@@ -293,7 +324,7 @@ onMounted(() => {
         </div>
         <div class="card-body case-chat-body">
           <div class="case-chat-shell">
-            <div class="case-chat-stream">
+            <div ref="caseChatStream" class="case-chat-stream" aria-live="polite" :aria-busy="isChatting">
               <div v-for="message in caseChatMessages" :key="message.id" class="case-chat-row" :class="message.role">
                 <div class="case-chat-avatar">{{ message.role === 'user' ? '你' : 'AI' }}</div>
                 <div class="case-chat-message" :class="message.role">
@@ -304,17 +335,33 @@ onMounted(() => {
                   <p>{{ message.content }}</p>
                 </div>
               </div>
+              <div v-if="isChatting" class="case-chat-row assistant case-chat-loading-row" role="status" aria-label="AI 正在生成">
+                <div class="case-chat-avatar">AI</div>
+                <div class="case-chat-message assistant case-chat-loading-message">
+                  <div class="case-chat-meta">
+                    <strong>AI</strong>
+                    <span>正在生成</span>
+                  </div>
+                  <div class="case-chat-loading-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+                </div>
+              </div>
             </div>
 
             <form class="case-chat-form" @submit.prevent="sendCaseChat">
               <div class="case-chat-input-wrap">
-                <textarea ref="caseChatTextarea" v-model="caseChatInput" rows="1" placeholder="输入你的修改指令，例如：补充 5 条登录失败后的异常用例"></textarea>
+                <div v-if="caseChatFile || generationForm.requirementId" class="case-chat-attachment">
+                  <span class="muted">已添加文件</span>
+                  <strong v-if="caseChatFile">{{ caseChatFile.name }}</strong>
+                  <strong v-else>{{ requirements.find((item) => item.id === generationForm.requirementId)?.name || '项目文件' }}</strong>
+                  <button class="link-btn" type="button" aria-label="移除附件" @click="setCaseChatFile(null); generationForm.requirementId = null">移除</button>
+                </div>
+                <textarea ref="caseChatTextarea" v-model="caseChatInput" rows="1" placeholder="输入你的修改指令，例如：补充 5 条登录失败后的异常用例" @keydown="handleCaseChatKeydown"></textarea>
                 <div class="case-chat-input-actions">
                   <details class="case-file-menu">
                     <summary class="btn" aria-label="添加文件">＋ 添加文件</summary>
                     <div class="case-file-menu-panel">
                       <span class="case-file-menu-label">项目文件</span>
-                      <button v-for="requirement in requirements.filter((item) => item.id)" :key="requirement.id" type="button" @click="selectProjectFile(requirement.id ?? 0, $event)">
+                      <button v-for="requirement in requirements.filter((item) => item.id)" :key="requirement.id" type="button" :class="{ selected: generationForm.requirementId === requirement.id && !caseChatFile }" @click="selectProjectFile(requirement.id ?? 0, $event)">
                         {{ requirement.name }}{{ requirement.version ? ` · ${requirement.version}` : '' }}
                       </button>
                       <span v-if="requirements.length === 0" class="muted">暂无项目文件</span>
@@ -331,8 +378,9 @@ onMounted(() => {
                     {{ model.name }} · {{ model.provider }}
                   </option>
                 </select>
-                <button class="btn primary" :disabled="isChatting">
-                  {{ isChatting ? '发送中...' : '发送' }}
+                <button class="btn primary case-chat-send" :disabled="isChatting">
+                  <span v-if="isChatting" class="loading-spinner" aria-hidden="true"></span>
+                  {{ isChatting ? '正在生成' : '发送' }}
                 </button>
               </div>
             </form>

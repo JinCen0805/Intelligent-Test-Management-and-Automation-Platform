@@ -6,6 +6,8 @@ import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,12 @@ import org.slf4j.LoggerFactory;
 public class AiModelService {
 
     private static final Logger log = LoggerFactory.getLogger(AiModelService.class);
+    private static final Set<String> PROMPT_TASK_TYPES = Set.of(
+            "TEST_CASE_GENERATION",
+            "TEST_CASE_CHAT",
+            "FAILURE_ANALYSIS",
+            "AUTOMATION_TASK_GENERATION"
+    );
 
     private final AiModelRepository aiModelRepository;
     private final PromptTemplateRepository promptTemplateRepository;
@@ -46,6 +54,7 @@ public class AiModelService {
 
     public AiDtos.ModelResponse createModel(AiDtos.ModelRequest request, User user) {
         requireAdmin(user);
+        rejectMockProvider(request.provider());
         AiModel model = new AiModel(
                 request.name().trim(),
                 request.provider().trim().toUpperCase(),
@@ -60,6 +69,7 @@ public class AiModelService {
 
     public AiDtos.ModelResponse updateModel(Long id, AiDtos.ModelRequest request, User user) {
         requireAdmin(user);
+        rejectMockProvider(request.provider());
         AiModel model = aiModelRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(40420, "AI 模型不存在"));
         String endpoint = request.endpoint() == null ? "" : request.endpoint().trim();
@@ -127,7 +137,7 @@ public class AiModelService {
         requireAdmin(user);
         PromptTemplate prompt = new PromptTemplate(
                 request.name().trim(),
-                request.taskType().trim().toUpperCase(),
+                normalizePromptTaskType(request.taskType()),
                 request.content(),
                 request.version().trim(),
                 request.enabled() == null || request.enabled()
@@ -141,12 +151,20 @@ public class AiModelService {
                 .orElseThrow(() -> new BusinessException(40421, "Prompt 模板不存在"));
         prompt.update(
                 request.name().trim(),
-                request.taskType().trim().toUpperCase(),
+                normalizePromptTaskType(request.taskType()),
                 request.content(),
                 request.version().trim(),
                 request.enabled() == null || request.enabled()
         );
         return AiDtos.PromptResponse.from(promptTemplateRepository.save(prompt));
+    }
+
+    private String normalizePromptTaskType(String taskType) {
+        String normalized = taskType == null ? "" : taskType.trim().toUpperCase(Locale.ROOT);
+        if (!PROMPT_TASK_TYPES.contains(normalized)) {
+            throw new BusinessException(40021, "应用板块不受支持，请选择有效的 AI 能力");
+        }
+        return normalized;
     }
 
     public AiDtos.PromptResponse setPromptEnabled(Long id, boolean enabled, User user) {
@@ -219,6 +237,12 @@ public class AiModelService {
     private void requireAdmin(User user) {
         if (user == null || !rbacService.hasSystemPermission(user.getId(), RbacPermissions.SYSTEM_AI_MODEL_MANAGE)) {
             throw new AccessDeniedException("只有管理员可以管理 AI 配置");
+        }
+    }
+
+    private void rejectMockProvider(String provider) {
+        if (provider != null && "MOCK".equalsIgnoreCase(provider.trim())) {
+            throw new BusinessException(40021, "MOCK 演示模型已移除，请配置真实 AI 模型");
         }
     }
 }

@@ -6,10 +6,9 @@ import com.testpilot.platform.project.ProjectMemberRepository;
 import com.testpilot.platform.project.ProjectRepository;
 import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserRepository;
-import com.testpilot.platform.ai.AiModel;
-import com.testpilot.platform.ai.AiModelRepository;
 import com.testpilot.platform.ai.PromptTemplate;
 import com.testpilot.platform.ai.PromptTemplateRepository;
+import com.testpilot.platform.ai.BuiltInPrompts;
 import com.testpilot.platform.automation.AutomationProject;
 import com.testpilot.platform.automation.AutomationProjectRepository;
 import com.testpilot.platform.automation.TestTask;
@@ -28,7 +27,6 @@ public class DemoDataConfig {
     CommandLineRunner seedDemoData(
             UserRepository userRepository,
             ProjectRepository projectRepository,
-            AiModelRepository aiModelRepository,
             PromptTemplateRepository promptTemplateRepository,
             AutomationProjectRepository automationProjectRepository,
             TestTaskRepository testTaskRepository,
@@ -82,21 +80,55 @@ public class DemoDataConfig {
                 });
             }
 
-            if (aiModelRepository.count() == 0) {
-                aiModelRepository.save(new AiModel(
-                        "local-demo-model",
-                        "MOCK",
-                        "",
-                        null,
-                        true
-                ));
-            }
-            if (promptTemplateRepository.count() == 0) {
+            if (promptTemplateRepository.findFirstByTaskTypeAndEnabledTrueOrderByCreatedAtDesc("TEST_CASE_GENERATION").isEmpty()) {
                 promptTemplateRepository.save(new PromptTemplate(
                         "测试用例生成规范",
                         "TEST_CASE_GENERATION",
-                        "根据需求正文生成测试用例，覆盖正向、异常、边界场景。仅输出 JSON 数组，不要 Markdown 代码块。数组中每个元素是一个测试用例对象，包含以下字段且均为字符串类型：title（用例标题）、module（所属模块）、precondition（前置条件）、steps（测试步骤，多步用换行分隔）、testData（测试数据）、expectedResult（预期结果）、priority（优先级，只能取值 P0、P1、P2、P3 之一）、type（测试类型，只能取值 FUNCTIONAL、EXCEPTION、BOUNDARY 之一）、tags（标签，多个用逗号分隔）。如果需求中存在接口、设备、性能、权限等额外信息，可在对象中增加对应字段，系统会原样保留。",
-                        "V1.0",
+                        BuiltInPrompts.TEST_CASE_GENERATION,
+                        "V3.1",
+                        true
+                ));
+            }
+            // Upgrade the original seeded prompt once while preserving any administrator-authored prompt.
+            promptTemplateRepository.findByNameAndTaskType("测试用例生成规范", "TEST_CASE_GENERATION").stream()
+                    .filter(prompt -> prompt.getContent() != null
+                            && (prompt.getContent().startsWith("你是一名资深测试设计工程师。请根据用户上传的项目文件内容生成可直接执行的测试用例。")
+                            || prompt.getContent().startsWith("根据需求正文生成测试用例，覆盖正向、异常、边界场景。")
+                            || prompt.getContent().contains("如果系统为避免重复需要自动改成 TC-AI-xxx")
+                            ))
+                    .findFirst()
+                    .ifPresent(prompt -> {
+                        prompt.update(
+                                prompt.getName(),
+                                prompt.getTaskType(),
+                                BuiltInPrompts.TEST_CASE_GENERATION,
+                                "V3.1",
+                                prompt.isEnabled()
+                        );
+                        promptTemplateRepository.save(prompt);
+                    });
+            promptTemplateRepository.findByNameAndTaskType("测试用例对话规范", "TEST_CASE_CHAT").stream()
+                    .filter(prompt -> prompt.getContent() != null
+                            && (prompt.getContent().startsWith("你是一名资深测试设计工程师和测试用例对话助手。请基于项目文件和现有用例，帮助用户分析、补充或修改测试用例。")
+                            || prompt.getContent().startsWith("你是一名资深测试用例助手。")
+                            || prompt.getContent().contains("模块大写缩写_三位序号或留空")))
+                    .findFirst()
+                    .ifPresent(prompt -> {
+                        prompt.update(
+                                prompt.getName(),
+                                prompt.getTaskType(),
+                                BuiltInPrompts.TEST_CASE_CHAT,
+                                "V3.1",
+                                prompt.isEnabled()
+                        );
+                        promptTemplateRepository.save(prompt);
+                    });
+            if (promptTemplateRepository.findFirstByTaskTypeAndEnabledTrueOrderByCreatedAtDesc("TEST_CASE_CHAT").isEmpty()) {
+                promptTemplateRepository.save(new PromptTemplate(
+                        "测试用例对话规范",
+                        "TEST_CASE_CHAT",
+                        BuiltInPrompts.TEST_CASE_CHAT,
+                        "V3.1",
                         true
                 ));
             }

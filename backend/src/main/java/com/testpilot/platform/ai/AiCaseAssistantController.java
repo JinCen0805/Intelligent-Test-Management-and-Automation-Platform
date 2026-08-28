@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -37,6 +39,23 @@ public class AiCaseAssistantController {
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
         return ApiResponse.success(service.chat(projectId, request, authService.currentUser(authorization)));
+    }
+
+    @PostMapping(value = "/chat/file", consumes = "multipart/form-data")
+    public ApiResponse<AiDtos.CaseChatResponse> chatWithFile(
+            @PathVariable Long projectId,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(value = "message", required = false, defaultValue = "请根据这个文件内容生成测试用例。") String message,
+            @RequestParam(value = "suiteType", required = false) String suiteType,
+            @RequestParam(value = "sessionId", required = false) Long sessionId,
+            @RequestParam(value = "modelId", required = false) Long modelId,
+            @RequestParam(value = "selectedCaseId", required = false) Long selectedCaseId,
+            @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        AiDtos.CaseChatRequest request = new AiDtos.CaseChatRequest(
+                sessionId, modelId, null, selectedCaseId, suiteType, message
+        );
+        return ApiResponse.success(service.chatWithFile(projectId, request, file, authService.currentUser(authorization)));
     }
 
     @GetMapping("/chat/history")
