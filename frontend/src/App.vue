@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
@@ -17,6 +17,7 @@ const { toast, processing, search } = storeToRefs(ui)
 const { authState } = storeToRefs(auth)
 const { login, logout, bootstrapAuth } = auth
 const { currentProject } = storeToRefs(projectStore)
+const sidebarCollapsed = ref(false)
 
 const navItems: { key: string; label: string; icon: string; badge?: string }[] = [
   { key: 'home', label: '首页', icon: '⌂' },
@@ -58,11 +59,25 @@ onMounted(() => { void bootstrapAuth() })
     </div>
   </div>
 
-  <div v-else class="app-shell">
+  <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark"><span class="brand-dot">T</span> TestPilot AI</div>
         <small>智能测试管理与自动化平台</small>
+        <button
+          class="sidebar-collapse-toggle"
+          type="button"
+          :aria-label="sidebarCollapsed ? '展开主侧栏' : '收起主侧栏'"
+          :title="sidebarCollapsed ? '展开主侧栏' : '收起主侧栏'"
+          @click="sidebarCollapsed = !sidebarCollapsed"
+        >
+          <svg class="sidebar-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
+            <path d="M9 4v16" />
+            <path v-if="sidebarCollapsed" d="m14 9 3 3-3 3" />
+            <path v-else d="m16 9-3 3 3 3" />
+          </svg>
+        </button>
       </div>
       <div class="side-label">工作台</div>
       <nav class="nav">

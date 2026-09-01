@@ -230,7 +230,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="case-ai-grid" :class="{ 'chat-collapsed': chatCollapsed }">
+    <div class="case-ai-grid">
       <div class="card case-ai-list">
         <div class="card-head">
           <div>
@@ -312,13 +312,17 @@ onMounted(() => {
             <button class="btn" type="button" @click="resetCaseChat">新建对话</button>
             <button class="btn" type="button" @click="openHistoryModal">历史对话</button>
             <button
-              class="btn"
+              class="btn case-ai-chat-collapse-btn"
               type="button"
               aria-label="向右收起 AI 对话"
               title="向右收起 AI 对话"
               @click="chatCollapsed = true"
             >
-              收起 →
+              <svg class="case-ai-chat-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M10 8 6 12l4 4" />
+                <path d="M6 12h12" />
+                <path d="M18 4v16" />
+              </svg>
             </button>
           </div>
         </div>
@@ -395,7 +399,12 @@ onMounted(() => {
         title="展开 AI 对话"
         @click="chatCollapsed = false"
       >
-        ← AI 对话
+        <svg class="case-ai-chat-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="m14 8 4 4-4 4" />
+          <path d="M18 12H6" />
+          <path d="M6 4v16" />
+        </svg>
+        <span>AI 对话</span>
       </button>
     </div>
   </section>

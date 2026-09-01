@@ -103,6 +103,7 @@ const projectTabs: { key: ProjectTab; label: string; icon: string }[] = [
 
 const PROJECT_TAB_KEYS = [...projectTabs.map((tab) => tab.key), ...caseTabs.map((tab) => tab.key)]
 const caseMenuOpen = ref(false)
+const projectNavCollapsed = ref(false)
 
 function isProjectTab(value: unknown): value is ProjectTab {
   return typeof value === 'string' && (PROJECT_TAB_KEYS as string[]).includes(value)
@@ -176,23 +177,43 @@ watch(activeProjectTab, (tab) => {
 <template>
   <section class="view">
     <div class="project-top"><div class="project-title"><div class="project-logo">{{ currentProject.name.slice(0, 1) }}</div><div><h2>{{ currentProject.name }} <span class="role-chip">{{ currentProject.code }}</span></h2><p>负责人 {{ currentProject.owner }} · {{ currentProject.members }} 位项目成员 · 创建于 {{ currentProject.createdAt ? new Date(currentProject.createdAt).toLocaleDateString('zh-CN') : '--' }}</p></div></div></div>
-    <div class="project-layout">
+    <div class="project-layout" :class="{ 'project-nav-collapsed': projectNavCollapsed }">
       <nav class="project-nav card">
-        <template v-for="tab in projectTabs" :key="tab.key">
-          <button :class="{ active: activeProjectTab === tab.key }" @click="selectTab(tab.key)"><span>{{ tab.icon }}</span>{{ tab.label }}</button>
-          <div v-if="tab.key === 'requirements'" class="project-nav-group" :class="{ active: isCaseTab(activeProjectTab), open: caseMenuOpen }">
-            <button class="project-nav-parent" type="button" @click="caseMenuOpen = !caseMenuOpen">
-              <span>▤</span>
-              测试用例
-              <i>⌄</i>
-            </button>
-            <div v-show="caseMenuOpen" class="project-nav-submenu">
-              <button v-for="caseTab in caseTabs" :key="caseTab.key" :class="{ active: activeProjectTab === caseTab.key }" @click="selectTab(caseTab.key)">
-                <span>{{ caseTab.icon }}</span>{{ caseTab.label }}
+        <button
+          class="project-nav-collapse-toggle"
+          type="button"
+          :aria-label="projectNavCollapsed ? '展开项目侧栏' : '收起项目侧栏'"
+          :title="projectNavCollapsed ? '展开项目侧栏' : '收起项目侧栏'"
+          @click="projectNavCollapsed = !projectNavCollapsed"
+        >
+          <svg class="sidebar-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
+            <path d="M9 4v16" />
+            <path v-if="projectNavCollapsed" d="m14 9 3 3-3 3" />
+            <path v-else d="m16 9-3 3 3 3" />
+          </svg>
+        </button>
+        <div class="project-nav-items">
+          <template v-for="tab in projectTabs" :key="tab.key">
+            <button :class="{ active: activeProjectTab === tab.key }" @click="selectTab(tab.key)"><span>{{ tab.icon }}</span>{{ tab.label }}</button>
+            <div v-if="tab.key === 'requirements'" class="project-nav-group" :class="{ active: isCaseTab(activeProjectTab), open: caseMenuOpen }">
+              <button class="project-nav-parent" type="button" @click="caseMenuOpen = !caseMenuOpen">
+                <span>▤</span>
+                测试用例
+                <i class="project-nav-chevron" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="m7 10 5 5 5-5" />
+                  </svg>
+                </i>
               </button>
+              <div v-show="caseMenuOpen" class="project-nav-submenu">
+                <button v-for="caseTab in caseTabs" :key="caseTab.key" :class="{ active: activeProjectTab === caseTab.key }" @click="selectTab(caseTab.key)">
+                  <span>{{ caseTab.icon }}</span>{{ caseTab.label }}
+                </button>
+              </div>
             </div>
-          </div>
-        </template>
+          </template>
+        </div>
       </nav>
       <div class="project-content">
         <template v-if="activeProjectTab === 'overview'">
