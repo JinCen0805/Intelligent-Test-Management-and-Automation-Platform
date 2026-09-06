@@ -16,7 +16,7 @@ public class AllureAccessTokenService {
     private final byte[] secret;
 
     public AllureAccessTokenService(
-            @Value("${testpilot.security.encryption-key:change-me-in-production}") String secret
+            @Value("${testpilot.security.encryption-key:}") String secret
     ) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
     }

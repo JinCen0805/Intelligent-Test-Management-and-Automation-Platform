@@ -14,7 +14,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,7 +36,6 @@ public class ApiWorkbenchService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final AddressSafety addressSafety;
-    private final Set<String> ssrfAllowedHosts;
 
     public ApiWorkbenchService(
             ApiCollectionRepository collectionRepository,
@@ -46,8 +44,7 @@ public class ApiWorkbenchService {
             ApiExecutionHistoryRepository historyRepository,
             ProjectAccessService projectAccessService,
             ObjectMapper objectMapper,
-            AddressSafety addressSafety,
-            @Value("${testpilot.api-workbench.ssrf-allowed-hosts:}") String ssrfAllowedHosts
+            AddressSafety addressSafety
     ) {
         this.collectionRepository = collectionRepository;
         this.requestRepository = requestRepository;
@@ -60,13 +57,6 @@ public class ApiWorkbenchService {
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
-        this.ssrfAllowedHosts = ssrfAllowedHosts == null
-                ? Set.of()
-                : Arrays.stream(ssrfAllowedHosts.split(","))
-                        .map(String::trim)
-                        .filter(host -> !host.isEmpty())
-                        .map(host -> host.toLowerCase(Locale.ROOT))
-                        .collect(java.util.stream.Collectors.toSet());
     }
 
     public List<ApiDtos.CollectionResponse> listCollections(Long projectId, User user) {
@@ -227,7 +217,7 @@ public class ApiWorkbenchService {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         ApiRequest apiRequest = requestRepository.findByIdAndProjectId(requestId, projectId)
                 .orElseThrow(() -> new BusinessException(40431, "接口请求不存在"));
-        return executeRequest(projectId, apiRequest, normalizeEnvironment(request.environment()), null, new HashMap<>());
+        return executeRequest(projectId, apiRequest, normalizeEnvironment(request.environment()), null, new HashMap<>(), null);
     }
 
     @Transactional
@@ -242,10 +232,16 @@ public class ApiWorkbenchService {
         String environment = normalizeEnvironment(request.environment());
         String runId = java.util.UUID.randomUUID().toString();
         Map<String, String> context = new HashMap<>();
+        Map<String, String> environmentVariables = variableRepository
+                .findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, environment)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        ApiEnvironmentVariable::getName, ApiEnvironmentVariable::getValue));
         List<ApiDtos.HistoryResponse> results = new ArrayList<>();
         String status = "PASSED";
         for (ApiRequest apiRequest : requestRepository.findAllByCollectionIdOrderByCreatedAtAsc(collectionId)) {
-            ApiDtos.HistoryResponse result = executeRequest(projectId, apiRequest, environment, runId, context);
+            ApiDtos.HistoryResponse result = executeRequest(
+                    projectId, apiRequest, environment, runId, context, environmentVariables);
             results.add(result);
             if (!"PASSED".equals(result.status())) {
                 status = "FAILED";
@@ -262,7 +258,8 @@ public class ApiWorkbenchService {
             ApiRequest apiRequest,
             String environment,
             String collectionRunId,
-            Map<String, String> context
+            Map<String, String> context,
+            Map<String, String> preloadedVariables
     ) {
         LocalDateTime startedAt = LocalDateTime.now();
         long start = System.nanoTime();
@@ -272,10 +269,11 @@ public class ApiWorkbenchService {
         String status = "FAILED";
         String assertionResults = "[]";
         try {
-            Map<String, String> variables = new HashMap<>(variableRepository
-                    .findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, environment)
-                    .stream()
-                    .collect(java.util.stream.Collectors.toMap(ApiEnvironmentVariable::getName, ApiEnvironmentVariable::getValue)));
+            Map<String, String> variables = new HashMap<>(preloadedVariables == null
+                    ? variableRepository.findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, environment)
+                        .stream().collect(java.util.stream.Collectors.toMap(
+                                ApiEnvironmentVariable::getName, ApiEnvironmentVariable::getValue))
+                    : preloadedVariables);
             variables.putAll(context);
             runScript(apiRequest.getPreRequestScript(), variables);
             String url = resolve(apiRequest.getUrl(), variables);
@@ -479,7 +477,7 @@ public class ApiWorkbenchService {
     }
 
     private URI validateTarget(String rawUrl) {
-        return addressSafety.validate(rawUrl, ssrfAllowedHosts);
+        return addressSafety.validate(rawUrl);
     }
 
     private void validateMethod(String method) {

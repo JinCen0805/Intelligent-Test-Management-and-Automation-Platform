@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
@@ -35,11 +34,6 @@ const {
   deleteJenkinsInstance
 } = adminStore
 
-onMounted(() => {
-  void loadUsers()
-  void loadCredentialGrants()
-  void loadJenkinsInstances()
-})
 </script>
 
 <template>

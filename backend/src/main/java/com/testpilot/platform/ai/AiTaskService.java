@@ -12,6 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
+import java.time.Duration;
+import java.time.LocalDateTime;
 
 /**
  * AI 生成/分析异步任务编排。
@@ -31,6 +35,8 @@ public class AiTaskService {
     private final AiFailureAnalysisService aiFailureAnalysisService;
     private final ObjectMapper objectMapper;
     private final TaskExecutor taskExecutor;
+    private final int maxRetries;
+    private final int timeoutMinutes;
 
     public AiTaskService(
             AiTaskRepository aiTaskRepository,
@@ -40,7 +46,9 @@ public class AiTaskService {
             AiAutomationTaskService aiAutomationTaskService,
             AiFailureAnalysisService aiFailureAnalysisService,
             ObjectMapper objectMapper,
-            @Qualifier("aiTaskExecutor") TaskExecutor taskExecutor
+            @Qualifier("aiTaskExecutor") TaskExecutor taskExecutor,
+            @Value("${testpilot.ai.task-max-retries:1}") int maxRetries,
+            @Value("${testpilot.ai.task-timeout-minutes:15}") int timeoutMinutes
     ) {
         this.aiTaskRepository = aiTaskRepository;
         this.projectAccessService = projectAccessService;
@@ -50,6 +58,8 @@ public class AiTaskService {
         this.aiFailureAnalysisService = aiFailureAnalysisService;
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
+        this.maxRetries = Math.max(0, maxRetries);
+        this.timeoutMinutes = Math.max(1, timeoutMinutes);
     }
 
     @Transactional
@@ -61,7 +71,7 @@ public class AiTaskService {
     ) {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AI_GENERATE);
         AiTask task = aiTaskRepository.save(new AiTask(projectId, user.getId(), "TEST_CASE_GENERATION"));
-        dispatchAfterCommit(() -> runGeneration(task.getId(), projectId, requirementId, request, user.getId()));
+        dispatchAfterCommit(task.getId(), () -> runGeneration(task.getId(), projectId, requirementId, request, user.getId()));
         return new AiTaskDtos.SubmitResponse(task.getId(), task.getStatus());
     }
 
@@ -73,7 +83,7 @@ public class AiTaskService {
     ) {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AI_GENERATE);
         AiTask task = aiTaskRepository.save(new AiTask(projectId, user.getId(), "AUTOMATION_TASK_GENERATION"));
-        dispatchAfterCommit(() -> runAutomationTask(task.getId(), projectId, request, user.getId()));
+        dispatchAfterCommit(task.getId(), () -> runAutomationTask(task.getId(), projectId, request, user.getId()));
         return new AiTaskDtos.SubmitResponse(task.getId(), task.getStatus());
     }
 
@@ -86,7 +96,7 @@ public class AiTaskService {
     ) {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AI_ANALYZE);
         AiTask task = aiTaskRepository.save(new AiTask(projectId, user.getId(), "FAILURE_ANALYSIS"));
-        dispatchAfterCommit(() -> runAnalysis(task.getId(), projectId, executionId, request, user.getId()));
+        dispatchAfterCommit(task.getId(), () -> runAnalysis(task.getId(), projectId, executionId, request, user.getId()));
         return new AiTaskDtos.SubmitResponse(task.getId(), task.getStatus());
     }
 
@@ -101,16 +111,23 @@ public class AiTaskService {
         return AiTaskDtos.StatusResponse.from(task, objectMapper);
     }
 
-    private void dispatchAfterCommit(Runnable work) {
+    private void dispatchAfterCommit(String taskId, Runnable work) {
+        Runnable dispatch = () -> {
+            try {
+                taskExecutor.execute(work);
+            } catch (RuntimeException exception) {
+                completeFailure(taskId, 503, "AI 任务队列已满，请稍后重试");
+            }
+        };
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    taskExecutor.execute(work);
+                    dispatch.run();
                 }
             });
         } else {
-            taskExecutor.execute(work);
+            dispatch.run();
         }
     }
 
@@ -131,7 +148,8 @@ public class AiTaskService {
         } catch (BusinessException exception) {
             completeFailure(taskId, exception.getCode(), exception.getMessage());
         } catch (Exception exception) {
-            completeFailure(taskId, 500, "AI 生成测试用例失败");
+            retryOrFail(taskId, () -> runGeneration(taskId, projectId, requirementId, request, userId),
+                    "AI 生成测试用例失败");
         }
     }
 
@@ -151,7 +169,8 @@ public class AiTaskService {
         } catch (BusinessException exception) {
             completeFailure(taskId, exception.getCode(), exception.getMessage());
         } catch (Exception exception) {
-            completeFailure(taskId, 500, "AI 生成自动化任务配置失败");
+            retryOrFail(taskId, () -> runAutomationTask(taskId, projectId, request, userId),
+                    "AI 生成自动化任务配置失败");
         }
     }
 
@@ -173,7 +192,8 @@ public class AiTaskService {
         } catch (BusinessException exception) {
             completeFailure(taskId, exception.getCode(), exception.getMessage());
         } catch (Exception exception) {
-            completeFailure(taskId, 500, "AI 失败分析失败");
+            retryOrFail(taskId, () -> runAnalysis(taskId, projectId, executionId, request, userId),
+                    "AI 失败分析失败");
         }
     }
 
@@ -186,15 +206,39 @@ public class AiTaskService {
 
     private void completeSuccess(String taskId, String resultJson) {
         aiTaskRepository.findById(taskId).ifPresent(task -> {
-            task.success(resultJson);
-            aiTaskRepository.save(task);
+            if ("RUNNING".equals(task.getStatus())) {
+                task.success(resultJson);
+                aiTaskRepository.save(task);
+            }
         });
     }
 
     private void completeFailure(String taskId, int code, String message) {
         aiTaskRepository.findById(taskId).ifPresent(task -> {
-            task.fail(code, message);
-            aiTaskRepository.save(task);
+            if ("RUNNING".equals(task.getStatus())) {
+                task.fail(code, message);
+                aiTaskRepository.save(task);
+            }
         });
+    }
+
+    private void retryOrFail(String taskId, Runnable work, String message) {
+        aiTaskRepository.findById(taskId).ifPresent(task -> {
+            if (task.getRetryCount() < maxRetries && "RUNNING".equals(task.getStatus())) {
+                task.incrementRetry();
+                aiTaskRepository.save(task);
+                dispatchAfterCommit(taskId, work);
+            } else {
+                completeFailure(taskId, 500, message);
+            }
+        });
+    }
+
+    @Scheduled(fixedDelayString = "${testpilot.ai.task-timeout-scan-ms:60000}")
+    public void markTimedOutTasks() {
+        LocalDateTime cutoff = LocalDateTime.now().minus(Duration.ofMinutes(timeoutMinutes));
+        aiTaskRepository.findAllRunning().stream()
+                .filter(task -> task.getStartedAt() != null && task.getStartedAt().isBefore(cutoff))
+                .forEach(task -> completeFailure(task.getId(), 408, "AI 任务执行超时，请稍后重试"));
     }
 }

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/stores/project'
 import { useReportStore } from '@/stores/report'
@@ -34,7 +33,6 @@ const {
 } = reportStore
 const { syncExecution, retryExecution, deleteExecution } = automationStore
 
-onMounted(() => { void loadReportCenter() })
 </script>
 
 <template>

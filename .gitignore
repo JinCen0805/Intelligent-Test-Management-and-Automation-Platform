@@ -9,6 +9,7 @@ frontend/*.d.ts
 .idea/
 .vscode/
 *.log
+scripts/local.env.ps1
 # Jenkins流水线缓存目录
 .p1d-multibranch-fixture/
 .p1d-multibranch-fixture.git/

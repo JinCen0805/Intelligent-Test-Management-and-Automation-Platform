@@ -9,6 +9,8 @@ import com.testpilot.platform.user.UserRepository;
 import com.testpilot.platform.ai.PromptTemplate;
 import com.testpilot.platform.ai.PromptTemplateRepository;
 import com.testpilot.platform.ai.BuiltInPrompts;
+import com.testpilot.platform.ai.AiModel;
+import com.testpilot.platform.ai.AiModelRepository;
 import com.testpilot.platform.automation.AutomationProject;
 import com.testpilot.platform.automation.AutomationProjectRepository;
 import com.testpilot.platform.automation.TestTask;
@@ -23,7 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 public class DemoDataConfig {
 
     @Bean
-    @Profile("!prod")
+    @Profile({"local", "demo", "test"})
     CommandLineRunner seedDemoData(
             UserRepository userRepository,
             ProjectRepository projectRepository,
@@ -31,7 +33,8 @@ public class DemoDataConfig {
             AutomationProjectRepository automationProjectRepository,
             TestTaskRepository testTaskRepository,
             ProjectMemberRepository projectMemberRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            AiModelRepository aiModelRepository
     ) {
         return args -> {
             User developer = userRepository.findByUsername("lin.xiao")
@@ -178,6 +181,16 @@ public class DemoDataConfig {
                     ));
                 }
             });
+        };
+    }
+
+    @Bean
+    @Profile("test")
+    CommandLineRunner seedTestAiModel(AiModelRepository aiModelRepository) {
+        return args -> {
+            if (aiModelRepository.findFirstByEnabledTrueOrderByCreatedAtAsc().isEmpty()) {
+                aiModelRepository.save(new AiModel("测试 Mock 模型", "MOCK", "", null, true));
+            }
         };
     }
 }

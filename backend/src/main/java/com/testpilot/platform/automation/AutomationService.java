@@ -186,12 +186,7 @@ public class AutomationService {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
-        boolean hasActiveExecution = testExecutionRepository
-                .findAllByProjectIdOrderByCreatedAtDesc(projectId)
-                .stream()
-                .anyMatch(execution -> execution.getTestTaskId().equals(taskId)
-                        && List.of("QUEUED", "RUNNING").contains(execution.getStatus()));
-        if (hasActiveExecution) {
+        if (testExecutionRepository.existsActiveByTaskId(projectId, taskId)) {
             throw new BusinessException(40021, "该任务存在排队中或运行中的执行，无法删除");
         }
         testTaskRepository.delete(task);
@@ -220,12 +215,7 @@ public class AutomationService {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         TestTask task = testTaskRepository.findByIdAndProjectId(taskId, projectId)
                 .orElseThrow(() -> new BusinessException(40411, "测试任务不存在"));
-        TestExecution active = testExecutionRepository
-                .findAllByProjectIdOrderByCreatedAtDesc(projectId)
-                .stream()
-                .filter(execution -> execution.getTestTaskId().equals(task.getId()))
-                .filter(execution -> List.of("QUEUED", "RUNNING").contains(execution.getStatus()))
-                .findFirst()
+        TestExecution active = testExecutionRepository.findLatestActiveByTaskId(projectId, task.getId())
                 .orElseThrow(() -> new BusinessException(40020, "该任务当前没有排队中或运行中的执行"));
         return cancel(projectId, active.getId(), user);
     }
@@ -472,7 +462,6 @@ public class AutomationService {
         return jenkinsClient.fetchConsoleLog(target, execution.getConsoleLogRef());
     }
 
-    @Transactional
     @Scheduled(fixedDelayString = "${testpilot.jenkins.scheduler-delay-ms:1000}")
     public void pollExecutions() {
         testExecutionRepository.findAllByStatusIn(List.of("QUEUED", "RUNNING"))
@@ -628,6 +617,10 @@ public class AutomationService {
     }
 
     private void markPollingFailure(TestExecution execution, String message) {
+        message = message == null ? "Jenkins 状态同步失败" : message;
+        if (message.length() > 1000) {
+            message = message.substring(0, 1000);
+        }
         execution.recordSyncFailure(message);
         if (execution.getSyncFailureCount() >= 3) {
             execution.applyJenkinsSync(
@@ -662,10 +655,26 @@ public class AutomationService {
     @Transactional
     public AutomationDtos.TestExecutionResponse updateResultFromCallback(
             Long executionId,
-            AutomationDtos.ExecutionResultRequest request
+            AutomationDtos.ExecutionResultRequest request,
+            String callbackJob
     ) {
         TestExecution execution = testExecutionRepository.findById(executionId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
+        if (callbackJob != null && !callbackJob.isBlank()
+                && !callbackJob.trim().equals(execution.getJenkinsJob())) {
+            throw new BusinessException(40312, "Jenkins 回调 Job 与执行记录不匹配");
+        }
+        String incomingStatus = request.status().trim().toUpperCase();
+        if ("RUNNING".equals(incomingStatus)) {
+            throw new BusinessException(40009, "Jenkins 回调只能提交终态结果");
+        }
+        if (List.of("PASSED", "FAILED", "ABORTED", "TIMEOUT").contains(execution.getStatus())) {
+            if (incomingStatus.equals(execution.getStatus())
+                    && testReportRepository.findByExecutionId(executionId).isPresent()) {
+                return toExecutionResponse(execution);
+            }
+            throw new BusinessException(40912, "执行已完成，禁止覆盖终态结果");
+        }
         return saveReport(execution.getId(), request);
     }
 

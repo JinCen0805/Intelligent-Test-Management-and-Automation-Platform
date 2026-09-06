@@ -3,6 +3,8 @@ package com.testpilot.platform.security;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -29,7 +31,8 @@ public class SecurityConfig {
             HttpSecurity http,
             BearerAuthenticationFilter bearerAuthenticationFilter,
             ApiSecurityFailureHandler failureHandler,
-            @Value("${testpilot.security.http-status-enforcement:true}") boolean enforceHttpStatus
+            @Value("${testpilot.security.http-status-enforcement:true}") boolean enforceHttpStatus,
+            Environment environment
     ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -52,12 +55,16 @@ public class SecurityConfig {
                             "/api/integrations/jenkins/callback/**",
                             "/api/reports/public/**"
                     ).permitAll();
-                    if (enforceHttpStatus) {
-                        authorize.anyRequest().authenticated();
-                    } else {
-                        // The compatibility switch keeps the stage-0 HTTP 200 business envelope
-                        // until all controllers move to SecurityContext-based authorization.
+                    boolean testCompatibility = !enforceHttpStatus && environment.acceptsProfiles(Profiles.of("test"));
+                    if (!enforceHttpStatus && !testCompatibility) {
+                        throw new IllegalStateException(
+                                "testpilot.security.http-status-enforcement=false 仅允许在 test profile 使用");
+                    }
+                    // The legacy HTTP-200 envelope is test-only; every deployed profile is authenticated.
+                    if (testCompatibility) {
                         authorize.anyRequest().permitAll();
+                    } else {
+                        authorize.anyRequest().authenticated();
                     }
                 })
                 .addFilterBefore(bearerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

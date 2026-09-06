@@ -9,7 +9,6 @@ import com.testpilot.platform.user.User;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -87,18 +86,18 @@ public class ReportService {
                 : executionRepository.findAllByProjectIdInAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
                         projectIds, normalizedStatus, fromAt, toAt,
                         PageRequest.of(page, size));
-        List<TestExecution> allExecutions = normalizedStatus == null
-                ? executionRepository.findAllByProjectIdInAndCreatedAtBetweenOrderByCreatedAtDesc(projectIds, fromAt, toAt)
-                : executionRepository.findAllByProjectIdInAndStatusAndCreatedAtBetweenOrderByCreatedAtDesc(
-                        projectIds, normalizedStatus, fromAt, toAt);
+        TestExecutionMapper.ReportAggregate aggregate = executionRepository.aggregateReports(
+                projectIds, normalizedStatus, fromAt, toAt);
+        List<TestExecutionMapper.ReportTrend> trendRows = executionRepository.trendReports(
+                projectIds, normalizedStatus, fromAt, toAt);
         return new ReportDtos.CenterResponse(
                 toViews(pageResult.getContent(), accessibleProjects),
                 pageResult.getNumber(),
                 pageResult.getSize(),
                 pageResult.getTotalElements(),
                 pageResult.getTotalPages(),
-                summary(allExecutions),
-                trend(allExecutions)
+                summary(aggregate),
+                trend(trendRows)
         );
     }
 
@@ -133,54 +132,19 @@ public class ReportService {
                 .toList();
     }
 
-    private ReportDtos.Summary summary(List<TestExecution> executions) {
-        int total = 0;
-        int passed = 0;
-        int failed = 0;
-        int broken = 0;
-        int skipped = 0;
-        Map<Long, TestReport> reports = reportRepository.findAllByExecutionIdIn(
-                executions.stream().map(TestExecution::getId).toList()
-        ).stream().collect(Collectors.toMap(TestReport::getExecutionId, report -> report));
-        for (TestExecution execution : executions) {
-            TestReport report = reports.get(execution.getId());
-            if (report == null) {
-                continue;
-            }
-            total += report.getTotalCount();
-            passed += report.getPassedCount();
-            failed += report.getFailedCount();
-            broken += report.getBrokenCount();
-            skipped += report.getSkippedCount();
-        }
-        return new ReportDtos.Summary(total, passed, failed, broken, skipped, executions.size());
+    private ReportDtos.Summary summary(TestExecutionMapper.ReportAggregate aggregate) {
+        return new ReportDtos.Summary(
+                aggregate.total().intValue(), aggregate.passed().intValue(), aggregate.failed().intValue(),
+                aggregate.broken().intValue(), aggregate.skipped().intValue(), aggregate.executions().intValue());
     }
 
-    private List<ReportDtos.Trend> trend(List<TestExecution> executions) {
-        Map<LocalDate, int[]> grouped = new HashMap<>();
-        Map<Long, TestReport> reports = reportRepository.findAllByExecutionIdIn(
-                executions.stream().map(TestExecution::getId).toList()
-        ).stream().collect(Collectors.toMap(TestReport::getExecutionId, report -> report));
-        for (TestExecution execution : executions) {
-            TestReport report = reports.get(execution.getId());
-            if (report == null || execution.getCreatedAt() == null) {
-                continue;
-            }
-            int[] values = grouped.computeIfAbsent(execution.getCreatedAt().toLocalDate(), ignored -> new int[5]);
-            values[0] += report.getTotalCount();
-            values[1] += report.getPassedCount();
-            values[2] += report.getFailedCount();
-            values[3] += report.getBrokenCount();
-            values[4] += report.getSkippedCount();
-        }
-        return grouped.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .map(entry -> {
-                    int[] values = entry.getValue();
-                    double passRate = values[0] == 0 ? 0 : Math.round(values[1] * 1000d / values[0]) / 10d;
-                    return new ReportDtos.Trend(
-                            entry.getKey(), values[0], values[1], values[2], values[3], values[4], passRate
-                    );
+    private List<ReportDtos.Trend> trend(List<TestExecutionMapper.ReportTrend> rows) {
+        return rows.stream()
+                .map(row -> {
+                    double passRate = row.getTotal() == 0 ? 0
+                            : Math.round(row.getPassed() * 1000d / row.getTotal()) / 10d;
+                    return new ReportDtos.Trend(row.getDay(), row.getTotal().intValue(), row.getPassed().intValue(),
+                            row.getFailed().intValue(), row.getBroken().intValue(), row.getSkipped().intValue(), passRate);
                 })
                 .toList();
     }

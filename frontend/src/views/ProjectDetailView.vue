@@ -103,7 +103,12 @@ const projectTabs: { key: ProjectTab; label: string; icon: string }[] = [
 
 const PROJECT_TAB_KEYS = [...projectTabs.map((tab) => tab.key), ...caseTabs.map((tab) => tab.key)]
 const caseMenuOpen = ref(false)
-const projectNavCollapsed = ref(false)
+const projectNavCollapsed = ref(localStorage.getItem('testpilot.project-nav.collapsed') === 'true')
+
+function toggleProjectNav() {
+  projectNavCollapsed.value = !projectNavCollapsed.value
+  localStorage.setItem('testpilot.project-nav.collapsed', String(projectNavCollapsed.value))
+}
 
 function isProjectTab(value: unknown): value is ProjectTab {
   return typeof value === 'string' && (PROJECT_TAB_KEYS as string[]).includes(value)
@@ -132,7 +137,6 @@ async function loadCurrentProjectData() {
     loadAutomationData(),
     loadProjectMembers(),
     loadCredentialGrants(),
-    loadAiConfig()
   ])
 }
 
@@ -184,7 +188,7 @@ watch(activeProjectTab, (tab) => {
           type="button"
           :aria-label="projectNavCollapsed ? '展开项目侧栏' : '收起项目侧栏'"
           :title="projectNavCollapsed ? '展开项目侧栏' : '收起项目侧栏'"
-          @click="projectNavCollapsed = !projectNavCollapsed"
+          @click="toggleProjectNav"
         >
           <svg class="sidebar-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
@@ -195,9 +199,9 @@ watch(activeProjectTab, (tab) => {
         </button>
         <div class="project-nav-items">
           <template v-for="tab in projectTabs" :key="tab.key">
-            <button :class="{ active: activeProjectTab === tab.key }" @click="selectTab(tab.key)"><span>{{ tab.icon }}</span>{{ tab.label }}</button>
+            <button :class="{ active: activeProjectTab === tab.key }" :aria-label="tab.label" :title="projectNavCollapsed ? tab.label : undefined" @click="selectTab(tab.key)"><span>{{ tab.icon }}</span>{{ tab.label }}</button>
             <div v-if="tab.key === 'requirements'" class="project-nav-group" :class="{ active: isCaseTab(activeProjectTab), open: caseMenuOpen }">
-              <button class="project-nav-parent" type="button" @click="caseMenuOpen = !caseMenuOpen">
+              <button class="project-nav-parent" type="button" aria-label="测试用例" :title="projectNavCollapsed ? '测试用例' : undefined" @click="caseMenuOpen = !caseMenuOpen">
                 <span>▤</span>
                 测试用例
                 <i class="project-nav-chevron" aria-hidden="true">
@@ -207,7 +211,7 @@ watch(activeProjectTab, (tab) => {
                 </i>
               </button>
               <div v-show="caseMenuOpen" class="project-nav-submenu">
-                <button v-for="caseTab in caseTabs" :key="caseTab.key" :class="{ active: activeProjectTab === caseTab.key }" @click="selectTab(caseTab.key)">
+                <button v-for="caseTab in caseTabs" :key="caseTab.key" :class="{ active: activeProjectTab === caseTab.key }" :aria-label="caseTab.label" :title="projectNavCollapsed ? caseTab.label : undefined" @click="selectTab(caseTab.key)">
                   <span>{{ caseTab.icon }}</span>{{ caseTab.label }}
                 </button>
               </div>

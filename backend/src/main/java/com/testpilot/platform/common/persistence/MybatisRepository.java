@@ -116,6 +116,10 @@ public abstract class MybatisRepository<T, ID extends Serializable> {
         return Wrappers.lambdaQuery(entityClass);
     }
 
+    protected BaseMapper<T> getMapper() {
+        return mapper;
+    }
+
     private void invokeLifecycle(T entity, String methodName) {
         try {
             Method method = entity.getClass().getDeclaredMethod(methodName);

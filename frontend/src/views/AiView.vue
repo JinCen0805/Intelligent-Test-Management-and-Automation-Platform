@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -26,7 +25,6 @@ function formatDate(value?: string | null) { return value ? new Date(value).toLo
 function statusLabel(status: string) { return status === 'SUCCESS' ? '成功' : status === 'FAILED' ? '失败' : status || '--' }
 function statusClass(status: string) { return status === 'SUCCESS' ? 'green' : status === 'FAILED' ? 'red' : 'gray' }
 
-onMounted(() => { void loadAiConfig() })
 </script>
 
 <template>

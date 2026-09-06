@@ -29,6 +29,7 @@ public class AiTask {
     private LocalDateTime finishedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private int retryCount;
 
     protected AiTask() {
     }
@@ -56,6 +57,8 @@ public class AiTask {
         this.errorMessage = message;
         this.finishedAt = LocalDateTime.now();
     }
+    public void incrementRetry() { this.retryCount++; }
+    public int getRetryCount() { return retryCount; }
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;

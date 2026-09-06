@@ -6,22 +6,10 @@ SET case_no = CONCAT('MIGRATING_AI_', id)
 WHERE source = 'AI'
   AND case_no LIKE 'TC-AI-%';
 
-UPDATE test_cases t
-JOIN (
-    SELECT
-        id,
-        project_id,
-        suite_type,
-        module_name,
-        ROW_NUMBER() OVER (
-            PARTITION BY project_id, suite_type, module_name
-            ORDER BY id
-        ) AS sequence_no
-    FROM test_cases
-    WHERE source = 'AI'
-      AND case_no LIKE 'MIGRATING_AI_%'
-) numbered ON numbered.id = t.id
-SET t.case_no = CONCAT(
+CREATE TEMPORARY TABLE ai_case_numbers AS
+SELECT
+    id,
+    CONCAT(
     CASE numbered.module_name
         WHEN '系统门户' THEN 'MENHU'
         WHEN '采购（用户）工作台' THEN 'CAIGOUYONGHU'
@@ -41,6 +29,29 @@ SET t.case_no = CONCAT(
     END,
     '_',
     LPAD(numbered.sequence_no, 3, '0')
+) AS new_case_no
+FROM (
+    SELECT
+        id,
+        project_id,
+        suite_type,
+        module_name,
+        ROW_NUMBER() OVER (
+            PARTITION BY project_id, suite_type, module_name
+            ORDER BY id
+        ) AS sequence_no
+    FROM test_cases
+    WHERE source = 'AI'
+      AND case_no LIKE 'MIGRATING_AI_%'
+) numbered;
+
+UPDATE test_cases
+SET case_no = (
+    SELECT new_case_no
+    FROM ai_case_numbers
+    WHERE ai_case_numbers.id = test_cases.id
 )
-WHERE t.source = 'AI'
-  AND t.case_no LIKE 'MIGRATING_AI_%';
+WHERE source = 'AI'
+  AND case_no LIKE 'MIGRATING_AI_%';
+
+DROP TABLE ai_case_numbers;

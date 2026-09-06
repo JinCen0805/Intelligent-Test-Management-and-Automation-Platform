@@ -3,6 +3,8 @@ package com.testpilot.platform.audit;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.user.User;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -52,9 +54,18 @@ public class OperationAuditService {
     @Transactional(readOnly = true)
     @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:audit:read')")
     public List<OperationAuditDtos.OperationAuditResponse> list(User user) {
-        return repository.findAllByOrderByCreatedAtDesc().stream()
+        return repository.findPageByOrderByCreatedAtDesc(PageRequest.of(0, 100)).getContent().stream()
                 .map(OperationAuditDtos.OperationAuditResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OperationAuditDtos.OperationAuditResponse> page(User user, int page, int size) {
+        if (page < 0 || size < 1 || size > 200) {
+            throw new BusinessException(40042, "审计分页参数不合法");
+        }
+        return repository.findPageByOrderByCreatedAtDesc(PageRequest.of(page, size))
+                .map(OperationAuditDtos.OperationAuditResponse::from);
     }
 
     private String truncate(String value, int max) {

@@ -28,7 +28,7 @@ public class JenkinsAdminController {
     }
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<List<JenkinsAdminDtos.InstanceResponse>> list(
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {

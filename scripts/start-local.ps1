@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
+$configPath = Join-Path $PSScriptRoot 'local.env.ps1'
 $frontend = Join-Path $root 'frontend'
 $backend = Join-Path $root 'backend'
 $redisFolderName = -join ([char]0x8F6F, [char]0x4EF6, [char]0x5B89, [char]0x88C5)
@@ -14,6 +15,23 @@ $frontendPort = 5173
 $backendPort = 8080
 $frontendUrl = "http://127.0.0.1:$frontendPort"
 $backendUrl = "http://127.0.0.1:$backendPort"
+
+if (-not (Test-Path -LiteralPath $configPath)) {
+    $examplePath = Join-Path $PSScriptRoot 'local.env.example.ps1'
+    throw "Local configuration not found: $configPath. Run .\scripts\setup-local.ps1 once, then start-local.cmd can be used for one-click startup. Example: $examplePath"
+}
+
+. $configPath
+
+if ([string]::IsNullOrWhiteSpace($env:DB_USERNAME)) {
+    throw "DB_USERNAME is empty in $configPath."
+}
+if ([string]::IsNullOrWhiteSpace($env:DB_PASSWORD)) {
+    throw "DB_PASSWORD is empty in $configPath."
+}
+if ([string]::IsNullOrWhiteSpace($env:TESTPILOT_ENCRYPTION_KEY)) {
+    throw "TESTPILOT_ENCRYPTION_KEY is empty in $configPath."
+}
 
 function Test-HttpEndpoint([string]$url) {
     try {

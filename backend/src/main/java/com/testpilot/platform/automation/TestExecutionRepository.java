@@ -83,4 +83,29 @@ public class TestExecutionRepository extends MybatisRepository<TestExecution, Lo
                 .eq(TestExecution::getId, id)
                 .eq(TestExecution::getProjectId, projectId));
     }
+
+    public boolean existsActiveByTaskId(Long projectId, Long taskId) {
+        return exists(Wrappers.<TestExecution>lambdaQuery()
+                .eq(TestExecution::getProjectId, projectId)
+                .eq(TestExecution::getTestTaskId, taskId)
+                .in(TestExecution::getStatus, List.of("QUEUED", "RUNNING")));
+    }
+
+    public Optional<TestExecution> findLatestActiveByTaskId(Long projectId, Long taskId) {
+        return findFirst(Wrappers.<TestExecution>lambdaQuery()
+                .eq(TestExecution::getProjectId, projectId)
+                .eq(TestExecution::getTestTaskId, taskId)
+                .in(TestExecution::getStatus, List.of("QUEUED", "RUNNING"))
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
+    public TestExecutionMapper.ReportAggregate aggregateReports(List<Long> projectIds, String status,
+                                                                 LocalDateTime from, LocalDateTime to) {
+        return ((TestExecutionMapper) getMapper()).aggregateReports(projectIds, status, from, to);
+    }
+
+    public List<TestExecutionMapper.ReportTrend> trendReports(List<Long> projectIds, String status,
+                                                               LocalDateTime from, LocalDateTime to) {
+        return ((TestExecutionMapper) getMapper()).trendReports(projectIds, status, from, to);
+    }
 }

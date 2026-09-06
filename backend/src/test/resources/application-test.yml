@@ -14,16 +14,17 @@ spring:
 testpilot:
   security:
     http-status-enforcement: false
+    encryption-key: test-only-encryption-key
+    ssrf-allowed-hosts: localhost,jenkins-onboarding.example.com,jenkins.example.com,jenkins-binding.example.com
   infrastructure:
     redis:
       enabled: false
       required: false
       key-prefix: 'testpilot:test:'
+  ai:
+    task-timeout-scan-ms: 3600000
   jenkins:
     mode: MOCK
     callback-token: test-callback-token
+    callback-strict-signature: false
     poll-interval-ms: 3600000
-  api-workbench:
-    # 测试专用：允许本地回环 HTTP 服务器，用于接口工作台真实执行 E2E 验收。
-    # 生产默认值为空，保持严格 SSRF 防护。
-    ssrf-allowed-hosts: localhost

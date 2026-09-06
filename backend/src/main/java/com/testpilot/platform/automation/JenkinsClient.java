@@ -59,7 +59,7 @@ public interface JenkinsClient {
             TestExecution execution,
             JenkinsTarget target
     ) {
-        return null;
+        throw new BusinessException(50105, "当前 Jenkins 客户端不支持下载 Allure 报告");
     }
 
     default AllureSummary downloadAllureSummary(
@@ -68,11 +68,11 @@ public interface JenkinsClient {
             TestExecution execution,
             JenkinsTarget target
     ) {
-        return null;
+        throw new BusinessException(50106, "当前 Jenkins 客户端不支持读取 Allure 统计");
     }
 
     default String fetchConsoleLog(JenkinsTarget target, String consoleLogRef) {
-        return null;
+        throw new BusinessException(50107, "当前 Jenkins 客户端不支持读取控制台日志");
     }
 
     default void createJob(JenkinsTarget target, String jobName, String configXml) {

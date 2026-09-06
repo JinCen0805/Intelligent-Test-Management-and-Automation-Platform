@@ -17,6 +17,7 @@ export const useUiStore = defineStore('ui', () => {
   const casePriorityFilter = ref('')
   const caseTypeFilter = ref('')
   const activeCaseSuiteType = ref<'FUNCTIONAL' | 'API'>('FUNCTIONAL')
+  let toastTimer: number | undefined
 
   function openModal(name: ModalName) {
     modal.value = name
@@ -30,9 +31,11 @@ export const useUiStore = defineStore('ui', () => {
   }
 
   function showToast(message: string) {
+    if (toastTimer) window.clearTimeout(toastTimer)
     toast.value = message
-    window.setTimeout(() => {
+    toastTimer = window.setTimeout(() => {
       toast.value = ''
+      toastTimer = undefined
     }, 2600)
   }
 

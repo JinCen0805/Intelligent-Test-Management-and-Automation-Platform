@@ -55,6 +55,10 @@ public final class JenkinsAdminDtos {
             String lastError
     ) {
         static InstanceResponse from(JenkinsInstance instance) {
+            return from(instance, true);
+        }
+
+        static InstanceResponse from(JenkinsInstance instance, boolean includeError) {
             return new InstanceResponse(
                     instance.getId(),
                     instance.getName(),
@@ -68,7 +72,7 @@ public final class JenkinsAdminDtos {
                     instance.getPollIntervalMs(),
                     instance.getMaxWaitMinutes(),
                     instance.getLastCheckedAt(),
-                    instance.getLastError()
+                    includeError ? instance.getLastError() : null
             );
         }
     }

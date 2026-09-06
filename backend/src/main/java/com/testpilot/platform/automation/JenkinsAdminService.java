@@ -1,6 +1,7 @@
 package com.testpilot.platform.automation;
 
 import com.testpilot.platform.common.BusinessException;
+import com.testpilot.platform.common.AddressSafety;
 import com.testpilot.platform.common.SecretCipher;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.rbac.RbacPermissions;
@@ -28,6 +29,7 @@ public class JenkinsAdminService {
     private final SecretCipher secretCipher;
     private final JenkinsClient jenkinsClient;
     private final JenkinsProtocolService jenkinsProtocolService;
+    private final AddressSafety addressSafety;
 
     public JenkinsAdminService(
             JenkinsInstanceRepository instanceRepository,
@@ -37,7 +39,8 @@ public class JenkinsAdminService {
             JenkinsCredentialGrantRepository credentialGrantRepository,
             SecretCipher secretCipher,
             JenkinsClient jenkinsClient,
-            JenkinsProtocolService jenkinsProtocolService
+            JenkinsProtocolService jenkinsProtocolService,
+            AddressSafety addressSafety
     ) {
         this.instanceRepository = instanceRepository;
         this.bindingRepository = bindingRepository;
@@ -47,14 +50,14 @@ public class JenkinsAdminService {
         this.secretCipher = secretCipher;
         this.jenkinsClient = jenkinsClient;
         this.jenkinsProtocolService = jenkinsProtocolService;
+        this.addressSafety = addressSafety;
     }
 
     public List<JenkinsAdminDtos.InstanceResponse> listInstances(User user) {
-        // 实例列表不含密钥（token 仅以 tokenConfigured 布尔暴露），
-        // 绑定/导入/创建 Job 等项目级流程也需要选择实例，故放开到所有已登录用户；
-        // 实例的创建/编辑/删除/状态/连接测试仍保持管理员专属。
+        requireAdmin(user);
+        // 列表仅返回连接配置元数据，不返回 Token 或最近一次错误详情。
         return instanceRepository.findAllByOrderByCreatedAtDesc().stream()
-                .map(JenkinsAdminDtos.InstanceResponse::from)
+                .map(instance -> JenkinsAdminDtos.InstanceResponse.from(instance, false))
                 .toList();
     }
 
@@ -450,6 +453,7 @@ public class JenkinsAdminService {
                     || uri.getRawQuery() != null || uri.getRawFragment() != null) {
                 throw new IllegalArgumentException();
             }
+            addressSafety.validate(value);
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(40057, "Jenkins 地址必须是合法的 HTTP 或 HTTPS 地址");
         }

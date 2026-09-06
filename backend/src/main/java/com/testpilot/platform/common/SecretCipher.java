@@ -22,7 +22,10 @@ public class SecretCipher {
     private final SecretKeySpec key;
     private final SecureRandom random = new SecureRandom();
 
-    public SecretCipher(@Value("${testpilot.security.encryption-key:change-me-in-production}") String rawKey) {
+    public SecretCipher(@Value("${testpilot.security.encryption-key:}") String rawKey) {
+        if (rawKey == null || rawKey.isBlank() || "change-me-in-production".equals(rawKey)) {
+            throw new IllegalStateException("必须配置 TESTPILOT_ENCRYPTION_KEY，且不能使用默认密钥");
+        }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(rawKey.getBytes(StandardCharsets.UTF_8));

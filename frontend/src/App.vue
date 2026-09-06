@@ -17,7 +17,12 @@ const { toast, processing, search } = storeToRefs(ui)
 const { authState } = storeToRefs(auth)
 const { login, logout, bootstrapAuth } = auth
 const { currentProject } = storeToRefs(projectStore)
-const sidebarCollapsed = ref(false)
+const sidebarCollapsed = ref(localStorage.getItem('testpilot.sidebar.collapsed') === 'true')
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem('testpilot.sidebar.collapsed', String(sidebarCollapsed.value))
+}
 
 const navItems: { key: string; label: string; icon: string; badge?: string }[] = [
   { key: 'home', label: '首页', icon: '⌂' },
@@ -69,7 +74,7 @@ onMounted(() => { void bootstrapAuth() })
           type="button"
           :aria-label="sidebarCollapsed ? '展开主侧栏' : '收起主侧栏'"
           :title="sidebarCollapsed ? '展开主侧栏' : '收起主侧栏'"
-          @click="sidebarCollapsed = !sidebarCollapsed"
+          @click="toggleSidebar"
         >
           <svg class="sidebar-toggle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
             <rect x="3.5" y="4" width="17" height="16" rx="2.5" />
@@ -81,7 +86,7 @@ onMounted(() => { void bootstrapAuth() })
       </div>
       <div class="side-label">工作台</div>
       <nav class="nav">
-        <button v-for="item in navItems" :key="item.key" :class="{ active: activeNavKey === item.key }" @click="navigate(item.key)">
+        <button v-for="item in navItems" :key="item.key" :class="{ active: activeNavKey === item.key }" :aria-label="item.label" :title="sidebarCollapsed ? item.label : undefined" @click="navigate(item.key)">
           <span class="nav-icon">{{ item.icon }}</span><span class="nav-text">{{ item.label }}</span><span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
         </button>
       </nav>

@@ -8,6 +8,7 @@ import { useTestcaseStore } from './testcase'
 import { useAutomationStore } from './automation'
 import { useReportStore } from './report'
 import { useAdminStore } from './admin'
+import { useAiStore } from './ai'
 import router from '@/router'
 import { storage } from '@/storage'
 
@@ -46,6 +47,8 @@ export const useAuthStore = defineStore('auth', () => {
       await hydrateSession()
     } catch {
       storage.token = null
+      storage.userId = null
+      authState.value.authenticated = false
     } finally {
       authState.value.ready = true
     }
@@ -61,7 +64,8 @@ export const useAuthStore = defineStore('auth', () => {
       project.loadProjectMembers(),
       useAdminStore().loadCredentialGrants(),
       useReportStore().loadReportCenter(),
-      useAdminStore().loadUsers()
+      useAdminStore().loadUsers(),
+      useAiStore().loadAiConfig()
     ])
   }
 

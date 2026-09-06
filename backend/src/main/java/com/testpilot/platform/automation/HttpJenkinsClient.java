@@ -350,7 +350,7 @@ public class HttpJenkinsClient implements JenkinsClient {
         if ("MOCK".equalsIgnoreCase(mode)
                 || execution.getBuildNumber() == null
                 || execution.getBuildNumber().isBlank()) {
-            return null;
+            throw new BusinessException(40457, "该执行没有可下载的 Allure 构建产物");
         }
         ensureConfigured(target, task.getJenkinsJob());
         String url = baseUrl(target) + "/" + jobPath(task.getJenkinsJob())
@@ -364,7 +364,7 @@ public class HttpJenkinsClient implements JenkinsClient {
                     .retrieve()
                     .body(byte[].class);
         } catch (HttpClientErrorException.NotFound exception) {
-            return null;
+            throw new BusinessException(40457, "Jenkins 未找到 Allure 报告产物");
         } catch (RestClientException exception) {
             throw new BusinessException(50217, "Allure 离线报告下载失败");
         }
@@ -380,7 +380,7 @@ public class HttpJenkinsClient implements JenkinsClient {
         if ("MOCK".equalsIgnoreCase(mode)
                 || execution.getBuildNumber() == null
                 || execution.getBuildNumber().isBlank()) {
-            return null;
+            throw new BusinessException(40458, "该执行没有可读取的 Allure 统计");
         }
         ensureConfigured(target, task.getJenkinsJob());
         String buildBase = baseUrl(target) + "/" + jobPath(task.getJenkinsJob())
@@ -411,7 +411,7 @@ public class HttpJenkinsClient implements JenkinsClient {
                 throw new BusinessException(50217, "Allure 统计文件下载失败");
             }
         }
-        return null;
+        throw new BusinessException(40458, "Jenkins 未找到 Allure 统计文件");
     }
 
     @Override
@@ -426,7 +426,7 @@ public class HttpJenkinsClient implements JenkinsClient {
                     + "[INFO] Build finished: FAILURE";
         }
         if (target == null || consoleLogRef == null || consoleLogRef.isBlank()) {
-            return null;
+            throw new BusinessException(40459, "该执行没有可读取的控制台日志");
         }
         try {
             String url = normalizeJenkinsUrl(consoleLogRef, target);

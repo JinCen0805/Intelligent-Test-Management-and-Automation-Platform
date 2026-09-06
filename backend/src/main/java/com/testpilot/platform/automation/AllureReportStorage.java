@@ -164,10 +164,10 @@ public class AllureReportStorage {
                 try {
                     Files.deleteIfExists(item);
                 } catch (IOException exception) {
-                    throw new IllegalStateException(exception);
+                    throw new java.io.UncheckedIOException(exception);
                 }
             });
-        } catch (IOException exception) {
+        } catch (IOException | java.io.UncheckedIOException exception) {
             throw new BusinessException(50219, "Allure 报告临时文件清理失败");
         }
     }

@@ -5,6 +5,8 @@ import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -66,9 +68,19 @@ public class AiCallAuditService {
     @Transactional(readOnly = true)
     public List<AiDtos.AiCallAuditResponse> list(User user) {
         requireAdmin(user);
-        return repository.findAllByOrderByCreatedAtDesc().stream()
+        return repository.findPageByOrderByCreatedAtDesc(PageRequest.of(0, 100)).getContent().stream()
                 .map(AiDtos.AiCallAuditResponse::from)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<AiDtos.AiCallAuditResponse> page(User user, int page, int size) {
+        requireAdmin(user);
+        if (page < 0 || size < 1 || size > 200) {
+            throw new BusinessException(40042, "审计分页参数不合法");
+        }
+        return repository.findPageByOrderByCreatedAtDesc(PageRequest.of(page, size))
+                .map(AiDtos.AiCallAuditResponse::from);
     }
 
     private void requireAdmin(User user) {

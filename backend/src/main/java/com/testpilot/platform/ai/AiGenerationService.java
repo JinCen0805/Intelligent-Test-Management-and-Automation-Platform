@@ -242,7 +242,7 @@ public class AiGenerationService {
                 {
                   "testCases": [
                     {
-                      "caseNo": "TC-AI-001",
+                      "caseNo": "MODULE_001",
                       "productName": "",
                       "title": "验证%s核心业务流程处理正确",
                       "moduleName": "%s",
@@ -253,7 +253,7 @@ public class AiGenerationService {
                       "type": "FUNCTIONAL"
                     },
                     {
-                      "caseNo": "TC-AI-002",
+                      "caseNo": "MODULE_002",
                       "productName": "",
                       "title": "验证%s必填字段校验有效",
                       "moduleName": "%s",
@@ -264,7 +264,7 @@ public class AiGenerationService {
                       "type": "EXCEPTION"
                     },
                     {
-                      "caseNo": "TC-AI-003",
+                      "caseNo": "MODULE_003",
                       "productName": "",
                       "title": "验证%s边界数据处理符合规则",
                       "moduleName": "%s",
