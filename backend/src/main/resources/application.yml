@@ -85,4 +85,5 @@ testpilot:
     read-timeout-ms: ${JENKINS_READ_TIMEOUT_MS:15000}
     poll-interval-ms: ${JENKINS_POLL_INTERVAL_MS:10000}
     poll-batch-size: ${JENKINS_POLL_BATCH_SIZE:50}
+    sync-failure-threshold: ${JENKINS_SYNC_FAILURE_THRESHOLD:5}
     max-wait-minutes: ${JENKINS_MAX_WAIT_MINUTES:30}

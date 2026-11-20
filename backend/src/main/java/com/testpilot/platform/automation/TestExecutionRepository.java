@@ -117,6 +117,35 @@ public class TestExecutionRepository extends MybatisRepository<TestExecution, Lo
         return ((TestExecutionMapper) getMapper()).aggregateReports(projectIds, status, from, to);
     }
 
+    public int updateResultFromActive(
+            Long id,
+            String status,
+            String buildNumber,
+            String queueUrl,
+            String commitSha,
+            String consoleLogRef,
+            LocalDateTime startedAt,
+            LocalDateTime finishedAt,
+            Long durationMs,
+            LocalDateTime updatedAt
+    ) {
+        return ((TestExecutionMapper) getMapper()).updateResultFromActive(
+                id, status, buildNumber, queueUrl, commitSha, consoleLogRef, startedAt, finishedAt, durationMs, updatedAt);
+    }
+
+    public int updateProgressIfActive(
+            Long id,
+            String buildNumber,
+            String queueUrl,
+            String commitSha,
+            String consoleLogRef,
+            LocalDateTime startedAt,
+            LocalDateTime updatedAt
+    ) {
+        return ((TestExecutionMapper) getMapper()).updateProgressIfActive(
+                id, buildNumber, queueUrl, commitSha, consoleLogRef, startedAt, updatedAt);
+    }
+
     public List<TestExecutionMapper.ReportTrend> trendReports(List<Long> projectIds, String status,
                                                                LocalDateTime from, LocalDateTime to) {
         return ((TestExecutionMapper) getMapper()).trendReports(projectIds, status, from, to);

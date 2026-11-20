@@ -411,6 +411,30 @@ class ApiSmokeTest {
                 .andExpect(jsonPath("$.data.status").value("PASSED"))
                 .andExpect(jsonPath("$.data.report.totalCount").value(3));
 
+        // 回调重放：同一终态同结果应幂等成功，且不因报告删除/重插而 500。
+        mockMvc.perform(post(
+                        "/api/integrations/jenkins/callback/{executionId}",
+                        executionId
+                )
+                        .header("X-Jenkins-Token", "test-callback-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status":"PASSED",
+                                  "commitSha":"abc123",
+                                  "consoleLogRef":"/job/qa/job/order-api/3/consoleText",
+                                  "allureUrl":"http://allure.local/order",
+                                  "totalCount":3,
+                                  "passedCount":3,
+                                  "failedCount":0,
+                                  "brokenCount":0,
+                                  "skippedCount":0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.status").value("PASSED"));
+
         mockMvc.perform(post(
                         "/api/projects/{projectId}/test-executions/{executionId}/sync",
                         projectId,
@@ -1826,6 +1850,27 @@ class ApiSmokeTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("FAILED"));
+
+        // 终态保护：已完成执行不允许再被手工改成其他终态。
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-executions/{executionId}/result",
+                        projectId,
+                        executionId
+                )
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status":"PASSED",
+                                  "totalCount":2,
+                                  "passedCount":2,
+                                  "failedCount":0,
+                                  "brokenCount":0,
+                                  "skippedCount":0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(40912));
 
         mockMvc.perform(get("/api/reports/executions/{executionId}", executionId)
                         .header("Authorization", auth))

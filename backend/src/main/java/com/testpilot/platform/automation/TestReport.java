@@ -81,5 +81,34 @@ public class TestReport {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setAiAnalysis(String aiAnalysis) { this.aiAnalysis = aiAnalysis; }
+
+    /**
+     * 同一执行重复上报时复用原报告行（保留 AI 分析等可能由其他流程写入的字段）。
+     */
+    public void updateFrom(
+            String allureUrl,
+            int totalCount,
+            int passedCount,
+            int failedCount,
+            int brokenCount,
+            int skippedCount,
+            String artifactRef,
+            String failureDetail,
+            String screenshotRef,
+            String videoRef,
+            String aiAnalysis
+    ) {
+        if (allureUrl != null) this.allureUrl = allureUrl;
+        this.totalCount = totalCount;
+        this.passedCount = passedCount;
+        this.failedCount = failedCount;
+        this.brokenCount = brokenCount;
+        this.skippedCount = skippedCount;
+        if (artifactRef != null) this.artifactRef = artifactRef;
+        if (failureDetail != null) this.failureDetail = failureDetail;
+        if (screenshotRef != null) this.screenshotRef = screenshotRef;
+        if (videoRef != null) this.videoRef = videoRef;
+        if (aiAnalysis != null) this.aiAnalysis = aiAnalysis;
+    }
 }
 
