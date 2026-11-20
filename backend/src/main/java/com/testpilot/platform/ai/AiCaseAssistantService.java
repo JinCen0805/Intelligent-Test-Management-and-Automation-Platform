@@ -42,6 +42,7 @@ public class AiCaseAssistantService {
     private final AiCaseChatSessionService chatSessionService;
     private final RequirementParser requirementParser;
     private final TransactionTemplate transactionTemplate;
+    private final AiCaseNoAllocator aiCaseNoAllocator;
     private final int maxContextChars;
 
     public AiCaseAssistantService(
@@ -55,6 +56,7 @@ public class AiCaseAssistantService {
             AiCaseChatSessionService chatSessionService,
             RequirementParser requirementParser,
             TransactionTemplate transactionTemplate,
+            AiCaseNoAllocator aiCaseNoAllocator,
             @org.springframework.beans.factory.annotation.Value("${testpilot.ai.max-context-chars:20000}")
             int maxContextChars
     ) {
@@ -68,6 +70,7 @@ public class AiCaseAssistantService {
         this.chatSessionService = chatSessionService;
         this.requirementParser = requirementParser;
         this.transactionTemplate = transactionTemplate;
+        this.aiCaseNoAllocator = aiCaseNoAllocator;
         this.maxContextChars = maxContextChars > 0 ? maxContextChars : AiTextLimits.DEFAULT_MAX_CONTEXT_CHARS;
     }
 
@@ -421,29 +424,40 @@ public class AiCaseAssistantService {
             if (caseNo == null || caseNo.isBlank()
                     || assignedCaseNos.contains(caseNo)
                     || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
-                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos, generated.caseNo());
+                caseNo = aiCaseNoAllocator.allocate(projectId, suiteType, assignedCaseNos, generated.caseNo());
             }
             assignedCaseNos.add(caseNo);
-            TestCase testCase = new TestCase(
-                    projectId,
-                    requirementId,
-                    caseNo,
-                    generated.title(),
-                    generated.moduleName(),
-                    generated.precondition(),
-                    generated.steps(),
-                    generated.testData(),
-                    generated.expectedResult(),
-                    generated.priority(),
-                    generated.caseType(),
-                    suiteType,
-                    generated.tags(),
-                    "DRAFT",
-                    "AI",
-                    currentUser.getId(),
-                    generated.extraFieldsJson()
-            );
-            TestCase saved = testCaseRepository.save(testCase);
+            TestCase saved = null;
+            for (int attempt = 0; attempt < 3 && saved == null; attempt++) {
+                try {
+                    saved = testCaseRepository.save(new TestCase(
+                            projectId,
+                            requirementId,
+                            caseNo,
+                            generated.title(),
+                            generated.moduleName(),
+                            generated.precondition(),
+                            generated.steps(),
+                            generated.testData(),
+                            generated.expectedResult(),
+                            generated.priority(),
+                            generated.caseType(),
+                            suiteType,
+                            generated.tags(),
+                            "DRAFT",
+                            "AI",
+                            currentUser.getId(),
+                            generated.extraFieldsJson()
+                    ));
+                } catch (org.springframework.dao.DuplicateKeyException exception) {
+                    // 并发下编号被抢：重新分配后再试。
+                    caseNo = aiCaseNoAllocator.allocate(projectId, suiteType, assignedCaseNos, generated.caseNo());
+                    assignedCaseNos.add(caseNo);
+                }
+            }
+            if (saved == null) {
+                throw new com.testpilot.platform.common.BusinessException(40902, "AI 用例编号分配冲突，请稍后重试");
+            }
             savedCases.add(new AiDtos.TestCaseView(saved.getId(), saved.getCaseNo(), saved.getTitle(), saved.getStatus()));
         }
         return savedCases;
@@ -526,18 +540,6 @@ public class AiCaseAssistantService {
     private String normalizeSuiteType(String suiteType) {
         String value = suiteType == null ? "" : suiteType.trim().toUpperCase(Locale.ROOT);
         return AiGenerationService.SUITE_API.equals(value) ? AiGenerationService.SUITE_API : AiGenerationService.SUITE_FUNCTIONAL;
-    }
-
-    private String nextCaseNo(Long projectId, String suiteType, Set<String> reservedCaseNos, String seedCaseNo) {
-        String prefix = casePrefix(seedCaseNo);
-        long next = sequenceOf(seedCaseNo) + 1;
-        next = Math.max(next, testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1);
-        String caseNo;
-        do {
-            caseNo = prefix + "_" + String.format("%03d", next++);
-        } while (reservedCaseNos.contains(caseNo)
-                || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo));
-        return caseNo;
     }
 
 
