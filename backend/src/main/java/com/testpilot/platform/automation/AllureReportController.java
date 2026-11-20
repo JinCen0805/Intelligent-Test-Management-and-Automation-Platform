@@ -70,6 +70,10 @@ public class AllureReportController {
         MediaType type = MediaTypeFactory.getMediaType(filename)
                 .orElse(MediaType.APPLICATION_OCTET_STREAM);
         return ResponseEntity.ok()
+                // 报告是构建产物（可被项目成员控制）：用 sandbox 隔离成不透明源，
+                // 避免其中的脚本读取平台同源的 localStorage / Cookie。
+                .header("Content-Security-Policy", "sandbox allow-scripts allow-popups allow-forms")
+                .header("X-Content-Type-Options", "nosniff")
                 .contentType(type)
                 .body(resource);
     }
@@ -80,6 +84,7 @@ public class AllureReportController {
         Resource resource = storage.archiveResource(executionId);
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Disposition", ContentDisposition.attachment()
                         .filename("allure-report-" + executionId + ".zip").build().toString())
                 .body(resource);

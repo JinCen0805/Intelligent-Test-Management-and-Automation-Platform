@@ -145,19 +145,37 @@ export const useReportStore = defineStore('report', () => {
     if (executionDetail.value) await analyzeExecution(executionDetail.value)
   }
 
+  /**
+   * 只允许打开 http/https（或同源相对路径）链接，避免后端/构建产物数据被污染成 javascript: URL。
+   */
+  function safeExternalUrl(raw?: string): string | null {
+    if (!raw) return null
+    try {
+      const resolved = new URL(raw, window.location.origin)
+      if (resolved.protocol === 'http:' || resolved.protocol === 'https:') {
+        return resolved.href
+      }
+      return null
+    } catch {
+      return null
+    }
+  }
+
   function openReference(url?: string) {
-    if (!url) {
+    const safeUrl = safeExternalUrl(url)
+    if (!safeUrl) {
       ui.showToast('当前执行还没有可打开的报告链接')
       return
     }
-    window.open(url, '_blank', 'noopener,noreferrer')
+    window.open(safeUrl, '_blank', 'noopener,noreferrer')
   }
 
   async function openAllure(execution: ApiExecution) {
     try {
       const access = await api.automation.allureAccess(execution.id)
-      if (access.viewUrl) {
-        window.open(access.viewUrl, '_blank', 'noopener,noreferrer')
+      const viewUrl = safeExternalUrl(access.viewUrl)
+      if (viewUrl) {
+        window.open(viewUrl, '_blank', 'noopener,noreferrer')
         return
       }
       openReference(execution.report?.allureUrl)
