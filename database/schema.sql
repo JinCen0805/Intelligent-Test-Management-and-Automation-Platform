@@ -1,3 +1,6 @@
+-- 历史参考文件：数据库结构已由 backend/src/main/resources/db/migration 下的 Flyway 迁移统一维护。
+-- 本文件不再用于部署；请勿直接修改，以免与 Flyway 版本产生 drift。
+
 CREATE DATABASE IF NOT EXISTS testpilot
   DEFAULT CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
