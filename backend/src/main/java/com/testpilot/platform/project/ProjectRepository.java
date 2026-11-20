@@ -14,21 +14,16 @@ public class ProjectRepository extends MybatisRepository<Project, Long> {
     }
 
     public List<Project> findAllByDeletedFalseOrderByCreatedAtDesc() {
-        return list(Wrappers.<Project>lambdaQuery()
-                .eq(Project::isDeleted, false)
-                .orderByDesc(Project::getCreatedAt));
+        // deleted 过滤由实体上的 @TableLogic 自动追加，这里不再重复拼接条件。
+        return list(Wrappers.<Project>lambdaQuery().orderByDesc(Project::getCreatedAt));
     }
 
     public Optional<Project> findByIdAndDeletedFalse(Long id) {
-        return findOne(Wrappers.<Project>lambdaQuery()
-                .eq(Project::getId, id)
-                .eq(Project::isDeleted, false));
+        return findOne(Wrappers.<Project>lambdaQuery().eq(Project::getId, id));
     }
 
     public Optional<Project> findByCodeAndDeletedFalse(String code) {
-        return findOne(Wrappers.<Project>lambdaQuery()
-                .eq(Project::getCode, code)
-                .eq(Project::isDeleted, false));
+        return findOne(Wrappers.<Project>lambdaQuery().eq(Project::getCode, code));
     }
 
     public boolean existsByCode(String code) {
@@ -36,6 +31,6 @@ public class ProjectRepository extends MybatisRepository<Project, Long> {
     }
 
     public long countByDeletedFalse() {
-        return count(Wrappers.<Project>lambdaQuery().eq(Project::isDeleted, false));
+        return count(Wrappers.<Project>lambdaQuery());
     }
 }

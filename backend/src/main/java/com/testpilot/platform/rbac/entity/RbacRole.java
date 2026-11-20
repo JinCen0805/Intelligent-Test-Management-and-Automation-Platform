@@ -1,8 +1,6 @@
 package com.testpilot.platform.rbac.entity;
 
-import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
@@ -21,10 +19,8 @@ public class RbacRole {
 
     private Boolean enabled;
 
-    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
     protected RbacRole() {
@@ -35,6 +31,8 @@ public class RbacRole {
         this.name = name;
         this.scopeType = scopeType;
         this.enabled = enabled;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = this.createdAt;
     }
 
     public Long getId() {

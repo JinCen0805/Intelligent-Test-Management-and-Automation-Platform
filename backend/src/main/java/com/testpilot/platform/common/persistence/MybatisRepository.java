@@ -28,12 +28,13 @@ public abstract class MybatisRepository<T, ID extends Serializable> {
 
     public T save(T entity) {
         ID id = idExtractor.apply(entity);
-        if (id == null || mapper.selectById(id) == null) {
-            invokeLifecycle(entity, "onCreate");
-            mapper.insert(entity);
-        } else {
+        // 自增主键的实体在创建时 id 为空：直接 insert，不再先 select 一次。
+        if (id != null && mapper.selectById(id) != null) {
             invokeLifecycle(entity, "onUpdate");
             mapper.updateById(entity);
+        } else {
+            invokeLifecycle(entity, "onCreate");
+            mapper.insert(entity);
         }
         return entity;
     }

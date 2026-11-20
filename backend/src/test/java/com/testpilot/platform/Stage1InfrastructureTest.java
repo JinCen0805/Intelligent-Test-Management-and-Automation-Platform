@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.jayway.jsonpath.JsonPath;
 import com.testpilot.platform.config.RedisConfig.RedisKeyPrefix;
@@ -36,9 +35,6 @@ class Stage1InfrastructureTest {
     private MybatisPlusInterceptor mybatisPlusInterceptor;
 
     @Autowired
-    private GlobalConfig globalConfig;
-
-    @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
@@ -50,7 +46,6 @@ class Stage1InfrastructureTest {
     @Test
     void infrastructureBeansAndDependencyHealthAreAvailable() throws Exception {
         assertNotNull(mybatisPlusInterceptor);
-        assertNotNull(globalConfig.getMetaObjectHandler());
         assertNotNull(redisTemplate);
         assertNotNull(healthService);
         assertEquals("testpilot:test:auth:session:demo", redisKeyPrefix.apply("auth:session:demo"));
