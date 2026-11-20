@@ -50,7 +50,17 @@ server:
   error:
     include-message: never
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %5p [%X{requestId:-}] --- [%15.15t] %-40.40logger{39} : %m%n"
+
 testpilot:
+  retention:
+    enabled: ${RETENTION_ENABLED:true}
+    audit-days: ${RETENTION_AUDIT_DAYS:90}
+    ai-audit-days: ${RETENTION_AI_AUDIT_DAYS:180}
+    cleanup-delay-ms: ${RETENTION_CLEANUP_DELAY_MS:86400000}
+    cleanup-initial-delay-ms: ${RETENTION_CLEANUP_INITIAL_DELAY_MS:60000}
   security:
     encryption-key: ${TESTPILOT_ENCRYPTION_KEY:}
     # 首次启动（空库）时创建初始管理员；local/demo/test profile 可留空（演示数据会建号）。

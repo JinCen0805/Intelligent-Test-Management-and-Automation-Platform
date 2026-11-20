@@ -12,6 +12,10 @@ spring:
         enabled: false
 
 testpilot:
+  retention:
+    # 测试期间不触发定时清理，保留策略由单元测试直接调用验证。
+    enabled: false
+    cleanup-initial-delay-ms: 3600000
   security:
     http-status-enforcement: false
     encryption-key: test-only-encryption-key
