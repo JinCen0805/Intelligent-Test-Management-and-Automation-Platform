@@ -99,6 +99,16 @@ public class TestCaseRepository extends MybatisRepository<TestCase, Long> {
                 .eq(TestCase::getCaseNo, caseNo));
     }
 
+    public List<String> findCaseNosByProjectIdAndSuiteType(Long projectId, String suiteType) {
+        return list(Wrappers.<TestCase>lambdaQuery()
+                .select(TestCase::getCaseNo)
+                .eq(TestCase::getProjectId, projectId)
+                .eq(TestCase::getSuiteType, suiteType))
+                .stream()
+                .map(TestCase::getCaseNo)
+                .toList();
+    }
+
     public long countByProjectIdAndRequirementId(Long projectId, Long requirementId) {
         return count(Wrappers.<TestCase>lambdaQuery()
                 .eq(TestCase::getProjectId, projectId)

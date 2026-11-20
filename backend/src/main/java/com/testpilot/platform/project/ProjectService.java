@@ -9,6 +9,7 @@ import com.testpilot.platform.user.UserRepository;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,7 +69,13 @@ public class ProjectService {
                 currentUser.getId(),
                 "TESTING"
         );
-        Project saved = projectRepository.save(project);
+        Project saved;
+        try {
+            saved = projectRepository.save(project);
+        } catch (DuplicateKeyException exception) {
+            // existsByCode 会被 @TableLogic 过滤掉已删除项目，这里兜底唯一键冲突。
+            throw new BusinessException(40901, "项目标识已存在（可能属于已删除项目）");
+        }
         projectMemberRepository.save(new ProjectMember(saved.getId(), currentUser.getId(), "PROJECT_OWNER"));
         rbacService.ensureProjectRole(currentUser.getId(), saved.getId(), "PROJECT_OWNER");
         permissionCache.invalidateProject(currentUser.getId(), saved.getId());

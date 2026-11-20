@@ -17,6 +17,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,21 +28,26 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class TestCaseService {
 
+    private static final int MAX_CASE_NO_ATTEMPTS = 3;
+
     private final TestCaseRepository testCaseRepository;
     private final RequirementRepository requirementRepository;
     private final ProjectAccessService projectAccessService;
     private final OperationAuditService operationAuditService;
+    private final CaseNoAllocator caseNoAllocator;
 
     public TestCaseService(
             TestCaseRepository testCaseRepository,
             RequirementRepository requirementRepository,
             ProjectAccessService projectAccessService,
-            OperationAuditService operationAuditService
+            OperationAuditService operationAuditService,
+            CaseNoAllocator caseNoAllocator
     ) {
         this.testCaseRepository = testCaseRepository;
         this.requirementRepository = requirementRepository;
         this.projectAccessService = projectAccessService;
         this.operationAuditService = operationAuditService;
+        this.caseNoAllocator = caseNoAllocator;
     }
 
     public Page<TestCaseDtos.Response> list(
@@ -174,31 +180,42 @@ public class TestCaseService {
         projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.TESTCASE_WRITE);
         ensureRequirement(projectId, request.requirementId());
         String suiteType = normalizeSuiteType(request.suiteType());
-        String caseNo = request.caseNo() == null || request.caseNo().isBlank()
-                ? nextCaseNo(projectId, suiteType)
+        String explicitCaseNo = request.caseNo() == null || request.caseNo().isBlank()
+                ? null
                 : request.caseNo().trim().toUpperCase(Locale.ROOT);
-        if (testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
+        if (explicitCaseNo != null
+                && testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, explicitCaseNo)) {
             throw new BusinessException(40902, "测试用例编号已存在");
         }
-        TestCase testCase = new TestCase(
-                projectId,
-                request.requirementId(),
-                caseNo,
-                request.title().trim(),
-                blankToNull(request.moduleName()),
-                request.precondition(),
-                request.steps(),
-                request.testData(),
-                request.expectedResult(),
-                request.priority().trim().toUpperCase(Locale.ROOT),
-                request.caseType().trim().toUpperCase(Locale.ROOT),
-                suiteType,
-                request.tags(),
-                "DRAFT",
-                source,
-                currentUser.getId()
-        );
-        return TestCaseDtos.Response.from(testCaseRepository.save(testCase));
+        for (int attempt = 0; attempt < MAX_CASE_NO_ATTEMPTS; attempt++) {
+            String caseNo = caseNoAllocator.allocate(projectId, suiteType, explicitCaseNo);
+            TestCase testCase = new TestCase(
+                    projectId,
+                    request.requirementId(),
+                    caseNo,
+                    request.title().trim(),
+                    blankToNull(request.moduleName()),
+                    request.precondition(),
+                    request.steps(),
+                    request.testData(),
+                    request.expectedResult(),
+                    request.priority().trim().toUpperCase(Locale.ROOT),
+                    request.caseType().trim().toUpperCase(Locale.ROOT),
+                    suiteType,
+                    request.tags(),
+                    "DRAFT",
+                    source,
+                    currentUser.getId()
+            );
+            try {
+                return TestCaseDtos.Response.from(testCaseRepository.save(testCase));
+            } catch (DuplicateKeyException exception) {
+                if (explicitCaseNo != null) {
+                    throw new BusinessException(40902, "测试用例编号已存在");
+                }
+            }
+        }
+        throw new BusinessException(40902, "测试用例编号分配冲突，请稍后重试");
     }
 
     @Transactional
@@ -251,11 +268,6 @@ public class TestCaseService {
         if (requirementId != null && requirementRepository.findByIdAndProjectId(requirementId, projectId).isEmpty()) {
             throw new BusinessException(40402, "需求文档不存在");
         }
-    }
-
-    private String nextCaseNo(Long projectId, String suiteType) {
-        long next = testCaseRepository.countByProjectIdAndSuiteType(projectId, suiteType) + 1;
-        return "TC-" + String.format("%04d", next);
     }
 
     private boolean isAllowedTransition(String currentStatus, String targetStatus, String source) {
