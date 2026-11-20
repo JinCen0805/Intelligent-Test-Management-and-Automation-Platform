@@ -22,15 +22,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class AutomationService {
 
-    /**
-     * 控制台日志引用只允许指向某次构建的 consoleText，防止客户端把任意 Jenkins API 路径
-     * 交给平台服务账号去读取。
-     */
-    private static final Pattern SAFE_CONSOLE_LOG_REF =
-            Pattern.compile("^/job/[A-Za-z0-9_./-]+/\\d+/consoleText$");
-    private static final List<String> TERMINAL_EXECUTION_STATUSES =
-            List.of("PASSED", "FAILED", "ABORTED", "TIMEOUT");
-
     private final AutomationProjectRepository automationProjectRepository;
     private final TestTaskRepository testTaskRepository;
     private final TestExecutionRepository testExecutionRepository;
@@ -42,6 +33,7 @@ public class AutomationService {
     private final AllureReportStorage allureReportStorage;
     private final OperationAuditService operationAuditService;
     private final TransactionTemplate transactionTemplate;
+    private final ExecutionReportWriter reportWriter;
     private final int pollBatchSize;
     private final long defaultPollIntervalMs;
     private final int syncFailureThreshold;
@@ -59,6 +51,7 @@ public class AutomationService {
             AllureReportStorage allureReportStorage,
             OperationAuditService operationAuditService,
             TransactionTemplate transactionTemplate,
+            ExecutionReportWriter reportWriter,
             @Value("${testpilot.jenkins.poll-batch-size:50}") int pollBatchSize,
             @Value("${testpilot.jenkins.poll-interval-ms:10000}") long defaultPollIntervalMs,
             @Value("${testpilot.jenkins.sync-failure-threshold:5}") int syncFailureThreshold,
@@ -75,6 +68,7 @@ public class AutomationService {
         this.allureReportStorage = allureReportStorage;
         this.operationAuditService = operationAuditService;
         this.transactionTemplate = transactionTemplate;
+        this.reportWriter = reportWriter;
         this.pollBatchSize = Math.max(1, pollBatchSize);
         this.defaultPollIntervalMs = Math.max(0L, defaultPollIntervalMs);
         this.syncFailureThreshold = Math.max(1, syncFailureThreshold);
@@ -282,7 +276,7 @@ public class AutomationService {
                         org.springframework.data.domain.PageRequest.of(safePage, safeSize)
                 );
         return new AutomationDtos.TestExecutionPage(
-                result.getContent().stream().map(this::toExecutionResponse).toList(),
+                result.getContent().stream().map(reportWriter::toExecutionResponse).toList(),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements(),
@@ -337,7 +331,7 @@ public class AutomationService {
                     "触发执行任务 " + task.getName(), true);
             return persisted;
         });
-        return toExecutionResponse(saved);
+        return reportWriter.toExecutionResponse(saved);
     }
 
     public AutomationDtos.TestExecutionResponse retry(
@@ -383,7 +377,7 @@ public class AutomationService {
                     "重试执行任务 " + task.getName(), true);
             return persisted;
         });
-        return toExecutionResponse(savedRetry);
+        return reportWriter.toExecutionResponse(savedRetry);
     }
 
     @Transactional
@@ -397,7 +391,7 @@ public class AutomationService {
         TestExecution execution = testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         // 手工上报来自普通项目成员：consoleLogRef 只能指向本次构建的 consoleText。
-        return saveReport(execution, request, false);
+        return reportWriter.saveReport(execution, request, false);
     }
 
     public AutomationDtos.TestExecutionResponse sync(
@@ -456,7 +450,7 @@ public class AutomationService {
                     execution.getStartedAt(),
                     finishedAt
             );
-            saveReport(execution, new AutomationDtos.ExecutionResultRequest(
+            reportWriter.saveReport(execution, new AutomationDtos.ExecutionResultRequest(
                     "ABORTED",
                     execution.getCommitSha(),
                     execution.getConsoleLogRef(),
@@ -471,7 +465,7 @@ public class AutomationService {
             operationAuditService.record(projectId, currentUser, "EXECUTION_STOP", "EXECUTION", execution.getId(),
                     "取消执行任务 " + task.getName(), true);
         });
-        return toExecutionResponse(execution);
+        return reportWriter.toExecutionResponse(execution);
     }
 
     @Transactional
@@ -554,7 +548,7 @@ public class AutomationService {
                         execution.getStartedAt(),
                         finishedAt
                 );
-                saveReport(execution, new AutomationDtos.ExecutionResultRequest(
+                reportWriter.saveReport(execution, new AutomationDtos.ExecutionResultRequest(
                         "TIMEOUT",
                         execution.getCommitSha(),
                         execution.getConsoleLogRef(),
@@ -571,7 +565,7 @@ public class AutomationService {
                         "超时分析：Jenkins 构建未在最大等待时间内完成，请检查队列、Agent 和构建日志。"
                 ), true);
             });
-            return toExecutionResponse(execution);
+            return reportWriter.toExecutionResponse(execution);
         }
         JenkinsClient.JenkinsTarget target = binding == null ? null : jenkinsAdminService.toTarget(
                 jenkinsAdminService.requireEnabledInstance(binding.getJenkinsInstanceId())
@@ -615,7 +609,7 @@ public class AutomationService {
                     result.finishedAt()
             );
             if (List.of("PASSED", "FAILED", "ABORTED").contains(result.status())) {
-                saveReport(execution, new AutomationDtos.ExecutionResultRequest(
+                reportWriter.saveReport(execution, new AutomationDtos.ExecutionResultRequest(
                         result.status(),
                         result.commitSha(),
                         result.consoleLogRef(),
@@ -634,10 +628,10 @@ public class AutomationService {
                                 : null
                 ), true);
             } else {
-                persistActiveProgress(execution);
+                reportWriter.persistActiveProgress(execution);
             }
         });
-        return toExecutionResponse(execution);
+        return reportWriter.toExecutionResponse(execution);
     }
 
     private boolean isPollingDue(TestExecution execution, TestTask task) {
@@ -688,7 +682,7 @@ public class AutomationService {
                         execution.getStartedAt(),
                         LocalDateTime.now()
                 );
-                saveReport(execution, new AutomationDtos.ExecutionResultRequest(
+                reportWriter.saveReport(execution, new AutomationDtos.ExecutionResultRequest(
                         "FAILED",
                         execution.getCommitSha(),
                         execution.getConsoleLogRef(),
@@ -705,7 +699,7 @@ public class AutomationService {
                         "基础分析：连续多次 Jenkins 状态同步失败，执行已终止。"
                 ), true);
             } else {
-                persistActiveProgress(execution);
+                reportWriter.persistActiveProgress(execution);
             }
         });
     }
@@ -729,178 +723,12 @@ public class AutomationService {
         if (List.of("PASSED", "FAILED", "ABORTED", "TIMEOUT").contains(execution.getStatus())) {
             if (incomingStatus.equals(execution.getStatus())
                     && testReportRepository.findByExecutionId(executionId).isPresent()) {
-                return toExecutionResponse(execution);
+                return reportWriter.toExecutionResponse(execution);
             }
             throw new BusinessException(40912, "执行已完成，禁止覆盖终态结果");
         }
         // 回调同样来自外部：consoleLogRef 只允许指向本次构建的 consoleText。
-        return saveReport(execution, request, false);
-    }
-
-    private AutomationDtos.TestExecutionResponse toExecutionResponse(TestExecution execution) {
-        return AutomationDtos.TestExecutionResponse.from(
-                execution,
-                testReportRepository.findByExecutionId(execution.getId()).orElse(null)
-        );
-    }
-
-    private AutomationDtos.TestExecutionResponse saveReport(
-            TestExecution execution,
-            AutomationDtos.ExecutionResultRequest request,
-            boolean trustedSource
-    ) {
-        validateReport(request);
-        String incomingStatus = request.status().trim().toUpperCase();
-        TestExecution current = testExecutionRepository.findById(execution.getId())
-                .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
-        if (TERMINAL_EXECUTION_STATUSES.contains(current.getStatus())) {
-            if (!incomingStatus.equals(current.getStatus())) {
-                throw new BusinessException(40912, "执行已完成，禁止覆盖终态结果");
-            }
-            return toExecutionResponse(current);
-        }
-
-        String consoleLogRef = trustedSource
-                ? trustedConsoleLogRef(execution, request.consoleLogRef())
-                : resolveExternalConsoleLogRef(execution, request.consoleLogRef());
-        LocalDateTime finishedAt = LocalDateTime.now();
-        Long durationMs = execution.getStartedAt() == null
-                ? null
-                : Duration.between(execution.getStartedAt(), finishedAt).toMillis();
-        int updated = testExecutionRepository.updateResultFromActive(
-                execution.getId(),
-                incomingStatus,
-                execution.getBuildNumber(),
-                execution.getQueueUrl(),
-                blankToNull(request.commitSha()),
-                consoleLogRef,
-                execution.getStartedAt(),
-                finishedAt,
-                durationMs,
-                LocalDateTime.now()
-        );
-        if (updated == 0) {
-            TestExecution latest = testExecutionRepository.findById(execution.getId())
-                    .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
-            if (!TERMINAL_EXECUTION_STATUSES.contains(latest.getStatus())) {
-                throw new BusinessException(40913, "执行状态已变更，请稍后重试");
-            }
-            if (!incomingStatus.equals(latest.getStatus())) {
-                throw new BusinessException(40912, "执行已完成，禁止覆盖终态结果");
-            }
-            return toExecutionResponse(latest);
-        }
-        execution.applyResult(incomingStatus, blankToNull(request.commitSha()), consoleLogRef, finishedAt);
-        TestReport savedReport = upsertReport(execution.getId(), request);
-        return AutomationDtos.TestExecutionResponse.from(execution, savedReport);
-    }
-
-    /** 运行中进度用条件更新写入，已终态时自动放弃，避免覆盖回调写入的终态。 */
-    private void persistActiveProgress(TestExecution execution) {
-        testExecutionRepository.updateProgressIfActive(
-                execution.getId(),
-                execution.getBuildNumber(),
-                execution.getQueueUrl(),
-                execution.getCommitSha(),
-                execution.getConsoleLogRef(),
-                execution.getStartedAt(),
-                LocalDateTime.now()
-        );
-    }
-
-    /**
-     * 报告 upsert：同一执行重复上报时复用原行（保留 AI 分析等字段），
-     * 并发插入撞唯一键时回退到更新，避免 500。
-     */
-    private TestReport upsertReport(Long executionId, AutomationDtos.ExecutionResultRequest request) {
-        TestReport report = testReportRepository.findByExecutionId(executionId).orElse(null);
-        if (report == null) {
-            try {
-                return testReportRepository.save(new TestReport(
-                        executionId,
-                        blankToNull(request.allureUrl()),
-                        request.totalCount(),
-                        request.passedCount(),
-                        request.failedCount(),
-                        request.brokenCount(),
-                        request.skippedCount(),
-                        blankToNull(request.artifactRef()),
-                        blankToNull(request.failureDetail()),
-                        blankToNull(request.screenshotRef()),
-                        blankToNull(request.videoRef()),
-                        blankToNull(request.aiAnalysis())
-                ));
-            } catch (DuplicateKeyException exception) {
-                report = testReportRepository.findByExecutionId(executionId)
-                        .orElseThrow(() -> new BusinessException(40913, "报告写入冲突，请稍后重试"));
-            }
-        }
-        report.updateFrom(
-                blankToNull(request.allureUrl()),
-                request.totalCount(),
-                request.passedCount(),
-                request.failedCount(),
-                request.brokenCount(),
-                request.skippedCount(),
-                blankToNull(request.artifactRef()),
-                blankToNull(request.failureDetail()),
-                blankToNull(request.screenshotRef()),
-                blankToNull(request.videoRef()),
-                blankToNull(request.aiAnalysis())
-        );
-        return testReportRepository.save(report);
-    }
-
-    private String trustedConsoleLogRef(TestExecution execution, String incoming) {
-        String provided = blankToNull(incoming);
-        return provided != null ? provided : deriveConsoleLogRef(execution);
-    }
-
-    /**
-     * 外部上报（手工上报 / Jenkins 回调）的 consoleLogRef 校验：只允许本次构建的 consoleText。
-     * 允许两种形式：以 "/" 开头的 Jenkins 路径，或完整 http(s) URL（host 会被替换为配置的 Jenkins 地址）。
-     */
-    private String resolveExternalConsoleLogRef(TestExecution execution, String incoming) {
-        String provided = blankToNull(incoming);
-        if (provided == null) {
-            return deriveConsoleLogRef(execution);
-        }
-        String path = extractJenkinsPath(provided);
-        if (path == null || !SAFE_CONSOLE_LOG_REF.matcher(path).matches()) {
-            throw new BusinessException(40043, "控制台日志引用不合法");
-        }
-        return path;
-    }
-
-    private String extractJenkinsPath(String value) {
-        if (value.startsWith("/")) {
-            return value;
-        }
-        if (!value.startsWith("http://") && !value.startsWith("https://")) {
-            return null;
-        }
-        try {
-            URI uri = URI.create(value);
-            if (uri.getRawQuery() != null || uri.getRawFragment() != null) {
-                return null;
-            }
-            return uri.getPath();
-        } catch (IllegalArgumentException exception) {
-            return null;
-        }
-    }
-
-    private String deriveConsoleLogRef(TestExecution execution) {
-        String job = execution.getJenkinsJob();
-        String buildNumber = execution.getBuildNumber();
-        if (job == null || job.isBlank() || buildNumber == null || buildNumber.isBlank()) {
-            return null;
-        }
-        String jobPath = Arrays.stream(job.split("/"))
-                .filter(segment -> !segment.isBlank())
-                .map(segment -> "job/" + segment)
-                .collect(Collectors.joining("/"));
-        return "/" + jobPath + "/" + buildNumber + "/consoleText";
+        return reportWriter.saveReport(execution, request, false);
     }
 
     private String blankToNull(String value) {
@@ -913,19 +741,5 @@ public class AutomationService {
         }
         return bindingRepository.findFirstByProjectIdAndAutomationProjectIdOrderByCreatedAtAsc(
                 projectId, task.getAutomationProjectId()).orElse(null);
-    }
-
-    private void validateReport(AutomationDtos.ExecutionResultRequest request) {
-        String status = request.status().trim().toUpperCase();
-        if (!List.of("RUNNING", "PASSED", "FAILED", "ABORTED", "TIMEOUT").contains(status)) {
-            throw new BusinessException(40009, "执行状态不合法");
-        }
-        int sum = request.passedCount()
-                + request.failedCount()
-                + request.brokenCount()
-                + request.skippedCount();
-        if (request.totalCount() != sum) {
-            throw new BusinessException(40010, "报告总数必须等于通过、失败、Broken 和跳过数量之和");
-        }
     }
 }
