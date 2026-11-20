@@ -94,14 +94,11 @@ if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command mvn.cmd -ErrorAction SilentlyContinue)) {
     throw 'mvn.cmd not found. Please install Maven and reopen PowerShell.'
 }
-if (-not (Test-Path -LiteralPath $redisServer)) {
-    throw "Redis server not found: $redisServer"
-}
-if (-not (Test-Path -LiteralPath $redisCli)) {
-    throw "Redis CLI not found: $redisCli"
-}
-if (-not (Test-Path -LiteralPath $redisConfig)) {
-    throw "Redis config not found: $redisConfig"
+# Redis is optional for the local profile (application-local.yml: redis.enabled=false unless REDIS_ENABLED=true).
+$redisRequired = "$env:REDIS_ENABLED".Trim().ToLowerInvariant() -eq 'true'
+$redisFilesReady = (Test-Path -LiteralPath $redisServer) -and (Test-Path -LiteralPath $redisCli) -and (Test-Path -LiteralPath $redisConfig)
+if ($redisRequired -and -not $redisFilesReady) {
+    throw "Redis server/CLI/config not found: $redisHome"
 }
 
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
@@ -121,12 +118,17 @@ if (-not (Test-Path -LiteralPath (Join-Path $frontend 'node_modules'))) {
 
 if (Test-RedisEndpoint) {
     Write-Host "Redis is already running: 127.0.0.1:$redisPort"
-} else {
-    $redisPid = Get-ListeningProcess $redisPort
-    if ($redisPid) {
-        $owners = $redisPid -join ', '
+} elseif (Get-ListeningProcess $redisPort) {
+    $owners = (Get-ListeningProcess $redisPort) -join ', '
+    if ($redisRequired) {
         throw "Port $redisPort is already in use by process $owners, but the configured Redis is not responding."
     }
+    Write-Host "WARN: port $redisPort is used by an external process ($owners); REDIS_ENABLED is not true, continuing without Redis."
+} elseif (-not $redisRequired) {
+    Write-Host 'Redis is not required for local profile (REDIS_ENABLED != true); skipping Redis startup.'
+} elseif (-not $redisFilesReady) {
+    Write-Host 'Redis files not found; skipping Redis startup (local profile does not require Redis).'
+} else {
     Write-Host 'Starting Redis...'
     Start-Process -FilePath $redisServer `
         -ArgumentList $redisConfig `

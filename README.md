@@ -25,11 +25,17 @@ deploy/             部署相关脚本
 # 一次性准备本地配置（MySQL 账号、加密密钥）
 scripts\setup-local.ps1
 
-# 启动 Redis + 后端(local profile) + 前端
-scripts\start-local.cmd
+# 一键启动：Redis + 后端(local profile) + 前端（双击 start-local.cmd 也可以）
+start-local.cmd
 
 # 打开 http://127.0.0.1:5173/
+
+# 一键停止：前端 + 后端 + 本项目启动的 Redis（双击 stop-local.cmd 也可以）
+stop-local.cmd
 ```
+
+`start-local.cmd` / `stop-local.cmd` 是 cmd 包装器，内部调用 `scripts\start-local.ps1` / `scripts\stop-local.ps1`。
+日志写入 `run-local-logs/`。停止脚本只会结束属于本项目的进程；如果 6379 上的 Redis 不是由本项目启动的，会跳过而不是强杀。
 
 演示账号（`local`/`demo`/`test` profile 自动创建）：`lin.xiao / demo123`、`chen.yu / demo123`（管理员）。
 其他环境空库首次启动需通过 `ADMIN_INITIAL_USERNAME` / `ADMIN_INITIAL_PASSWORD` 创建初始管理员。

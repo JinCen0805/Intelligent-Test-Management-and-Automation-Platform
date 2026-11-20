@@ -6,6 +6,8 @@ $redisPort = 6379
 $backendPort = 8080
 $redisServerPath = Join-Path (Join-Path 'E:\' (-join ([char]0x8F6F, [char]0x4EF6, [char]0x5B89, [char]0x88C5))) 'Redis-x64-5.0.14.1\redis-server.exe'
 
+$failures = New-Object System.Collections.Generic.List[string]
+
 function Get-PortOwners([int]$port) {
     return @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique)
@@ -17,6 +19,9 @@ function Get-ProcessInfo([int]$processId) {
 
 function Assert-ExpectedProcess([int]$port, [int]$processId, [string]$serviceName) {
     $info = Get-ProcessInfo $processId
+    if (-not $info) {
+        throw "Process $processId for $serviceName already exited."
+    }
     $processName = [IO.Path]::GetFileNameWithoutExtension([string]$info.Name)
     $commandLine = [string]$info.CommandLine
     $parentInfo = Get-ProcessInfo ([int]$info.ParentProcessId)
@@ -44,9 +49,9 @@ function Stop-PortService([int]$port, [string]$serviceName) {
         return
     }
 
-    $processInfos = foreach ($processId in $owners) {
+    $processInfos = @(foreach ($processId in $owners) {
         Assert-ExpectedProcess $port $processId $serviceName
-    }
+    })
 
     foreach ($info in $processInfos) {
         $processId = [int]$info.ProcessId
@@ -75,9 +80,31 @@ function Stop-PortService([int]$port, [string]$serviceName) {
     throw "$serviceName did not stop within 15 seconds."
 }
 
-Stop-PortService $frontendPort 'Frontend'
-Stop-PortService $redisPort 'Redis'
-Stop-PortService $backendPort 'Backend'
+function Invoke-StopService([int]$port, [string]$serviceName, [bool]$skipIfNotManaged = $false) {
+    try {
+        Stop-PortService $port $serviceName
+    } catch {
+        $message = [string]$_.Exception.Message
+        if ($skipIfNotManaged -and $message -like 'Refusing to stop*') {
+            Write-Host "$serviceName is not managed by this project; skipped."
+            return
+        }
+        Write-Host "FAILED to stop ${serviceName}: $message"
+        $failures.Add($serviceName)
+    }
+}
+
+# Stop in dependency order: frontend -> backend -> Redis.
+Invoke-StopService $frontendPort 'Frontend'
+Invoke-StopService $backendPort 'Backend'
+Invoke-StopService $redisPort 'Redis' $true
+
+if ($failures.Count -gt 0) {
+    Write-Host ''
+    Write-Host ("Stop finished with issues: {0}" -f ($failures -join ', '))
+    exit 1
+}
 
 Write-Host ''
 Write-Host 'TestPilot local services stopped.'
+exit 0
