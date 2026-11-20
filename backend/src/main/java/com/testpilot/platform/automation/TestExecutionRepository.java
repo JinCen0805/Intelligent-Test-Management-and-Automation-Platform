@@ -28,6 +28,19 @@ public class TestExecutionRepository extends MybatisRepository<TestExecution, Lo
                 : list(Wrappers.<TestExecution>lambdaQuery().in(TestExecution::getStatus, statuses));
     }
 
+    /**
+     * 轮询专用：按 updated_at 升序取有限条活跃执行，避免每秒全表扫描并防止饥饿。
+     */
+    public List<TestExecution> findTopNByStatusInOrderByUpdatedAtAsc(List<String> statuses, int limit) {
+        if (statuses == null || statuses.isEmpty() || limit <= 0) {
+            return List.of();
+        }
+        return list(Wrappers.<TestExecution>lambdaQuery()
+                .in(TestExecution::getStatus, statuses)
+                .orderByAsc(TestExecution::getUpdatedAt)
+                .last("limit " + limit));
+    }
+
     public List<TestExecution> findAllByProjectIdInAndCreatedAtBetweenOrderByCreatedAtDesc(
             List<Long> projectIds,
             LocalDateTime from,

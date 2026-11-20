@@ -39,6 +39,8 @@ public class AutomationService {
     private final AllureReportStorage allureReportStorage;
     private final OperationAuditService operationAuditService;
     private final TransactionTemplate transactionTemplate;
+    private final int pollBatchSize;
+    private final long defaultPollIntervalMs;
     private final int maxWaitMinutes;
 
     public AutomationService(
@@ -53,6 +55,8 @@ public class AutomationService {
             AllureReportStorage allureReportStorage,
             OperationAuditService operationAuditService,
             TransactionTemplate transactionTemplate,
+            @Value("${testpilot.jenkins.poll-batch-size:50}") int pollBatchSize,
+            @Value("${testpilot.jenkins.poll-interval-ms:10000}") long defaultPollIntervalMs,
             @Value("${testpilot.jenkins.max-wait-minutes:30}") int maxWaitMinutes
     ) {
         this.automationProjectRepository = automationProjectRepository;
@@ -66,6 +70,8 @@ public class AutomationService {
         this.allureReportStorage = allureReportStorage;
         this.operationAuditService = operationAuditService;
         this.transactionTemplate = transactionTemplate;
+        this.pollBatchSize = Math.max(1, pollBatchSize);
+        this.defaultPollIntervalMs = Math.max(0L, defaultPollIntervalMs);
         this.maxWaitMinutes = maxWaitMinutes;
     }
 
@@ -487,28 +493,29 @@ public class AutomationService {
 
     @Scheduled(fixedDelayString = "${testpilot.jenkins.scheduler-delay-ms:1000}")
     public void pollExecutions() {
-        testExecutionRepository.findAllByStatusIn(List.of("QUEUED", "RUNNING"))
-                .forEach(execution -> {
-                    try {
-                        TestTask task = testTaskRepository.findByIdAndProjectId(
-                                execution.getTestTaskId(), execution.getProjectId()
-                        ).orElse(null);
-                        AutomationProject automationProject = task == null ? null : automationProjectRepository
-                                .findByIdAndProjectId(execution.getAutomationProjectId(), execution.getProjectId())
-                                .orElse(null);
-                        if (task == null || automationProject == null) {
-                            markPollingFailure(execution, "关联的测试任务或自动化项目不存在");
-                        } else if (!isPollingDue(execution, task)) {
-                            return;
-                        } else {
-                            syncExecution(execution, task, automationProject);
-                        }
-                    } catch (RuntimeException exception) {
-                        markPollingFailure(execution, exception.getMessage() == null
-                                ? "Jenkins 状态同步失败"
-                                : exception.getMessage());
-                    }
-                });
+        List<TestExecution> activeExecutions = testExecutionRepository
+                .findTopNByStatusInOrderByUpdatedAtAsc(List.of("QUEUED", "RUNNING"), pollBatchSize);
+        for (TestExecution execution : activeExecutions) {
+            try {
+                TestTask task = testTaskRepository.findByIdAndProjectId(
+                        execution.getTestTaskId(), execution.getProjectId()
+                ).orElse(null);
+                AutomationProject automationProject = task == null ? null : automationProjectRepository
+                        .findByIdAndProjectId(execution.getAutomationProjectId(), execution.getProjectId())
+                        .orElse(null);
+                if (task == null || automationProject == null) {
+                    markPollingFailure(execution, "关联的测试任务或自动化项目不存在");
+                } else if (!isPollingDue(execution, task)) {
+                    continue;
+                } else {
+                    syncExecution(execution, task, automationProject);
+                }
+            } catch (RuntimeException exception) {
+                markPollingFailure(execution, exception.getMessage() == null
+                        ? "Jenkins 状态同步失败"
+                        : exception.getMessage());
+            }
+        }
     }
 
     private AutomationDtos.TestExecutionResponse syncExecution(
@@ -619,18 +626,20 @@ public class AutomationService {
     }
 
     private boolean isPollingDue(TestExecution execution, TestTask task) {
+        if (execution.getUpdatedAt() == null) {
+            return true;
+        }
         JenkinsPipelineBinding binding = resolveBinding(task, execution.getProjectId());
-        if (binding == null || execution.getUpdatedAt() == null) {
-            return true;
+        long interval = defaultPollIntervalMs;
+        if (binding != null) {
+            try {
+                JenkinsInstance instance = jenkinsAdminService.requireEnabledInstance(binding.getJenkinsInstanceId());
+                interval = instance.getPollIntervalMs();
+            } catch (BusinessException exception) {
+                // 实例不可用：沿用默认间隔，避免退化成每秒轮询。
+            }
         }
-        JenkinsInstance instance;
-        try {
-            instance = jenkinsAdminService.requireEnabledInstance(binding.getJenkinsInstanceId());
-        } catch (BusinessException exception) {
-            return true;
-        }
-        return Duration.between(execution.getUpdatedAt(), LocalDateTime.now()).toMillis()
-                >= instance.getPollIntervalMs();
+        return Duration.between(execution.getUpdatedAt(), LocalDateTime.now()).toMillis() >= interval;
     }
 
     private int maxWaitMinutes(JenkinsPipelineBinding binding) {
