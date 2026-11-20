@@ -34,4 +34,8 @@ public class UserRepository extends MybatisRepository<User, Long> {
                 .eq(User::getStatus, status)
                 .orderByAsc(User::getDisplayName));
     }
+
+    public List<User> findAllByOrderByCreatedAtDesc() {
+        return list(Wrappers.<User>lambdaQuery().orderByDesc(User::getCreatedAt));
+    }
 }

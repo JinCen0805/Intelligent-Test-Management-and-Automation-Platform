@@ -2,6 +2,7 @@ package com.testpilot.platform.project;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.testpilot.platform.common.persistence.MybatisRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -23,6 +24,13 @@ public class ProjectMemberRepository extends MybatisRepository<ProjectMember, Lo
         return list(Wrappers.<ProjectMember>lambdaQuery()
                 .eq(ProjectMember::getProjectId, projectId)
                 .orderByAsc(ProjectMember::getJoinedAt));
+    }
+
+    /** 批量查询项目成员，供列表接口一次取齐，避免逐项目查询。 */
+    public List<ProjectMember> findAllByProjectIdIn(Collection<Long> projectIds) {
+        return projectIds == null || projectIds.isEmpty()
+                ? List.of()
+                : list(Wrappers.<ProjectMember>lambdaQuery().in(ProjectMember::getProjectId, projectIds));
     }
 
     public long countByProjectId(Long projectId) {

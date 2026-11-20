@@ -45,15 +45,29 @@ public class ProjectMemberService {
 
     public List<ProjectMemberDtos.Response> list(Long projectId, User currentUser) {
         Project project = projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.PROJECT_READ);
-        List<ProjectMemberDtos.Response> result = new ArrayList<>();
-        if (projectMemberRepository.findByProjectIdAndUserId(projectId, project.getOwnerId()).isEmpty()) {
-            userRepository.findById(project.getOwnerId()).ifPresent(owner ->
-                    result.add(toResponse(null, owner, "PROJECT_OWNER")));
-        }
-        result.addAll(projectMemberRepository.findAllByProjectIdOrderByJoinedAtAsc(projectId)
+        List<ProjectMember> members = projectMemberRepository.findAllByProjectIdOrderByJoinedAtAsc(projectId);
+        java.util.Set<Long> userIds = new java.util.HashSet<>();
+        userIds.add(project.getOwnerId());
+        members.forEach(member -> userIds.add(member.getUserId()));
+        java.util.Map<Long, User> users = userRepository.findAllById(userIds)
                 .stream()
-                .map(this::toResponse)
-                .toList());
+                .collect(java.util.stream.Collectors.toMap(User::getId, user -> user));
+
+        List<ProjectMemberDtos.Response> result = new ArrayList<>();
+        boolean ownerIsMember = members.stream()
+                .anyMatch(member -> member.getUserId().equals(project.getOwnerId()));
+        if (!ownerIsMember) {
+            User owner = users.get(project.getOwnerId());
+            if (owner != null) {
+                result.add(toResponse(null, owner, "PROJECT_OWNER"));
+            }
+        }
+        members.forEach(member -> {
+            User user = users.get(member.getUserId());
+            if (user != null) {
+                result.add(toResponse(member.getId(), user, member.getRole(), member.getJoinedAt()));
+            }
+        });
         return result;
     }
 

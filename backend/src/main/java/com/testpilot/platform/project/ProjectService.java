@@ -43,9 +43,30 @@ public class ProjectService {
     }
 
     public List<ProjectDtos.Response> list(User currentUser) {
-        return projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc().stream()
+        List<Project> accessibleProjects = projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc()
+                .stream()
                 .filter(project -> projectAccessService.canRead(project, currentUser))
-                .map(this::toResponse)
+                .toList();
+        if (accessibleProjects.isEmpty()) {
+            return List.of();
+        }
+        // 批量取 owner 名称与成员，避免每个项目 3 次额外查询。
+        Set<Long> ownerIds = accessibleProjects.stream()
+                .map(Project::getOwnerId)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Map<Long, String> ownerNames = userRepository.findAllById(ownerIds).stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, User::getDisplayName));
+        List<Long> projectIds = accessibleProjects.stream().map(Project::getId).toList();
+        java.util.Map<Long, List<ProjectMember>> membersByProject = projectMemberRepository
+                .findAllByProjectIdIn(projectIds)
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(ProjectMember::getProjectId));
+        return accessibleProjects.stream()
+                .map(project -> toResponse(
+                        project,
+                        ownerNames.getOrDefault(project.getOwnerId(), "未知用户"),
+                        membersByProject.getOrDefault(project.getId(), List.of())
+                ))
                 .toList();
     }
 
@@ -115,6 +136,18 @@ public class ProjectService {
         if (projectMemberRepository.findByProjectIdAndUserId(project.getId(), project.getOwnerId()).isEmpty()) {
             memberCount++;
         }
+        return toResponse(project, ownerName, memberCount);
+    }
+
+    private ProjectDtos.Response toResponse(Project project, String ownerName, List<ProjectMember> members) {
+        long memberCount = members.size();
+        if (members.stream().noneMatch(member -> member.getUserId().equals(project.getOwnerId()))) {
+            memberCount++;
+        }
+        return toResponse(project, ownerName, memberCount);
+    }
+
+    private ProjectDtos.Response toResponse(Project project, String ownerName, long memberCount) {
         return new ProjectDtos.Response(
                 project.getId(),
                 project.getName(),

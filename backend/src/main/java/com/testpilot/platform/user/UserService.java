@@ -41,8 +41,7 @@ public class UserService {
 
     public List<UserDtos.Response> list(User currentUser) {
         requireAdmin(currentUser);
-        return userRepository.findAll().stream()
-                .sorted(java.util.Comparator.comparing(User::getCreatedAt).reversed())
+        return userRepository.findAllByOrderByCreatedAtDesc().stream()
                 .map(UserDtos.Response::from)
                 .toList();
     }
