@@ -19,25 +19,28 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'ai:generate')")
 public class AiGenerationController {
 
-    private final AiGenerationService service;
+    private final AiTaskService aiTaskService;
     private final AuthService authService;
 
-    public AiGenerationController(AiGenerationService service, AuthService authService) {
-        this.service = service;
+    public AiGenerationController(AiTaskService aiTaskService, AuthService authService) {
+        this.aiTaskService = aiTaskService;
         this.authService = authService;
     }
 
     @PostMapping("/generate")
-    public ApiResponse<AiDtos.GenerateResponse> generate(
+    public ApiResponse<AiTaskDtos.SubmitResponse> generate(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
             @Valid @RequestBody(required = false) AiDtos.GenerateRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        return ApiResponse.success(service.generate(
+        AiDtos.GenerateRequest effectiveRequest = request == null
+                ? new AiDtos.GenerateRequest(null, null, AiGenerationService.SUITE_FUNCTIONAL, null)
+                : request;
+        return ApiResponse.success(aiTaskService.submitTestCases(
                 projectId,
                 requirementId,
-                request == null ? new AiDtos.GenerateRequest(null, null, AiGenerationService.SUITE_FUNCTIONAL, null) : request,
+                effectiveRequest,
                 authService.currentUser(authorization)
         ));
     }

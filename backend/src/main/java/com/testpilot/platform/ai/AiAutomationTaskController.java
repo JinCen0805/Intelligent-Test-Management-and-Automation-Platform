@@ -19,20 +19,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiAutomationTaskController {
 
     private final AiAutomationTaskService service;
+    private final AiTaskService aiTaskService;
     private final AuthService authService;
 
-    public AiAutomationTaskController(AiAutomationTaskService service, AuthService authService) {
+    public AiAutomationTaskController(
+            AiAutomationTaskService service,
+            AiTaskService aiTaskService,
+            AuthService authService
+    ) {
         this.service = service;
+        this.aiTaskService = aiTaskService;
         this.authService = authService;
     }
 
     @PostMapping("/ai-generate")
-    public ApiResponse<AiAutomationDtos.DraftResponse> generate(
+    public ApiResponse<AiTaskDtos.SubmitResponse> generate(
             @PathVariable Long projectId,
             @Valid @RequestBody AiAutomationDtos.GenerateRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        return ApiResponse.success(service.generate(
+        return ApiResponse.success(aiTaskService.submitAutomationTask(
                 projectId,
                 request,
                 authService.currentUser(authorization)

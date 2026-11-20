@@ -15,25 +15,28 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'ai:analyze')")
 public class AiFailureAnalysisController {
 
-    private final AiFailureAnalysisService service;
+    private final AiTaskService aiTaskService;
     private final AuthService authService;
 
-    public AiFailureAnalysisController(AiFailureAnalysisService service, AuthService authService) {
-        this.service = service;
+    public AiFailureAnalysisController(AiTaskService aiTaskService, AuthService authService) {
+        this.aiTaskService = aiTaskService;
         this.authService = authService;
     }
 
     @PostMapping
-    public ApiResponse<AiAnalysisDtos.AnalysisResponse> analyze(
+    public ApiResponse<AiTaskDtos.SubmitResponse> analyze(
             @PathVariable Long projectId,
             @PathVariable Long executionId,
             @RequestBody(required = false) AiAnalysisDtos.AnalyzeRequest request,
             @RequestHeader(value = "Authorization", required = false) String authorization
     ) {
-        return ApiResponse.success(service.analyze(
+        AiAnalysisDtos.AnalyzeRequest effectiveRequest = request == null
+                ? new AiAnalysisDtos.AnalyzeRequest(null, null)
+                : request;
+        return ApiResponse.success(aiTaskService.submitAnalysis(
                 projectId,
                 executionId,
-                request,
+                effectiveRequest,
                 authService.currentUser(authorization)
         ));
     }

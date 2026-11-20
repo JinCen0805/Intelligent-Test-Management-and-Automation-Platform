@@ -1,13 +1,12 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/api'
-import type { ApiAiModel, ApiPromptTemplate, ApiGeneratedCase, ApiCaseChatMessage, ApiCaseChatSession, ApiAiCallAudit } from '@/api'
+import type { ApiAiModel, ApiPromptTemplate, ApiCaseChatMessage, ApiCaseChatSession, ApiAiCallAudit } from '@/api'
 import { useUiStore } from './ui'
 import { useAuthStore } from './auth'
 import { useProjectStore } from './project'
 import { useRequirementStore } from './requirement'
 import { useTestcaseStore } from './testcase'
-import { pollAiTask } from '@/utils/pollAiTask'
 
 const DEFAULT_CASE_CHAT_MESSAGE: ApiCaseChatMessage = {
   id: Date.now(),
@@ -39,17 +38,13 @@ export const useAiStore = defineStore('ai', () => {
     rules: '按项目文件中的业务能力和风险生成可执行测试用例；覆盖主流程、必填校验、有效/无效等价类、明确边界值、权限、状态流转、异常、回显和一致性；不明确规则放入待确认事项。'
   })
   const promptForm = ref({ name: '', taskType: '', content: '', version: '' })
-  const generatedCaseList = ref<ApiGeneratedCase[]>([])
   const caseChatMessages = ref<ApiCaseChatMessage[]>([DEFAULT_CASE_CHAT_MESSAGE])
   const caseChatHistory = ref<ApiCaseChatSession[]>([])
   const activeCaseChatSessionId = ref<number | null>(null)
   const caseChatInput = ref('')
   const caseChatFile = ref<File | null>(null)
-  const isGenerating = ref(false)
   const isChatting = ref(false)
-  const generationDone = ref(false)
   const testingModelId = ref<number | null>(null)
-  let stopAiPoll: (() => void) | undefined
   let caseChatHistoryLoadSeq = 0
 
   watch(
@@ -303,55 +298,6 @@ export const useAiStore = defineStore('ai', () => {
     }
   }
 
-  async function generateTestCases() {
-    const projectId = projectStore.currentProject.id
-    const requirementId = generationForm.value.requirementId ?? requirement.selectedRequirementId
-    if (!projectId || !requirementId) {
-      ui.showToast('请先添加一个项目文件')
-      return
-    }
-    isGenerating.value = true
-    ui.startProcessing('AI 正在生成测试用例')
-    let taskId: string
-    try {
-      ;({ taskId } = await api.ai.generate(projectId, requirementId, {
-        modelId: generationForm.value.modelId ?? undefined,
-        rules: generationForm.value.rules,
-        suiteType: generationForm.value.suiteType
-      }))
-    } catch (error) {
-      isGenerating.value = false
-      ui.stopProcessing()
-      ui.showToast(error instanceof Error ? error.message : 'AI 生成失败')
-      return
-    }
-    stopAiPoll?.()
-    stopAiPoll = pollAiTask<{ testCases: ApiGeneratedCase[] }>(taskId, {
-      onSuccess: async (result) => {
-        generatedCaseList.value.splice(0, generatedCaseList.value.length, ...result.testCases)
-        generationDone.value = true
-        const testcaseStore = useTestcaseStore()
-        await testcaseStore.loadTestCases({
-          source: 'AI',
-          status: '',
-          keyword: '',
-          priority: '',
-          caseType: '',
-          suiteType: generationForm.value.suiteType
-        })
-        await testcaseStore.loadAllTestCases()
-        isGenerating.value = false
-        ui.stopProcessing()
-        ui.showToast(`AI 已生成 ${result.testCases.length} 条测试用例`)
-      },
-      onFailure: (message) => {
-        isGenerating.value = false
-        ui.stopProcessing()
-        ui.showToast(message)
-      }
-    })
-  }
-
   function resetCaseChat() {
     activeCaseChatSessionId.value = null
     caseChatMessages.value.splice(0, caseChatMessages.value.length, ...defaultCaseChatMessages())
@@ -431,15 +377,12 @@ export const useAiStore = defineStore('ai', () => {
     editingPromptId,
     generationForm,
     promptForm,
-    generatedCaseList,
     caseChatMessages,
     caseChatHistory,
     activeCaseChatSessionId,
     caseChatInput,
     caseChatFile,
-    isGenerating,
     isChatting,
-    generationDone,
     loadAiConfig,
     saveModel,
     openModelEditor,
@@ -452,7 +395,6 @@ export const useAiStore = defineStore('ai', () => {
     togglePromptEnabled,
     publishPrompt,
     activatePrompt,
-    generateTestCases,
     loadCaseChatHistory,
     resetCaseChat,
     setCaseChatFile,

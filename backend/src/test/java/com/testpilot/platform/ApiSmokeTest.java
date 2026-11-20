@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.jayway.jsonpath.JsonPath;
 import com.sun.net.httpserver.HttpServer;
@@ -146,7 +147,7 @@ class ApiSmokeTest {
                 "$.data.id"
         )).longValue();
 
-        mockMvc.perform(post(
+        String generateSubmitBody = mockMvc.perform(post(
                         "/api/projects/{projectId}/requirements/{requirementId}/test-cases/generate",
                         projectId,
                         requirementId
@@ -155,8 +156,17 @@ class ApiSmokeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.provider").value("MOCK"))
-                .andExpect(jsonPath("$.data.testCases", Matchers.hasSize(3)));
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<String, Object> generateResult = awaitAiTaskSuccess(
+                auth,
+                JsonPath.read(generateSubmitBody, "$.data.taskId")
+        );
+        assertEquals("MOCK", generateResult.get("provider"));
+        assertEquals(3, ((List<?>) generateResult.get("testCases")).size());
 
         MvcResult casesResult = mockMvc.perform(get(
                         "/api/projects/{projectId}/test-cases",
@@ -1200,7 +1210,7 @@ class ApiSmokeTest {
                 .orElseThrow()
                 .getId();
 
-        mockMvc.perform(post("/api/projects/{projectId}/automation-tasks/ai-generate", projectId)
+        String auditSubmitBody = mockMvc.perform(post("/api/projects/{projectId}/automation-tasks/ai-generate", projectId)
                         .header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -1211,7 +1221,12 @@ class ApiSmokeTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        awaitAiTaskSuccess(auth, JsonPath.read(auditSubmitBody, "$.data.taskId"));
 
         String adminAuth = "Bearer " + loginToken("chen.yu", "demo123");
         String body = mockMvc.perform(get("/api/ai/audits")
@@ -1384,7 +1399,7 @@ class ApiSmokeTest {
                 "$.data.id"
         )).longValue();
 
-        mockMvc.perform(post(
+        String pendingAnalysisSubmit = mockMvc.perform(post(
                         "/api/projects/{projectId}/test-executions/{executionId}/analyze",
                         projectId,
                         executionId
@@ -1393,7 +1408,14 @@ class ApiSmokeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(40018));
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<String, Object> notFinishedTask = awaitAiTask(auth, JsonPath.read(pendingAnalysisSubmit, "$.data.taskId"));
+        assertEquals("FAILED", notFinishedTask.get("status"));
+        assertEquals(40018, ((Number) notFinishedTask.get("errorCode")).intValue());
 
         mockMvc.perform(post(
                         "/api/projects/{projectId}/test-executions/{executionId}/result",
@@ -1416,7 +1438,7 @@ class ApiSmokeTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("FAILED"));
 
-        mockMvc.perform(post(
+        String analysisSubmitBody = mockMvc.perform(post(
                         "/api/projects/{projectId}/test-executions/{executionId}/analyze",
                         projectId,
                         executionId
@@ -1425,15 +1447,24 @@ class ApiSmokeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("SUCCESS"))
-                .andExpect(jsonPath("$.data.provider").value("MOCK"))
-                .andExpect(jsonPath("$.data.category").value("ENVIRONMENT"))
-                .andExpect(jsonPath("$.data.categoryLabel").value("环境问题"))
-                .andExpect(jsonPath("$.data.possibleCauses", Matchers.hasSize(Matchers.greaterThan(0))))
-                .andExpect(jsonPath("$.data.relatedErrors", Matchers.hasSize(Matchers.greaterThan(0))))
-                .andExpect(jsonPath("$.data.disclaimer").isNotEmpty());
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<String, Object> analysisResult = awaitAiTaskSuccess(
+                auth,
+                JsonPath.read(analysisSubmitBody, "$.data.taskId")
+        );
+        assertEquals("SUCCESS", analysisResult.get("status"));
+        assertEquals("MOCK", analysisResult.get("provider"));
+        assertEquals("ENVIRONMENT", analysisResult.get("category"));
+        assertEquals("环境问题", analysisResult.get("categoryLabel"));
+        assertFalse(((List<?>) analysisResult.get("possibleCauses")).isEmpty());
+        assertFalse(((List<?>) analysisResult.get("relatedErrors")).isEmpty());
+        assertFalse(String.valueOf(analysisResult.get("disclaimer")).isBlank());
 
-        mockMvc.perform(post(
+        String repeatedSubmitBody = mockMvc.perform(post(
                         "/api/projects/{projectId}/test-executions/{executionId}/analyze",
                         projectId,
                         executionId
@@ -1442,7 +1473,16 @@ class ApiSmokeTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("SUCCESS"));
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<String, Object> repeatedAnalysis = awaitAiTaskSuccess(
+                auth,
+                JsonPath.read(repeatedSubmitBody, "$.data.taskId")
+        );
+        assertEquals("SUCCESS", repeatedAnalysis.get("status"));
     }
 
     @Test
@@ -1800,7 +1840,7 @@ class ApiSmokeTest {
                 .orElseThrow()
                 .getId();
 
-        MvcResult draftResult = mockMvc.perform(post(
+        String draftSubmitBody = mockMvc.perform(post(
                         "/api/projects/{projectId}/automation-tasks/ai-generate", projectId
                 )
                         .header("Authorization", auth)
@@ -1814,21 +1854,23 @@ class ApiSmokeTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.provider").value("MOCK"))
-                .andExpect(jsonPath("$.data.status").value("DRAFT"))
-                .andExpect(jsonPath("$.data.automationType").value("API"))
-                .andExpect(jsonPath("$.data.framework").value("PYTEST"))
-                .andExpect(jsonPath("$.data.taskType").value("REGRESSION"))
-                .andExpect(jsonPath("$.data.environment").value("TEST"))
-                .andExpect(jsonPath("$.data.testPath").value("tests/regression"))
-                .andExpect(jsonPath("$.data.allureEnabled").value(true))
-                .andExpect(jsonPath("$.data.missingItems", Matchers.hasSize(Matchers.greaterThan(0))))
-                .andExpect(jsonPath("$.data.riskHints", Matchers.hasSize(Matchers.greaterThan(0))))
-                .andExpect(jsonPath("$.data.disclaimer").isNotEmpty())
-                .andReturn();
-        Long draftId = ((Number) JsonPath.read(
-                draftResult.getResponse().getContentAsString(), "$.data.id"
-        )).longValue();
+                .andExpect(jsonPath("$.data.taskId").isNotEmpty())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<String, Object> draft = awaitAiTaskSuccess(auth, JsonPath.read(draftSubmitBody, "$.data.taskId"));
+        assertEquals("MOCK", draft.get("provider"));
+        assertEquals("DRAFT", draft.get("status"));
+        assertEquals("API", draft.get("automationType"));
+        assertEquals("PYTEST", draft.get("framework"));
+        assertEquals("REGRESSION", draft.get("taskType"));
+        assertEquals("TEST", draft.get("environment"));
+        assertEquals("tests/regression", draft.get("testPath"));
+        assertEquals(Boolean.TRUE, draft.get("allureEnabled"));
+        assertFalse(((List<?>) draft.get("missingItems")).isEmpty());
+        assertFalse(((List<?>) draft.get("riskHints")).isEmpty());
+        assertFalse(String.valueOf(draft.get("disclaimer")).isBlank());
+        Long draftId = ((Number) draft.get("id")).longValue();
 
         mockMvc.perform(put(
                         "/api/projects/{projectId}/automation-tasks/ai-drafts/{draftId}",
@@ -2107,6 +2149,38 @@ class ApiSmokeTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(40901));
+    }
+
+    /**
+     * AI 生成/分析类接口已统一为异步任务：提交后轮询 /api/ai-tasks/{taskId} 直到终态。
+     */
+    private Map<String, Object> awaitAiTask(String auth, String taskId) throws Exception {
+        long deadline = System.currentTimeMillis() + 30_000L;
+        Map<String, Object> task = null;
+        while (System.currentTimeMillis() < deadline) {
+            String body = mockMvc.perform(get("/api/ai-tasks/{taskId}", taskId)
+                            .header("Authorization", auth))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.code").value(0))
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            task = JsonPath.read(body, "$.data");
+            String status = String.valueOf(task.get("status"));
+            if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
+                return task;
+            }
+            Thread.sleep(200L);
+        }
+        fail("AI 任务未在 30 秒内到达终态: " + task);
+        return task;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> awaitAiTaskSuccess(String auth, String taskId) throws Exception {
+        Map<String, Object> task = awaitAiTask(auth, taskId);
+        assertEquals("SUCCESS", task.get("status"), "AI 任务应执行成功: " + task);
+        return (Map<String, Object>) task.get("result");
     }
 
     private String loginToken() throws Exception {
