@@ -1,31 +1,18 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/api'
-import type {
-  ApiAutomationProject,
-  ApiAutomationTaskConfirm,
-  ApiAutomationTaskDraft,
-  ApiExecution,
-  ApiJenkinsJob,
-  ApiOnboardingStatus,
-  ApiPipelineBinding,
-  ApiTestTask
-} from '@/api'
+import type { ApiAutomationProject, ApiExecution, ApiTestTask } from '@/api'
 import { useUiStore } from './ui'
 import { useProjectStore } from './project'
 import { useReportStore } from './report'
-import { pollAiTask } from '@/utils/pollAiTask'
+import { createBindingsDomain } from './automation/bindings'
+import { createOnboardingDomain } from './automation/onboarding'
+import { createAiTaskDomain } from './automation/aiTask'
 
-const ONBOARDING_STEPS: { key: string; label: string; role: string }[] = [
-  { key: 'REPOSITORY_VALIDATE', label: '仓库校验', role: '平台' },
-  { key: 'FRAMEWORK_DETECT', label: '框架识别', role: '平台' },
-  { key: 'JENKINSFILE_CHECK', label: 'Jenkinsfile 检查', role: '平台' },
-  { key: 'PIPELINE_BIND_OR_PROVISION', label: 'Pipeline 绑定/创建', role: '项目管理员' },
-  { key: 'BRANCH_SCAN', label: '分支扫描', role: 'Jenkins' },
-  { key: 'AGENT_PRECHECK', label: 'Agent 预检', role: 'Jenkins Agent' },
-  { key: 'DEFAULT_TASK_CREATE', label: '默认任务创建', role: '平台' }
-]
-
+/**
+ * 自动化领域门面 store：项目/任务/执行在本文件维护；
+ * 执行目标（binding/job）与 onboarding、AI 创建任务拆分到 ./automation/* 领域模块。
+ */
 export const useAutomationStore = defineStore('automation', () => {
   const ui = useUiStore()
   const projectStore = useProjectStore()
@@ -60,98 +47,10 @@ export const useAutomationStore = defineStore('automation', () => {
     parametersJson: ''
   })
   const editingTaskId = ref<number | null>(null)
-  const pipelineBindings = ref<ApiPipelineBinding[]>([])
-  const taskBindings = ref<ApiPipelineBinding[]>([])
-  const jenkinsJobs = ref<ApiJenkinsJob[]>([])
-  const bindingAutomationProjectId = ref<number | null>(null)
-  const editingBindingId = ref<number | null>(null)
-  const bindingFormVisible = ref(false)
-  const bindingForm = ref({
-    jenkinsInstanceId: null as number | null,
-    pipelineType: 'PIPELINE_JOB',
-    folderPath: '',
-    jobName: '',
-    jobUrl: '',
-    credentialScopeRef: '',
-    managedBy: 'EXTERNAL'
-  })
-  const jobImportForm = ref({ jenkinsInstanceId: null as number | null })
-  const createJobForm = ref({
-    jenkinsInstanceId: null as number | null,
-    jobName: '',
-    pipelineType: 'PIPELINE_JOB' as 'PIPELINE_JOB' | 'FREESTYLE_JOB',
-    scriptSource: 'TEMPLATE' as 'TEMPLATE' | 'CUSTOM',
-    customScript: '',
-    credentialScopeRef: ''
-  })
 
-  const onboardingAutomationProjectId = ref<number | null>(null)
-  const onboarding = ref<ApiOnboardingStatus | null>(null)
-  const onboardingLoading = ref(false)
-  let onboardingTimer: number | undefined
-
-  const aiTaskForm = ref({ repositoryUrl: '', branch: 'main', description: '' })
-  const aiDraftForm = ref({
-    id: null as number | null,
-    name: '',
-    taskType: 'REGRESSION',
-    automationType: 'API',
-    repositoryUrl: '',
-    branch: 'main',
-    framework: 'PYTEST',
-    testPath: '',
-    executeCommand: '',
-    environment: 'TEST',
-    parametersJson: '',
-    pipelineType: 'FREESTYLE',
-    jenkinsJob: '',
-    allureEnabled: true,
-    allureConfig: '',
-    missingItems: [] as string[],
-    riskHints: [] as string[],
-    modelName: '',
-    provider: '',
-    promptName: '',
-    promptVersion: '',
-    disclaimer: ''
-  })
-  const aiTaskLoading = ref(false)
-  const aiTaskConfirmResult = ref<ApiAutomationTaskConfirm | null>(null)
-  let stopAiPoll: (() => void) | undefined
-
-  const onboardingTotalSteps = computed(() => onboarding.value?.steps.length ?? ONBOARDING_STEPS.length)
-  const onboardingReadySteps = computed(() =>
-    (onboarding.value?.steps ?? []).filter((step) => step.status === 'READY').length
-  )
-  const onboardingProgress = computed(() => {
-    const total = onboardingTotalSteps.value
-    if (!total) return 0
-    return Math.round(onboardingReadySteps.value / total * 100)
-  })
-
-  function onboardingStatusLabel(status: string) {
-    return ({
-      CREATED: '待开始', QUEUED: '排队中', RUNNING: '进行中',
-      READY: '已完成', FAILED: '失败', CANCELED: '已取消'
-    } as Record<string, string>)[status] ?? status
-  }
-
-  function onboardingStepStatusLabel(status: string) {
-    return ({
-      PENDING: '待处理', RUNNING: '进行中', READY: '完成', FAILED: '失败'
-    } as Record<string, string>)[status] ?? status
-  }
-
-  function onboardingStepMeta(stepKey: string) {
-    return ONBOARDING_STEPS.find((item) => item.key === stepKey)
-      ?? { key: stepKey, label: stepKey, role: '平台' }
-  }
-
-  function stepDuration(step: { startedAt?: string; finishedAt?: string }) {
-    if (!step.startedAt || !step.finishedAt) return '--'
-    const ms = new Date(step.finishedAt).getTime() - new Date(step.startedAt).getTime()
-    return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
-  }
+  const bindings = createBindingsDomain({ automationProjects, taskForm })
+  const onboarding = createOnboardingDomain({ automationProjects })
+  const aiTask = createAiTaskDomain({ loadAutomationData })
 
   async function loadAutomationData() {
     const projectId = projectStore.currentProject.id
@@ -263,7 +162,7 @@ export const useAutomationStore = defineStore('automation', () => {
       branch: 'main',
       parametersJson: ''
     })
-    taskBindings.value.splice(0, taskBindings.value.length)
+    bindings.taskBindings.value.splice(0, bindings.taskBindings.value.length)
   }
 
   function openNewTask() {
@@ -283,7 +182,7 @@ export const useAutomationStore = defineStore('automation', () => {
       branch: task.branch || 'main',
       parametersJson: task.parametersJson || ''
     })
-    onTaskAutomationProjectChange()
+    void bindings.onTaskAutomationProjectChange()
     ui.openModal('task')
   }
 
@@ -370,194 +269,6 @@ export const useAutomationStore = defineStore('automation', () => {
     )
   }
 
-  function bindingProject() {
-    return automationProjects.value.find((item) => item.id === bindingAutomationProjectId.value) || null
-  }
-
-  async function openBindingManager(automationProject: ApiAutomationProject) {
-    bindingAutomationProjectId.value = automationProject.id
-    resetBindingForm()
-    bindingFormVisible.value = false
-    await loadBindings()
-    ui.openModal('binding')
-  }
-
-  async function loadBindings() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !bindingAutomationProjectId.value) return
-    try {
-      const list = await api.automation.bindings(projectId, bindingAutomationProjectId.value)
-      pipelineBindings.value.splice(0, pipelineBindings.value.length, ...list)
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '执行目标加载失败')
-    }
-  }
-
-  function resetBindingForm() {
-    editingBindingId.value = null
-    Object.assign(bindingForm.value, {
-      jenkinsInstanceId: null,
-      pipelineType: 'PIPELINE_JOB',
-      folderPath: '',
-      jobName: '',
-      jobUrl: '',
-      credentialScopeRef: '',
-      managedBy: 'EXTERNAL'
-    })
-  }
-
-  function editBinding(binding: ApiPipelineBinding) {
-    editingBindingId.value = binding.id
-    Object.assign(bindingForm.value, {
-      jenkinsInstanceId: binding.jenkinsInstanceId,
-      pipelineType: binding.pipelineType,
-      folderPath: binding.folderPath || '',
-      jobName: binding.jobName,
-      jobUrl: binding.jobUrl || '',
-      credentialScopeRef: binding.credentialScopeRef || '',
-      managedBy: binding.managedBy
-    })
-    bindingFormVisible.value = true
-  }
-
-  function openNewBinding() {
-    resetBindingForm()
-    bindingFormVisible.value = true
-  }
-
-  function closeBindingForm() {
-    bindingFormVisible.value = false
-  }
-
-  async function saveBinding() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !bindingAutomationProjectId.value) return
-    if (!bindingForm.value.jenkinsInstanceId || !bindingForm.value.jobName.trim()) {
-      ui.showToast('请选择 Jenkins 实例并填写 Job 名称')
-      return
-    }
-    try {
-      const payload = {
-        jenkinsInstanceId: bindingForm.value.jenkinsInstanceId as number,
-        pipelineType: bindingForm.value.pipelineType,
-        folderPath: bindingForm.value.folderPath || undefined,
-        jobName: bindingForm.value.jobName.trim(),
-        jobUrl: bindingForm.value.jobUrl || undefined,
-        credentialScopeRef: bindingForm.value.credentialScopeRef || undefined,
-        managedBy: bindingForm.value.managedBy
-      }
-      if (editingBindingId.value) {
-        await api.automation.updateBinding(projectId, editingBindingId.value, payload)
-      } else {
-        await api.automation.createBinding(projectId, bindingAutomationProjectId.value, payload)
-      }
-      resetBindingForm()
-      bindingFormVisible.value = false
-      await loadBindings()
-      ui.showToast('执行目标已保存')
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '执行目标保存失败')
-    }
-  }
-
-  function openJobImport() {
-    Object.assign(jobImportForm.value, { jenkinsInstanceId: null })
-    jenkinsJobs.value.splice(0, jenkinsJobs.value.length)
-    ui.openModal('jobImport')
-  }
-
-  async function loadJenkinsJobs() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !bindingAutomationProjectId.value || !jobImportForm.value.jenkinsInstanceId) {
-      jenkinsJobs.value.splice(0, jenkinsJobs.value.length)
-      return
-    }
-    try {
-      const list = await api.automation.listJobs(
-        projectId,
-        bindingAutomationProjectId.value,
-        jobImportForm.value.jenkinsInstanceId
-      )
-      jenkinsJobs.value.splice(0, jenkinsJobs.value.length, ...list)
-    } catch (error) {
-      jenkinsJobs.value.splice(0, jenkinsJobs.value.length)
-      ui.showToast(error instanceof Error ? error.message : 'Jenkins Job 列表加载失败')
-    }
-  }
-
-  async function importJenkinsJob(job: ApiJenkinsJob) {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !bindingAutomationProjectId.value || !jobImportForm.value.jenkinsInstanceId) return
-    try {
-      await api.automation.importJob(projectId, bindingAutomationProjectId.value, {
-        jenkinsInstanceId: jobImportForm.value.jenkinsInstanceId,
-        jobName: job.path
-      })
-      await loadJenkinsJobs()
-      await loadBindings()
-      ui.showToast('已导入 Job 为执行目标')
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : 'Job 导入失败')
-    }
-  }
-
-  function openCreateJob() {
-    Object.assign(createJobForm.value, {
-      jenkinsInstanceId: null,
-      jobName: '',
-      pipelineType: 'PIPELINE_JOB',
-      scriptSource: 'TEMPLATE',
-      customScript: '',
-      credentialScopeRef: ''
-    })
-    ui.openModal('createJob')
-  }
-
-  async function createJenkinsJob() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !bindingAutomationProjectId.value) return
-    if (!createJobForm.value.jenkinsInstanceId || !createJobForm.value.jobName.trim()) {
-      ui.showToast('请选择 Jenkins 实例并填写 Job 名称')
-      return
-    }
-    if (
-      createJobForm.value.pipelineType === 'PIPELINE_JOB'
-      && createJobForm.value.scriptSource === 'CUSTOM'
-      && !createJobForm.value.customScript.trim()
-    ) {
-      ui.showToast('请粘贴 Jenkinsfile 脚本')
-      return
-    }
-    try {
-      await api.automation.createJob(projectId, bindingAutomationProjectId.value, {
-        jenkinsInstanceId: createJobForm.value.jenkinsInstanceId,
-        jobName: createJobForm.value.jobName.trim(),
-        pipelineType: createJobForm.value.pipelineType,
-        scriptSource: createJobForm.value.scriptSource,
-        customScript: createJobForm.value.customScript.trim() || undefined,
-        credentialScopeRef: createJobForm.value.credentialScopeRef.trim() || undefined
-      })
-      await loadBindings()
-      ui.openModal('binding')
-      ui.showToast('Jenkins Job 已创建并绑定')
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : 'Jenkins Job 创建失败')
-    }
-  }
-
-  async function onTaskAutomationProjectChange() {
-    taskBindings.value.splice(0, taskBindings.value.length)
-    taskForm.value.pipelineBindingId = null
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !taskForm.value.automationProjectId) return
-    try {
-      const list = await api.automation.bindings(projectId, taskForm.value.automationProjectId)
-      taskBindings.value.splice(0, taskBindings.value.length, ...list)
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '执行目标加载失败')
-    }
-  }
-
   function syncRunFormFromTask() {
     const task = automationTasks.value.find((item) => item.id === runForm.value.taskId)
     if (task) {
@@ -633,252 +344,6 @@ export const useAutomationStore = defineStore('automation', () => {
     }
   }
 
-  function onboardingProject() {
-    return automationProjects.value.find((item) => item.id === onboardingAutomationProjectId.value) || null
-  }
-
-  async function openOnboarding(automationProject: ApiAutomationProject) {
-    onboardingAutomationProjectId.value = automationProject.id
-    onboarding.value = null
-    ui.openModal('onboarding')
-    await startOnboarding()
-  }
-
-  async function startOnboarding() {
-    const projectId = projectStore.currentProject.id
-    const automationProjectId = onboardingAutomationProjectId.value
-    if (!projectId || !automationProjectId) return
-    onboardingLoading.value = true
-    try {
-      const started = await api.automation.initialize(projectId, automationProjectId)
-      const status = await api.automation.onboardingStatus(projectId, automationProjectId, started.onboardingId)
-      onboarding.value = status
-      if (!['READY', 'FAILED', 'CANCELED'].includes(status.status)) {
-        startOnboardingPolling()
-      }
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '初始化启动失败')
-    } finally {
-      onboardingLoading.value = false
-    }
-  }
-
-  async function pollOnboarding() {
-    const projectId = projectStore.currentProject.id
-    const automationProjectId = onboardingAutomationProjectId.value
-    if (!projectId || !automationProjectId || !onboarding.value) return
-    const onboardingId = onboarding.value.onboardingId
-    try {
-      const status = await api.automation.onboardingStatus(projectId, automationProjectId, onboardingId)
-      onboarding.value = status
-      if (['READY', 'FAILED', 'CANCELED'].includes(status.status)) {
-        stopOnboardingPolling()
-      }
-    } catch (error) {
-      stopOnboardingPolling()
-      ui.showToast(error instanceof Error ? error.message : '初始化状态查询失败')
-    }
-  }
-
-  function startOnboardingPolling() {
-    stopOnboardingPolling()
-    onboardingTimer = window.setInterval(() => { void pollOnboarding() }, 1000)
-  }
-
-  function stopOnboardingPolling() {
-    if (onboardingTimer !== undefined) {
-      window.clearInterval(onboardingTimer)
-      onboardingTimer = undefined
-    }
-  }
-
-  async function retryOnboarding() {
-    const projectId = projectStore.currentProject.id
-    const automationProjectId = onboardingAutomationProjectId.value
-    if (!projectId || !automationProjectId || !onboarding.value) return
-    onboardingLoading.value = true
-    try {
-      const status = await api.automation.retryOnboarding(
-        projectId, automationProjectId, onboarding.value.onboardingId
-      )
-      onboarding.value = status
-      startOnboardingPolling()
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '重试失败')
-    } finally {
-      onboardingLoading.value = false
-    }
-  }
-
-  async function cancelOnboarding() {
-    const projectId = projectStore.currentProject.id
-    const automationProjectId = onboardingAutomationProjectId.value
-    if (!projectId || !automationProjectId || !onboarding.value) return
-    try {
-      const status = await api.automation.cancelOnboarding(
-        projectId, automationProjectId, onboarding.value.onboardingId
-      )
-      onboarding.value = status
-      stopOnboardingPolling()
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '初始化取消失败')
-    }
-  }
-
-  function openAiTask() {
-    aiTaskConfirmResult.value = null
-    aiTaskLoading.value = false
-    // 已生成过草稿时保留草稿（重开弹窗即见「编辑确认」步骤），仅重置描述表单。
-    if (aiDraftForm.value.id == null) {
-      resetAiDraftForm()
-    }
-    Object.assign(aiTaskForm.value, { repositoryUrl: '', branch: 'main', description: '' })
-    ui.openModal('aiTask')
-  }
-
-  function resetAiTask() {
-    aiTaskConfirmResult.value = null
-    aiTaskLoading.value = false
-    resetAiDraftForm()
-    Object.assign(aiTaskForm.value, { repositoryUrl: '', branch: 'main', description: '' })
-  }
-
-  function resetAiDraftForm() {
-    Object.assign(aiDraftForm.value, {
-      id: null,
-      name: '',
-      taskType: 'REGRESSION',
-      automationType: 'API',
-      repositoryUrl: '',
-      branch: 'main',
-      framework: 'PYTEST',
-      testPath: '',
-      executeCommand: '',
-      environment: 'TEST',
-      parametersJson: '',
-      pipelineType: 'FREESTYLE',
-      jenkinsJob: '',
-      allureEnabled: true,
-      allureConfig: '',
-      missingItems: [],
-      riskHints: [],
-      modelName: '',
-      provider: '',
-      promptName: '',
-      promptVersion: '',
-      disclaimer: ''
-    })
-  }
-
-  function fillAiDraftForm(draft: ApiAutomationTaskDraft) {
-    Object.assign(aiDraftForm.value, {
-      id: draft.id,
-      name: draft.name,
-      taskType: draft.taskType,
-      automationType: draft.automationType,
-      repositoryUrl: draft.repositoryUrl,
-      branch: draft.branch,
-      framework: draft.framework,
-      testPath: draft.testPath || '',
-      executeCommand: draft.executeCommand || '',
-      environment: draft.environment,
-      parametersJson: draft.parametersJson || '',
-      pipelineType: draft.pipelineType || 'FREESTYLE',
-      jenkinsJob: draft.jenkinsJob || '',
-      allureEnabled: draft.allureEnabled,
-      allureConfig: draft.allureConfig || '',
-      missingItems: draft.missingItems || [],
-      riskHints: draft.riskHints || [],
-      modelName: draft.modelName || '',
-      provider: draft.provider || '',
-      promptName: draft.promptName || '',
-      promptVersion: draft.promptVersion || '',
-      disclaimer: draft.disclaimer || ''
-    })
-  }
-
-  async function generateAiTask() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || !aiTaskForm.value.repositoryUrl.trim() || !aiTaskForm.value.branch.trim() || !aiTaskForm.value.description.trim()) {
-      ui.showToast('请填写 Git 仓库、Branch 和自然语言描述')
-      return
-    }
-    aiTaskLoading.value = true
-    aiTaskConfirmResult.value = null
-    ui.startProcessing('AI 正在生成自动化任务配置')
-    let taskId: string
-    try {
-      ;({ taskId } = await api.automation.aiGenerateTask(projectId, {
-        repositoryUrl: aiTaskForm.value.repositoryUrl,
-        branch: aiTaskForm.value.branch,
-        description: aiTaskForm.value.description
-      }))
-    } catch (error) {
-      aiTaskLoading.value = false
-      ui.stopProcessing()
-      ui.showToast(error instanceof Error ? error.message : 'AI 生成草稿失败')
-      return
-    }
-    stopAiPoll?.()
-    stopAiPoll = pollAiTask<ApiAutomationTaskDraft>(taskId, {
-      onSuccess: (draft) => {
-        fillAiDraftForm(draft)
-        aiTaskLoading.value = false
-        ui.stopProcessing()
-        ui.showToast('AI 已生成自动化任务配置草稿')
-      },
-      onFailure: (message) => {
-        aiTaskLoading.value = false
-        ui.stopProcessing()
-        ui.showToast(message)
-      }
-    })
-  }
-
-  async function saveAiDraft() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || aiDraftForm.value.id == null) return
-    aiTaskLoading.value = true
-    try {
-      const draft = await api.automation.updateAiDraft(projectId, aiDraftForm.value.id, {
-        name: aiDraftForm.value.name,
-        taskType: aiDraftForm.value.taskType,
-        automationType: aiDraftForm.value.automationType,
-        repositoryUrl: aiDraftForm.value.repositoryUrl,
-        branch: aiDraftForm.value.branch,
-        framework: aiDraftForm.value.framework,
-        testPath: aiDraftForm.value.testPath,
-        executeCommand: aiDraftForm.value.executeCommand,
-        environment: aiDraftForm.value.environment,
-        parametersJson: aiDraftForm.value.parametersJson,
-        pipelineType: aiDraftForm.value.pipelineType,
-        jenkinsJob: aiDraftForm.value.jenkinsJob,
-        allureEnabled: aiDraftForm.value.allureEnabled
-      })
-      fillAiDraftForm(draft)
-      ui.showToast('草稿已保存')
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '草稿保存失败')
-    } finally {
-      aiTaskLoading.value = false
-    }
-  }
-
-  async function confirmAiDraft() {
-    const projectId = projectStore.currentProject.id
-    if (!projectId || aiDraftForm.value.id == null) return
-    aiTaskLoading.value = true
-    try {
-      aiTaskConfirmResult.value = await api.automation.confirmAiDraft(projectId, aiDraftForm.value.id)
-      await loadAutomationData()
-      ui.showToast('自动化任务已创建')
-    } catch (error) {
-      ui.showToast(error instanceof Error ? error.message : '任务创建失败')
-    } finally {
-      aiTaskLoading.value = false
-    }
-  }
-
   return {
     automationProjects,
     automationTasks,
@@ -890,29 +355,6 @@ export const useAutomationStore = defineStore('automation', () => {
     editingAutomationProjectId,
     taskForm,
     editingTaskId,
-    pipelineBindings,
-    taskBindings,
-    jenkinsJobs,
-    bindingAutomationProjectId,
-    editingBindingId,
-    bindingForm,
-    bindingFormVisible,
-    jobImportForm,
-    createJobForm,
-    onboardingAutomationProjectId,
-    onboarding,
-    onboardingLoading,
-    onboardingTotalSteps,
-    onboardingReadySteps,
-    onboardingProgress,
-    aiTaskForm,
-    aiDraftForm,
-    aiTaskLoading,
-    aiTaskConfirmResult,
-    onboardingStatusLabel,
-    onboardingStepStatusLabel,
-    onboardingStepMeta,
-    stepDuration,
     loadAutomationData,
     loadExecutions,
     openNewAutomationProject,
@@ -926,35 +368,14 @@ export const useAutomationStore = defineStore('automation', () => {
     toggleTaskStatus,
     stopTask,
     taskActiveExecution,
-    bindingProject,
-    openBindingManager,
-    loadBindings,
-    resetBindingForm,
-    openNewBinding,
-    closeBindingForm,
-    editBinding,
-    saveBinding,
-    openJobImport,
-    loadJenkinsJobs,
-    importJenkinsJob,
-    openCreateJob,
-    createJenkinsJob,
-    onTaskAutomationProjectChange,
     syncRunFormFromTask,
     openRunModal,
     runTest,
     syncExecution,
     retryExecution,
     deleteExecution,
-    onboardingProject,
-    openOnboarding,
-    retryOnboarding,
-    cancelOnboarding,
-    stopOnboardingPolling,
-    openAiTask,
-    resetAiTask,
-    generateAiTask,
-    saveAiDraft,
-    confirmAiDraft
+    ...bindings,
+    ...onboarding,
+    ...aiTask
   }
 })

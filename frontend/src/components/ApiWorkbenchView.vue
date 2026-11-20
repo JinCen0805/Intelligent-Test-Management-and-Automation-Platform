@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useApiWorkbench } from '@/composables/useApiWorkbench'
+import { useApiWorkbenchAuth } from '@/composables/useApiWorkbenchAuth'
+import { buildCurl, normalizeJson, parseCurl as parseCurlImport, pretty } from '@/utils/apiWorkbench'
 import { useUiStore } from '@/stores/ui'
 import { useProjectStore } from '@/stores/project'
 
@@ -35,12 +37,8 @@ const {
 
 const responseTab = ref<'body' | 'headers' | 'tests' | 'request'>('body')
 const bodyMode = ref<'none' | 'json' | 'raw' | 'form'>('json')
-const authMode = ref<'none' | 'bearer' | 'basic' | 'apikey'>('none')
-const authToken = ref('')
-const authUsername = ref('')
-const authPassword = ref('')
-const apiKeyName = ref('X-API-Key')
-const apiKeyValue = ref('')
+const { authMode, authToken, authUsername, authPassword, apiKeyName, apiKeyValue, applyAuth } =
+  useApiWorkbenchAuth(apiRequestForm)
 const searchText = ref('')
 const showNewRequest = ref(false)
 const showImport = ref(false)
@@ -106,14 +104,6 @@ const testResults = computed(() => {
     return []
   }
 })
-
-function pretty(value: string, fallback: string) {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  } catch {
-    return fallback
-  }
-}
 
 function setRequestTab(tab: typeof activeApiRequestTab.value) {
   activeApiRequestTab.value = tab
@@ -221,56 +211,6 @@ function newRequest(folderId: string | null = null, collectionId = selectedApiCo
   activeApiRequestTab.value = 'params'
 }
 
-function normalizeJson(value: string, fallback: string) {
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2)
-  } catch {
-    return fallback
-  }
-}
-
-function parseAuthFromHeaders() {
-  let headers: Record<string, unknown> = {}
-  try {
-    headers = JSON.parse(apiRequestForm.headersJson || '{}')
-  } catch {
-    return
-  }
-  const authorization = headers.Authorization ?? headers.authorization
-  if (typeof authorization === 'string' && authorization.toLowerCase().startsWith('bearer ')) {
-    authMode.value = 'bearer'
-    authToken.value = authorization.slice(7).trim()
-  }
-}
-
-function base64Utf8(value: string): string {
-  const bytes = new TextEncoder().encode(value)
-  let binary = ''
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte)
-  })
-  return btoa(binary)
-}
-
-function applyAuth() {
-  let headers: Record<string, string> = {}
-  try {
-    headers = JSON.parse(apiRequestForm.headersJson || '{}')
-  } catch {
-    headers = {}
-  }
-  // 只在用户显式填写时覆盖请求头，避免把已保存的 Authorization 静默删掉。
-  if (authMode.value === 'bearer' && authToken.value.trim()) {
-    headers.Authorization = `Bearer ${authToken.value.trim()}`
-  } else if (authMode.value === 'basic' && (authUsername.value || authPassword.value)) {
-    headers.Authorization = `Basic ${base64Utf8(`${authUsername.value}:${authPassword.value}`)}`
-  } else if (authMode.value === 'apikey' && apiKeyName.value.trim() && apiKeyValue.value.trim()) {
-    headers[apiKeyName.value.trim()] = apiKeyValue.value.trim()
-  }
-  apiRequestForm.headersJson = JSON.stringify(headers, null, 2)
-}
-
-watch(() => apiRequestForm.headersJson, parseAuthFromHeaders)
 
 function syncBodyMode() {
   if (bodyMode.value === 'json' && !apiRequestForm.body.trim()) {
@@ -333,36 +273,28 @@ function duplicateRequest() {
 }
 
 function exportCurl() {
-  const method = apiRequestForm.method.toUpperCase()
-  let headers: Record<string, string> = {}
-  try { headers = JSON.parse(apiRequestForm.headersJson || '{}') } catch { /* server validates on save */ }
-  const headerText = Object.entries(headers).map(([key, value]) => ` -H ${JSON.stringify(`${key}: ${value}`)}`).join('')
-  const body = apiRequestForm.body.trim() ? ` --data-raw ${JSON.stringify(apiRequestForm.body)}` : ''
-  const curl = `curl --request ${method} ${JSON.stringify(apiRequestForm.url.trim() || 'https://example.com')}${headerText}${body}`
+  const curl = buildCurl({
+    method: apiRequestForm.method,
+    url: apiRequestForm.url,
+    headersJson: apiRequestForm.headersJson,
+    body: apiRequestForm.body
+  })
   void navigator.clipboard?.writeText(curl)
   ui.showToast('cURL 已复制')
 }
 
 function parseCurl(value: string) {
-  const text = value.trim()
-  const url = text.match(/(?:curl\s+.*?)(?:--url\s+|-X\s+\w+\s+)?(['"]?https?:\/\/[^'"\s]+['"]?)/i)?.[1]
-  if (!url) {
+  const parsed = parseCurlImport(value)
+  if (!parsed) {
     ui.showToast('没有识别到有效的 HTTP URL')
     return
   }
-  const method = text.match(/(?:-X|--request)\s+([A-Z]+)/i)?.[1]?.toUpperCase() || (text.includes('--data') ? 'POST' : 'GET')
-  const headers: Record<string, string> = {}
-  for (const match of text.matchAll(/(?:-H|--header)\s+['"]([^'"]+)['"]/gi)) {
-    const separator = match[1].indexOf(':')
-    if (separator > 0) headers[match[1].slice(0, separator).trim()] = match[1].slice(separator + 1).trim()
-  }
-  const body = text.match(/(?:--data-raw|--data|--data-binary|-d)\s+['"]([\s\S]*?)['"]/i)?.[1] || ''
   newRequest(currentFolderId.value)
-  apiRequestForm.method = method
-  apiRequestForm.url = url.replace(/^['"]|['"]$/g, '')
-  apiRequestForm.headersJson = JSON.stringify(headers, null, 2)
-  apiRequestForm.body = body
-  bodyMode.value = body ? 'raw' : 'none'
+  apiRequestForm.method = parsed.method
+  apiRequestForm.url = parsed.url
+  apiRequestForm.headersJson = JSON.stringify(parsed.headers, null, 2)
+  apiRequestForm.body = parsed.body
+  bodyMode.value = parsed.body ? 'raw' : 'none'
   showImport.value = false
   importText.value = ''
   ui.showToast('cURL 已导入，请保存请求')
