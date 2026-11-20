@@ -25,3 +25,15 @@ npm run build
 - 测试用例 CRUD、筛选、状态流转、AI 生成、自动化项目/任务、Jenkins 执行和报告已接入后端 API。
 
 本地开发默认使用 MOCK Jenkins 和 MOCK AI；真实环境配置见后端配置文件和项目文档。
+
+## 验证
+
+在仓库根目录执行统一验证入口（后端测试 + 前端构建）：
+
+```powershell
+scripts\verify.cmd -Scope frontend
+# 等价于：
+cd frontend; npm run build
+```
+
+只跑前端构建时，`vue-tsc -b` 的类型错误会直接导致失败。CI 使用 `pwsh scripts/verify.ps1 -Scope frontend`。

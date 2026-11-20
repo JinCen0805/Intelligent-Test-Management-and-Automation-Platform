@@ -51,4 +51,22 @@ $env:DB_PASSWORD = "change-me"
 mvn spring-boot:run
 ```
 
-MySQL 表结构见 `../database/schema.sql`。生产环境必须替换默认密码，并接入正式的密钥管理与持久化会话方案。
+MySQL 表结构由 Flyway 迁移维护（`src/main/resources/db/migration`），`../database/schema.sql` 仅为历史参考。
+
+## 验证
+
+在仓库根目录执行统一验证入口（后端测试 + 前端构建）：
+
+```powershell
+scripts\verify.cmd
+```
+
+只验证后端：
+
+```powershell
+scripts\verify.cmd -Scope backend
+# 等价于：
+cd backend; mvn -B test
+```
+
+CI 配置见 `.github/workflows/ci.yml`，与本地脚本共用同一入口（Linux 下直接 `pwsh scripts/verify.ps1`）。
