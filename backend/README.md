@@ -31,22 +31,19 @@ $env:ADMIN_INITIAL_PASSWORD = "至少 8 位"
 
 MySQL 连接见下一节。如果 8080 已被占用，可用 `--server.port=18080` 覆盖，并同步调整 `frontend/vite.config.ts` 的代理目标。
 
-## 已实现接口
+## 模块与接口
 
-- `GET /api/health`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-- `POST /api/auth/logout`
-- `GET /api/projects`
-- `GET /api/projects/{id}`
-- `POST /api/projects`
-- `PUT /api/projects/{id}`
-- `DELETE /api/projects/{id}`
-- `GET /api/projects/{projectId}/requirements`
-- `POST /api/projects/{projectId}/requirements/upload`
-- `POST /api/projects/{projectId}/requirements/{requirementId}/parse`
+接口按业务包组织在 `src/main/java/com/testpilot/platform` 下：
 
-登录返回的 `accessToken` 通过 `Authorization: Bearer <token>` 访问需要登录的接口。
+- `auth` / `user` / `rbac` / `security`：登录、用户、RBAC 权限与鉴权；
+- `project` / `requirement` / `testcase`：项目、需求文件、测试用例；
+- `ai`：AI 用例生成/对话、失败分析、自动化任务草稿、模型与 Prompt 管理、AI 调用审计；
+- `api`：接口测试工作台（集合/请求/环境变量/执行历史）；
+- `automation`：Jenkins 集成、Pipeline 绑定、测试任务/执行、报告与 Allure；
+- `audit` / `health`：操作审计与健康检查。
+
+统一响应结构为 `ApiResponse { code, message, data }`，`code != 0` 表示失败；登录返回的 `accessToken`
+通过 `Authorization: Bearer <token>` 访问需要登录的接口。
 
 ## MySQL
 
