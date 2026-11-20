@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.testpilot.platform.common.AddressSafety;
 import com.testpilot.platform.common.BusinessException;
+import com.testpilot.platform.common.SecretCipher;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
@@ -28,6 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ApiWorkbenchService {
 
+    /** 敏感环境变量的落库密文前缀；老数据无前缀时按明文兼容读取。 */
+    private static final String SECRET_PREFIX = "enc:v1:";
+    private static final String MASKED_VALUE = "••••••••";
+
     private final ApiCollectionRepository collectionRepository;
     private final ApiRequestRepository requestRepository;
     private final ApiEnvironmentVariableRepository variableRepository;
@@ -36,6 +41,7 @@ public class ApiWorkbenchService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final AddressSafety addressSafety;
+    private final SecretCipher secretCipher;
 
     public ApiWorkbenchService(
             ApiCollectionRepository collectionRepository,
@@ -44,7 +50,8 @@ public class ApiWorkbenchService {
             ApiExecutionHistoryRepository historyRepository,
             ProjectAccessService projectAccessService,
             ObjectMapper objectMapper,
-            AddressSafety addressSafety
+            AddressSafety addressSafety,
+            SecretCipher secretCipher
     ) {
         this.collectionRepository = collectionRepository;
         this.requestRepository = requestRepository;
@@ -53,6 +60,7 @@ public class ApiWorkbenchService {
         this.projectAccessService = projectAccessService;
         this.objectMapper = objectMapper;
         this.addressSafety = addressSafety;
+        this.secretCipher = secretCipher;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -170,20 +178,61 @@ public class ApiWorkbenchService {
     ) {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.API_EXECUTE);
         String environment = normalizeEnvironment(request.environment());
+        boolean sensitive = Boolean.TRUE.equals(request.sensitive());
         ApiEnvironmentVariable variable = variableRepository
                 .findByProjectIdAndEnvironmentAndName(projectId, environment, request.name().trim())
                 .orElseGet(() -> new ApiEnvironmentVariable(
                         projectId,
                         environment,
                         request.name().trim(),
-                        request.value(),
-                        Boolean.TRUE.equals(request.sensitive()),
+                        sealValue(request.value(), sensitive),
+                        sensitive,
                         blankToNull(request.source())
                 ));
         if (variable.getId() != null) {
-            variable.update(request.value(), Boolean.TRUE.equals(request.sensitive()), blankToNull(request.source()));
+            variable.update(resolveUpdatedValue(variable, request.value(), sensitive),
+                    sensitive, blankToNull(request.source()));
         }
         return ApiDtos.VariableResponse.from(variableRepository.save(variable));
+    }
+
+    /**
+     * 编辑敏感变量时前端只回传掩码（或空值），此时保留原密文，避免把掩码当新值加密。
+     */
+    private String resolveUpdatedValue(ApiEnvironmentVariable variable, String incomingValue, boolean sensitive) {
+        if (sensitive && (incomingValue == null || incomingValue.isBlank()
+                || MASKED_VALUE.equals(incomingValue))) {
+            return variable.getValue();
+        }
+        return sealValue(incomingValue, sensitive);
+    }
+
+    private String sealValue(String value, boolean sensitive) {
+        if (value == null) {
+            return null;
+        }
+        return sensitive ? SECRET_PREFIX + secretCipher.encrypt(value) : value;
+    }
+
+    /** 执行前解密敏感变量；历史明文数据原样返回（兼容）。 */
+    private String openValue(String stored) {
+        if (stored == null) {
+            return null;
+        }
+        if (!stored.startsWith(SECRET_PREFIX)) {
+            return stored;
+        }
+        return secretCipher.decrypt(stored.substring(SECRET_PREFIX.length()));
+    }
+
+    private Map<String, String> resolveEnvironmentVariables(Long projectId, String environment) {
+        return variableRepository.findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, environment)
+                .stream()
+                .filter(variable -> variable.getValue() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        ApiEnvironmentVariable::getName,
+                        variable -> openValue(variable.getValue())
+                ));
     }
 
     @Transactional
@@ -232,11 +281,7 @@ public class ApiWorkbenchService {
         String environment = normalizeEnvironment(request.environment());
         String runId = java.util.UUID.randomUUID().toString();
         Map<String, String> context = new HashMap<>();
-        Map<String, String> environmentVariables = variableRepository
-                .findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, environment)
-                .stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        ApiEnvironmentVariable::getName, ApiEnvironmentVariable::getValue));
+        Map<String, String> environmentVariables = resolveEnvironmentVariables(projectId, environment);
         List<ApiDtos.HistoryResponse> results = new ArrayList<>();
         String status = "PASSED";
         for (ApiRequest apiRequest : requestRepository.findAllByCollectionIdOrderByCreatedAtAsc(collectionId)) {
@@ -270,9 +315,7 @@ public class ApiWorkbenchService {
         String assertionResults = "[]";
         try {
             Map<String, String> variables = new HashMap<>(preloadedVariables == null
-                    ? variableRepository.findAllByProjectIdAndEnvironmentOrderByNameAsc(projectId, environment)
-                        .stream().collect(java.util.stream.Collectors.toMap(
-                                ApiEnvironmentVariable::getName, ApiEnvironmentVariable::getValue))
+                    ? resolveEnvironmentVariables(projectId, environment)
                     : preloadedVariables);
             variables.putAll(context);
             runScript(apiRequest.getPreRequestScript(), variables);
