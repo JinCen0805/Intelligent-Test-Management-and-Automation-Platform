@@ -73,22 +73,34 @@ public class AiProviderClient {
         if (endpoint == null || endpoint.isBlank()) {
             throw new BusinessException(40007, "AI 请求地址未配置");
         }
-        String baseUrl = addressSafety.validate(endpoint).toString();
-        String url = baseUrl.endsWith("/") ? baseUrl + "chat/completions" : baseUrl + "/chat/completions";
+        String baseUrl = addressSafety.validate(endpoint).toString().replaceAll("/+$", "");
+        String url = baseUrl.endsWith("/chat/completions") ? baseUrl : baseUrl + "/chat/completions";
         String apiKey = decryptApiKey(model);
 
         BusinessException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
+            if (attempt > 0) {
+                sleepBeforeRetry(attempt);
+            }
             try {
                 return callOnce(url, model.getName(), apiKey, systemPrompt, safeUserPrompt);
             } catch (BusinessException exception) {
                 last = exception;
                 if (exception.getCode() != 50200) {
+                    // 4xx / 配置类错误重试没有意义，直接失败。
                     throw exception;
                 }
             }
         }
         throw last == null ? new BusinessException(50200, "AI 调用失败，请检查模型配置和网络") : last;
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(300L * attempt);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private String callOnce(String url, String modelName, String apiKey, String systemPrompt, String userPrompt) {
@@ -118,29 +130,19 @@ public class AiProviderClient {
                 throw new BusinessException(50201, "AI 返回内容为空");
             }
             return content.asText();
+        } catch (HttpStatusCodeException exception) {
+            int status = exception.getStatusCode().value();
+            log.warn("AI 调用失败: url={}, model={}, httpStatus={}", url, modelName, status, exception);
+            if (status == 429 || status >= 500) {
+                // 限流与服务端错误可重试。
+                throw new BusinessException(50200, "AI 服务暂时不可用（HTTP " + status + "）");
+            }
+            // 4xx 属于配置或请求问题：不重试，且不把 Provider 响应体透传给前端/审计。
+            throw new BusinessException(50203, "AI 请求被拒绝（HTTP " + status + "），请检查模型配置");
         } catch (RestClientException exception) {
             log.warn("AI 调用失败: url={}, model={}", url, modelName, exception);
-            throw new BusinessException(50200, "AI 调用失败" + detailOf(exception));
+            throw new BusinessException(50200, "AI 调用失败，请检查模型配置和网络");
         }
-    }
-
-    private String detailOf(RestClientException exception) {
-        if (exception instanceof HttpStatusCodeException httpException) {
-            String body = httpException.getResponseBodyAsString();
-            String snippet = body == null || body.isBlank()
-                    ? ""
-                    : "：" + (body.length() > 300 ? body.substring(0, 300) : body);
-            return "（HTTP " + httpException.getStatusCode().value() + snippet + "）";
-        }
-        Throwable cause = exception.getCause();
-        if (cause != null && cause.getMessage() != null && !cause.getMessage().isBlank()) {
-            return "（" + cause.getMessage() + "）";
-        }
-        String message = exception.getMessage();
-        if (message != null && !message.isBlank()) {
-            return "（" + exception.getClass().getSimpleName() + "：" + message + "）";
-        }
-        return "（请检查模型配置和网络）";
     }
 
     private String decryptApiKey(AiModel model) {
