@@ -4,23 +4,32 @@ Spring Boot 3.4 + Java 21 后端 MVP。
 
 ## 本地启动
 
+推荐在仓库根目录运行一键脚本（会依次启动 Redis、后端、前端，并激活 `local` profile）：
+
+```powershell
+scripts\start-local.cmd
+```
+
+手动启动后端（MySQL，默认端口 8080）：
+
 ```powershell
 cd backend
-mvn spring-boot:run
+mvn spring-boot:run "-Dspring-boot.run.profiles=local"
 ```
 
-默认使用本地 H2 文件数据库，服务地址为 `http://127.0.0.1:8080`。
+`local` / `demo` / `test` profile 会创建演示数据，演示账号：
 
-如果本机 `8080` 已被占用，可使用备用端口启动：
+- 用户名：`lin.xiao`，密码：`demo123`
+- 用户名：`chen.yu`，密码：`demo123`（管理员）
+
+其他 profile 首次启动且数据库为空时，必须配置初始管理员，否则启动失败并给出提示：
 
 ```powershell
-mvn spring-boot:run "-Dspring-boot.run.arguments=--server.port=18080"
+$env:ADMIN_INITIAL_USERNAME = "admin"
+$env:ADMIN_INITIAL_PASSWORD = "至少 8 位"
 ```
 
-演示账号：
-
-- 用户名：`lin.xiao`
-- 密码：`demo123`
+MySQL 连接见下一节。如果 8080 已被占用，可用 `--server.port=18080` 覆盖，并同步调整 `frontend/vite.config.ts` 的代理目标。
 
 ## 已实现接口
 

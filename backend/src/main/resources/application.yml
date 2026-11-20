@@ -43,6 +43,9 @@ server:
 testpilot:
   security:
     encryption-key: ${TESTPILOT_ENCRYPTION_KEY:}
+    # 首次启动（空库）时创建初始管理员；local/demo/test profile 可留空（演示数据会建号）。
+    admin-initial-username: ${ADMIN_INITIAL_USERNAME:}
+    admin-initial-password: ${ADMIN_INITIAL_PASSWORD:}
     session-ttl-minutes: ${TESTPILOT_SECURITY_SESSION_TTL_MINUTES:480}
     permission-cache-ttl-seconds: ${TESTPILOT_PERMISSION_CACHE_TTL_SECONDS:300}
     http-status-enforcement: ${TESTPILOT_SECURITY_HTTP_STATUS_ENFORCEMENT:true}

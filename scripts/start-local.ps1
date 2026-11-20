@@ -148,7 +148,7 @@ if ($backendPid) {
 } else {
     Write-Host 'Starting backend...'
     Start-Process -FilePath 'mvn.cmd' `
-        -ArgumentList 'spring-boot:run' `
+        -ArgumentList @('spring-boot:run', '-Dspring-boot.run.profiles=local') `
         -WorkingDirectory $backend `
         -WindowStyle Hidden `
         -RedirectStandardOutput (Join-Path $logDir 'backend.out.log') `
