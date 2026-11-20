@@ -83,6 +83,7 @@ if ($Scope -in @('all', 'frontend')) {
             }
         }
         Invoke-VerifyStep -Name 'frontend build (npm run build)' -WorkingDirectory $frontend -Command @($npm, 'run', 'build')
+        Invoke-VerifyStep -Name 'frontend unit tests (npm run test)' -WorkingDirectory $frontend -Command @($npm, 'run', 'test')
     } catch {
         $failures.Add("frontend toolchain -> $($_.Exception.Message)")
     }
