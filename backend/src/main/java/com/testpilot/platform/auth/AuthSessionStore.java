@@ -37,8 +37,9 @@ public class AuthSessionStore {
 
     public void save(String token, AuthSession session) {
         String key = key(token);
-        localSessions.put(key, session);
         if (!redisEnabled) {
+            localSessions.put(key, session);
+            sweepLocalSessions();
             return;
         }
         try {
@@ -48,41 +49,47 @@ public class AuthSessionStore {
             }
             redisTemplate.opsForValue().set(key, session, ttl);
         } catch (BusinessException exception) {
-            localSessions.remove(key);
             throw exception;
         } catch (Exception exception) {
             if (redisRequired) {
-                localSessions.remove(key);
                 throw new BusinessException(50301, "认证 Session 存储不可用");
             }
+            // 降级缓存：仅在 Redis 不可用时使用，并随过期清理。
+            localSessions.put(key, session);
+            sweepLocalSessions();
         }
     }
 
     public AuthSession get(String token) {
         String key = key(token);
         if (!redisEnabled) {
-            AuthSession session = localSessions.get(key);
-            if (session != null && session.expiresAt().isBefore(LocalDateTime.now())) {
-                localSessions.remove(key);
-                return null;
-            }
-            return session;
+            return localSession(key);
         }
         try {
             Object value = redisTemplate.opsForValue().get(key);
+            if (value == null) {
+                // Redis 中已不存在（过期或主动删除）：本地副本一律不再复活。
+                localSessions.remove(key);
+                return null;
+            }
             if (value instanceof AuthSession session) {
                 return session;
             }
-            if (value != null) {
-                return objectMapper.convertValue(value, AuthSession.class);
-            }
-            return localSession(key);
+            return objectMapper.convertValue(value, AuthSession.class);
         } catch (Exception exception) {
             if (redisRequired) {
                 throw new BusinessException(50301, "认证 Session 存储不可用");
             }
             return localSession(key);
         }
+    }
+
+    private void sweepLocalSessions() {
+        if (localSessions.size() <= 256) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        localSessions.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
     }
 
     public void delete(String token) {

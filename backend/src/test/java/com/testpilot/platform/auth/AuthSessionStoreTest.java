@@ -25,7 +25,7 @@ class AuthSessionStoreTest {
         ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         doThrow(new RuntimeException("redis down")).when(valueOperations).set(anyString(), any(), any(Duration.class));
-        when(valueOperations.get("testpilot:test:auth:session:token-1")).thenReturn(null);
+        doThrow(new RuntimeException("redis down")).when(valueOperations).get(anyString());
 
         AuthSessionStore store = new AuthSessionStore(
                 redisTemplate,
@@ -47,6 +47,27 @@ class AuthSessionStoreTest {
         assertNotNull(restored);
         assertEquals(1L, restored.userId());
         assertEquals(2L, restored.authVersion());
+    }
+
+    @Test
+    void redisDeletionDoesNotResurrectLocalSession() {
+        RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
+        ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        AuthSessionStore store = new AuthSessionStore(
+                redisTemplate,
+                new RedisKeyPrefix("testpilot:test:"),
+                new ObjectMapper(),
+                true,
+                false
+        );
+        store.save("token-deleted", new AuthSessionStore.AuthSession(
+                1L, 1L, LocalDateTime.now(), LocalDateTime.now().plusMinutes(30)));
+
+        // Redis 中会话已删除（如登出/管理员操作）：读取必须返回 null，而不是回落本地副本。
+        when(valueOperations.get("testpilot:test:auth:session:token-deleted")).thenReturn(null);
+        assertNull(store.get("token-deleted"));
     }
 
     @Test
