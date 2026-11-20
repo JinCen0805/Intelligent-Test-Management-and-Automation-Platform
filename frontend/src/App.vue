@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
+import { UNAUTHORIZED_EVENT } from '@/api/client'
 import ModalHost from '@/components/ModalHost.vue'
 
 const route = useRoute()
@@ -43,7 +44,21 @@ function navigate(view: string) {
   void router.push({ name: view })
 }
 
-onMounted(() => { void bootstrapAuth() })
+function handleUnauthorized() {
+  authState.value.authenticated = false
+  authState.value.ready = true
+  authState.value.error = '登录已失效，请重新登录'
+  void router.push({ name: 'home' })
+}
+
+onMounted(() => {
+  window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized)
+  void bootstrapAuth()
+})
+
+onUnmounted(() => {
+  window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized)
+})
 </script>
 
 <template>

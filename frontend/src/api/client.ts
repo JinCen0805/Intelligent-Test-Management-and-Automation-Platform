@@ -34,14 +34,16 @@ async function parseJson<T>(response: Response): Promise<ApiResponse<T> | null> 
   }
 }
 
+export const UNAUTHORIZED_EVENT = 'testpilot:unauthorized'
+
 function handleUnauthorized(response: Response) {
-  if (response.status === 401) {
-    storage.token = null
-    // Login is rendered by App.vue rather than a dedicated route. Reloading
-    // rehydrates the auth store and switches the shell back to the login view.
-    if (window.location.pathname !== '/') window.location.assign('/')
-    else window.location.reload()
-  }
+  // 登录接口失败时没有 token，不能触发跳转，否则登录错误提示会被整页刷新吞掉。
+  if (response.status !== 401 || !storage.token) return
+  storage.token = null
+  storage.userId = null
+  // Login is rendered by App.vue rather than a dedicated route; App.vue listens for
+  // this event and switches the shell back to the login view without a full reload.
+  window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT))
 }
 
 function networkError(error: unknown): Error {
