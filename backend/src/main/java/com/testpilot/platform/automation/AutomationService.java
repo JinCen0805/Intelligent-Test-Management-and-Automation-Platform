@@ -5,9 +5,13 @@ import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
 import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.user.User;
+import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -15,6 +19,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AutomationService {
+
+    /**
+     * 控制台日志引用只允许指向某次构建的 consoleText，防止客户端把任意 Jenkins API 路径
+     * 交给平台服务账号去读取。
+     */
+    private static final Pattern SAFE_CONSOLE_LOG_REF =
+            Pattern.compile("^/job/[A-Za-z0-9_./-]+/\\d+/consoleText$");
 
     private final AutomationProjectRepository automationProjectRepository;
     private final TestTaskRepository testTaskRepository;
@@ -352,7 +363,8 @@ public class AutomationService {
         projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AUTOMATION_EXECUTE);
         testExecutionRepository.findByIdAndProjectId(executionId, projectId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
-        return saveReport(executionId, request);
+        // 手工上报来自普通项目成员：consoleLogRef 只能指向本次构建的 consoleText。
+        return saveReport(executionId, request, false);
     }
 
     @Transactional
@@ -675,7 +687,8 @@ public class AutomationService {
             }
             throw new BusinessException(40912, "执行已完成，禁止覆盖终态结果");
         }
-        return saveReport(execution.getId(), request);
+        // 回调同样来自外部：consoleLogRef 只允许指向本次构建的 consoleText。
+        return saveReport(execution.getId(), request, false);
     }
 
     private AutomationDtos.TestExecutionResponse toExecutionResponse(TestExecution execution) {
@@ -689,14 +702,25 @@ public class AutomationService {
             Long executionId,
             AutomationDtos.ExecutionResultRequest request
     ) {
+        return saveReport(executionId, request, true);
+    }
+
+    private AutomationDtos.TestExecutionResponse saveReport(
+            Long executionId,
+            AutomationDtos.ExecutionResultRequest request,
+            boolean trustedSource
+    ) {
         validateReport(request);
         TestExecution execution = testExecutionRepository.findById(executionId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         LocalDateTime finishedAt = LocalDateTime.now();
+        String consoleLogRef = trustedSource
+                ? trustedConsoleLogRef(execution, request.consoleLogRef())
+                : resolveExternalConsoleLogRef(execution, request.consoleLogRef());
         execution.applyResult(
                 request.status().trim().toUpperCase(),
                 blankToNull(request.commitSha()),
-                blankToNull(request.consoleLogRef()),
+                consoleLogRef,
                 finishedAt
         );
         testReportRepository.findByExecutionId(executionId)
@@ -720,6 +744,58 @@ public class AutomationService {
         ));
         testExecutionRepository.save(execution);
         return AutomationDtos.TestExecutionResponse.from(execution, savedReport);
+    }
+
+    private String trustedConsoleLogRef(TestExecution execution, String incoming) {
+        String provided = blankToNull(incoming);
+        return provided != null ? provided : deriveConsoleLogRef(execution);
+    }
+
+    /**
+     * 外部上报（手工上报 / Jenkins 回调）的 consoleLogRef 校验：只允许本次构建的 consoleText。
+     * 允许两种形式：以 "/" 开头的 Jenkins 路径，或完整 http(s) URL（host 会被替换为配置的 Jenkins 地址）。
+     */
+    private String resolveExternalConsoleLogRef(TestExecution execution, String incoming) {
+        String provided = blankToNull(incoming);
+        if (provided == null) {
+            return deriveConsoleLogRef(execution);
+        }
+        String path = extractJenkinsPath(provided);
+        if (path == null || !SAFE_CONSOLE_LOG_REF.matcher(path).matches()) {
+            throw new BusinessException(40043, "控制台日志引用不合法");
+        }
+        return path;
+    }
+
+    private String extractJenkinsPath(String value) {
+        if (value.startsWith("/")) {
+            return value;
+        }
+        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+            return null;
+        }
+        try {
+            URI uri = URI.create(value);
+            if (uri.getRawQuery() != null || uri.getRawFragment() != null) {
+                return null;
+            }
+            return uri.getPath();
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
+    }
+
+    private String deriveConsoleLogRef(TestExecution execution) {
+        String job = execution.getJenkinsJob();
+        String buildNumber = execution.getBuildNumber();
+        if (job == null || job.isBlank() || buildNumber == null || buildNumber.isBlank()) {
+            return null;
+        }
+        String jobPath = Arrays.stream(job.split("/"))
+                .filter(segment -> !segment.isBlank())
+                .map(segment -> "job/" + segment)
+                .collect(Collectors.joining("/"));
+        return "/" + jobPath + "/" + buildNumber + "/consoleText";
     }
 
     private String blankToNull(String value) {

@@ -376,7 +376,7 @@ class ApiSmokeTest {
                                 {
                                   "status":"PASSED",
                                   "commitSha":"abc123",
-                                  "consoleLogRef":"mock://jenkins/log",
+                                  "consoleLogRef":"/job/qa/job/order-api/3/consoleText",
                                   "allureUrl":"http://allure.local/order",
                                   "totalCount":3,
                                   "passedCount":3,
@@ -398,7 +398,7 @@ class ApiSmokeTest {
                                 {
                                   "status":"PASSED",
                                   "commitSha":"abc123",
-                                  "consoleLogRef":"mock://jenkins/log",
+                                  "consoleLogRef":"/job/qa/job/order-api/3/consoleText",
                                   "allureUrl":"http://allure.local/order",
                                   "totalCount":3,
                                   "passedCount":3,
@@ -1793,8 +1793,29 @@ class ApiSmokeTest {
                         .content("""
                                 {
                                   "status":"FAILED",
+                                  "consoleLogRef":"/credentials/store/system/domain/_/api/json",
+                                  "totalCount":1,
+                                  "passedCount":0,
+                                  "failedCount":1,
+                                  "brokenCount":0,
+                                  "skippedCount":0
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(40043));
+
+        mockMvc.perform(post(
+                        "/api/projects/{projectId}/test-executions/{executionId}/result",
+                        projectId,
+                        executionId
+                )
+                        .header("Authorization", auth)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "status":"FAILED",
                                   "commitSha":"def456",
-                                  "consoleLogRef":"mock://jenkins/log/%d",
+                                  "consoleLogRef":"/job/qa/job/detail/1/consoleText",
                                   "totalCount":2,
                                   "passedCount":0,
                                   "failedCount":1,
@@ -1802,7 +1823,7 @@ class ApiSmokeTest {
                                   "skippedCount":0,
                                   "failureDetail":"WebDriverException: chromedriver not in PATH"
                                 }
-                                """.formatted(executionId)))
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("FAILED"));
 
