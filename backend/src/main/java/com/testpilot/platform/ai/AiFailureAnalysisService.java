@@ -254,10 +254,8 @@ public class AiFailureAnalysisService {
     }
 
     private void clearExisting(Long executionId) {
-        recordRepository.findByExecutionId(executionId).ifPresent(record -> {
-            recordRepository.delete(record);
-            recordRepository.flush();
-        });
+        // MyBatis 写入即时生效，delete 后无需额外 flush。
+        recordRepository.findByExecutionId(executionId).ifPresent(recordRepository::delete);
     }
 
     private PromptTemplate findPrompt(Long promptId) {

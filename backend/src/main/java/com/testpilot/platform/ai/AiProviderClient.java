@@ -76,6 +76,8 @@ public class AiProviderClient {
         String baseUrl = addressSafety.validate(endpoint).toString().replaceAll("/+$", "");
         String url = baseUrl.endsWith("/chat/completions") ? baseUrl : baseUrl + "/chat/completions";
         String apiKey = decryptApiKey(model);
+        // 同一次逻辑调用在重试时复用同一 requestId，便于 Provider 侧做幂等去重。
+        String requestId = java.util.UUID.randomUUID().toString();
 
         BusinessException last = null;
         for (int attempt = 0; attempt < 2; attempt++) {
@@ -83,11 +85,11 @@ public class AiProviderClient {
                 sleepBeforeRetry(attempt);
             }
             try {
-                return callOnce(url, model.getName(), apiKey, systemPrompt, safeUserPrompt);
+                return callOnce(url, model.getName(), apiKey, systemPrompt, safeUserPrompt, requestId);
             } catch (BusinessException exception) {
                 last = exception;
                 if (exception.getCode() != 50200) {
-                    // 4xx / 配置类错误重试没有意义，直接失败。
+                    // 4xx / 配置类错误 / 响应超时（请求已发出）重试没有意义，直接失败。
                     throw exception;
                 }
             }
@@ -103,7 +105,14 @@ public class AiProviderClient {
         }
     }
 
-    private String callOnce(String url, String modelName, String apiKey, String systemPrompt, String userPrompt) {
+    private String callOnce(
+            String url,
+            String modelName,
+            String apiKey,
+            String systemPrompt,
+            String userPrompt,
+            String requestId
+    ) {
         try {
             JsonNode response = restClient.post()
                     .uri(url)
@@ -112,6 +121,7 @@ public class AiProviderClient {
                         if (apiKey != null && !apiKey.isBlank()) {
                             headers.setBearerAuth(apiKey);
                         }
+                        headers.set("X-Request-Id", requestId);
                     })
                     .body(Map.of(
                             "model", modelName,
@@ -132,7 +142,7 @@ public class AiProviderClient {
             return content.asText();
         } catch (HttpStatusCodeException exception) {
             int status = exception.getStatusCode().value();
-            log.warn("AI 调用失败: url={}, model={}, httpStatus={}", url, modelName, status, exception);
+            log.warn("AI 调用失败: requestId={}, url={}, model={}, httpStatus={}", requestId, url, modelName, status);
             if (status == 429 || status >= 500) {
                 // 限流与服务端错误可重试。
                 throw new BusinessException(50200, "AI 服务暂时不可用（HTTP " + status + "）");
@@ -140,9 +150,29 @@ public class AiProviderClient {
             // 4xx 属于配置或请求问题：不重试，且不把 Provider 响应体透传给前端/审计。
             throw new BusinessException(50203, "AI 请求被拒绝（HTTP " + status + "），请检查模型配置");
         } catch (RestClientException exception) {
-            log.warn("AI 调用失败: url={}, model={}", url, modelName, exception);
+            log.warn("AI 调用失败: requestId={}, url={}, model={}", requestId, url, modelName, exception);
+            if (isReadTimeout(exception)) {
+                // 请求已发出、读超时：自动重试会重复计费，因此不重试。
+                throw new BusinessException(50204, "AI 响应超时，已停止自动重试，请稍后手动重试");
+            }
             throw new BusinessException(50200, "AI 调用失败，请检查模型配置和网络");
         }
+    }
+
+    /** 区分"读超时（请求已发出）"与"连接超时（可安全重试）"。 */
+    static boolean isReadTimeout(Throwable throwable) {
+        Throwable current = throwable;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (current instanceof java.net.SocketTimeoutException) {
+                String message = current.getMessage();
+                String normalized = message == null ? "" : message.toLowerCase(java.util.Locale.ROOT);
+                return normalized.contains("read timed out") || normalized.contains("read timeout");
+            }
+            current = current.getCause();
+            depth++;
+        }
+        return false;
     }
 
     private String decryptApiKey(AiModel model) {

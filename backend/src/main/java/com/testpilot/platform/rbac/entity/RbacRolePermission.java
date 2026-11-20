@@ -1,10 +1,14 @@
 package com.testpilot.platform.rbac.entity;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 @TableName("role_permissions")
 public class RbacRolePermission {
 
+    /** 复合主键的一部分：标记为 id 仅为向 MyBatis-Plus 声明主键，避免启动告警。 */
+    @TableId(value = "role_id", type = IdType.INPUT)
     private Long roleId;
 
     private Long permissionId;

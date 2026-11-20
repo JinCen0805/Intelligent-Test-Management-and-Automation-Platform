@@ -28,12 +28,6 @@ public class TestExecutionRepository extends MybatisRepository<TestExecution, Lo
                 .orderByDesc(TestExecution::getCreatedAt));
     }
 
-    public List<TestExecution> findAllByStatusIn(List<String> statuses) {
-        return statuses == null || statuses.isEmpty()
-                ? List.of()
-                : list(Wrappers.<TestExecution>lambdaQuery().in(TestExecution::getStatus, statuses));
-    }
-
     /**
      * 轮询专用：按 updated_at 升序取有限条活跃执行，避免每秒全表扫描并防止饥饿。
      */

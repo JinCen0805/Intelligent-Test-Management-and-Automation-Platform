@@ -12,6 +12,7 @@ import java.util.Locale;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class JenkinsAdminService {
@@ -30,6 +31,7 @@ public class JenkinsAdminService {
     private final JenkinsClient jenkinsClient;
     private final JenkinsProtocolService jenkinsProtocolService;
     private final AddressSafety addressSafety;
+    private final TransactionTemplate transactionTemplate;
 
     public JenkinsAdminService(
             JenkinsInstanceRepository instanceRepository,
@@ -40,7 +42,8 @@ public class JenkinsAdminService {
             SecretCipher secretCipher,
             JenkinsClient jenkinsClient,
             JenkinsProtocolService jenkinsProtocolService,
-            AddressSafety addressSafety
+            AddressSafety addressSafety,
+            TransactionTemplate transactionTemplate
     ) {
         this.instanceRepository = instanceRepository;
         this.bindingRepository = bindingRepository;
@@ -51,6 +54,7 @@ public class JenkinsAdminService {
         this.jenkinsClient = jenkinsClient;
         this.jenkinsProtocolService = jenkinsProtocolService;
         this.addressSafety = addressSafety;
+        this.transactionTemplate = transactionTemplate;
     }
 
     public List<JenkinsAdminDtos.InstanceResponse> listInstances(User user) {
@@ -131,7 +135,7 @@ public class JenkinsAdminService {
         instanceRepository.save(instance);
     }
 
-    @Transactional
+    /** 连接测试是外部 HTTP 调用，不占用数据库事务；仅结果回写是单条写操作。 */
     public JenkinsAdminDtos.InstanceResponse testConnection(Long instanceId, User user) {
         requireAdmin(user);
         JenkinsInstance instance = requireInstance(instanceId);
@@ -161,17 +165,18 @@ public class JenkinsAdminService {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
         requireAutomationProject(projectId, automationProjectId);
         JenkinsInstance instance = requireEnabledInstance(jenkinsInstanceId);
+        // 一次取齐该项目已绑定的 job，避免每个 Jenkins Job 都查一次库。
+        java.util.Set<String> boundJobNames = bindingRepository
+                .findAllByProjectIdAndAutomationProjectIdOrderByCreatedAtAsc(projectId, automationProjectId)
+                .stream()
+                .filter(binding -> instance.getId().equals(binding.getJenkinsInstanceId()))
+                .map(JenkinsPipelineBinding::getJobName)
+                .collect(java.util.stream.Collectors.toSet());
         return jenkinsClient.listJobs(toTarget(instance)).stream()
-                .map(job -> JenkinsAdminDtos.JobResponse.from(
-                        job,
-                        bindingRepository.findByProjectIdAndAutomationProjectIdAndJenkinsInstanceIdAndJobName(
-                                projectId, automationProjectId, instance.getId(), job.path()
-                        ).isPresent()
-                ))
+                .map(job -> JenkinsAdminDtos.JobResponse.from(job, boundJobNames.contains(job.path())))
                 .toList();
     }
 
-    @Transactional
     public JenkinsAdminDtos.BindingResponse importJob(
             Long projectId,
             Long automationProjectId,
@@ -188,33 +193,35 @@ public class JenkinsAdminService {
                 .findFirst()
                 .orElseThrow(() -> new BusinessException(40453, "Jenkins Job 不存在或不在授权范围内"));
 
-        var existing = bindingRepository
-                .findByProjectIdAndAutomationProjectIdAndJenkinsInstanceIdAndJobName(
-                        projectId, automationProjectId, instance.getId(), job.path()
-                );
-        if (existing.isPresent()) {
-            return JenkinsAdminDtos.BindingResponse.from(existing.get());
-        }
-        JenkinsPipelineBinding binding = new JenkinsPipelineBinding(
-                projectId,
-                automationProjectId,
-                instance.getId(),
-                job.pipelineType(),
-                parentPath(job.path()),
-                job.path(),
-                job.url(),
-                blankToNull(request.credentialScopeRef()),
-                "EXTERNAL",
-                blankToNull(job.parametersJson())
-        );
-        if (automationProject.getJenkinsJob() == null || automationProject.getJenkinsJob().isBlank()) {
-            automationProject.setJenkinsJob(job.path());
-            automationProjectRepository.save(automationProject);
-        }
-        return JenkinsAdminDtos.BindingResponse.from(bindingRepository.save(binding));
+        // 外部 Jenkins 调用结束后，仅把绑定落库放进短事务。
+        return transactionTemplate.execute(status -> {
+            var existing = bindingRepository
+                    .findByProjectIdAndAutomationProjectIdAndJenkinsInstanceIdAndJobName(
+                            projectId, automationProjectId, instance.getId(), job.path()
+                    );
+            if (existing.isPresent()) {
+                return JenkinsAdminDtos.BindingResponse.from(existing.get());
+            }
+            JenkinsPipelineBinding binding = new JenkinsPipelineBinding(
+                    projectId,
+                    automationProjectId,
+                    instance.getId(),
+                    job.pipelineType(),
+                    parentPath(job.path()),
+                    job.path(),
+                    job.url(),
+                    blankToNull(request.credentialScopeRef()),
+                    "EXTERNAL",
+                    blankToNull(job.parametersJson())
+            );
+            if (automationProject.getJenkinsJob() == null || automationProject.getJenkinsJob().isBlank()) {
+                automationProject.setJenkinsJob(job.path());
+                automationProjectRepository.save(automationProject);
+            }
+            return JenkinsAdminDtos.BindingResponse.from(bindingRepository.save(binding));
+        });
     }
 
-    @Transactional
     public JenkinsAdminDtos.BindingResponse createJobAndBind(
             Long projectId, Long automationProjectId, JenkinsAdminDtos.CreateJobRequest request, User user
     ) {
@@ -238,30 +245,33 @@ public class JenkinsAdminService {
         String jobName = request.jobName().trim();
         jenkinsClient.createJob(toTarget(instance), jobName, configXml);
 
-        var existing = bindingRepository
-                .findByProjectIdAndAutomationProjectIdAndJenkinsInstanceIdAndJobName(
-                        projectId, automationProjectId, instance.getId(), jobName
-                );
-        if (existing.isPresent()) {
-            return JenkinsAdminDtos.BindingResponse.from(existing.get());
-        }
-        JenkinsPipelineBinding binding = new JenkinsPipelineBinding(
-                projectId,
-                automationProjectId,
-                instance.getId(),
-                pipelineType,
-                parentPath(jobName),
-                jobName,
-                buildJobUrl(instance.getBaseUrl(), jobName),
-                blankToNull(request.credentialScopeRef()),
-                "PLATFORM",
-                null
-        );
-        if (automationProject.getJenkinsJob() == null || automationProject.getJenkinsJob().isBlank()) {
-            automationProject.setJenkinsJob(jobName);
-            automationProjectRepository.save(automationProject);
-        }
-        return JenkinsAdminDtos.BindingResponse.from(bindingRepository.save(binding));
+        // Jenkins Job 创建成功后，绑定与项目回写放进短事务。
+        return transactionTemplate.execute(status -> {
+            var existing = bindingRepository
+                    .findByProjectIdAndAutomationProjectIdAndJenkinsInstanceIdAndJobName(
+                            projectId, automationProjectId, instance.getId(), jobName
+                    );
+            if (existing.isPresent()) {
+                return JenkinsAdminDtos.BindingResponse.from(existing.get());
+            }
+            JenkinsPipelineBinding binding = new JenkinsPipelineBinding(
+                    projectId,
+                    automationProjectId,
+                    instance.getId(),
+                    pipelineType,
+                    parentPath(jobName),
+                    jobName,
+                    buildJobUrl(instance.getBaseUrl(), jobName),
+                    blankToNull(request.credentialScopeRef()),
+                    "PLATFORM",
+                    null
+            );
+            if (automationProject.getJenkinsJob() == null || automationProject.getJenkinsJob().isBlank()) {
+                automationProject.setJenkinsJob(jobName);
+                automationProjectRepository.save(automationProject);
+            }
+            return JenkinsAdminDtos.BindingResponse.from(bindingRepository.save(binding));
+        });
     }
 
     @Transactional

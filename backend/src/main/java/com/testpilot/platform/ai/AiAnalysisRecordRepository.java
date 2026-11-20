@@ -15,8 +15,4 @@ public class AiAnalysisRecordRepository extends MybatisRepository<AiAnalysisReco
     public Optional<AiAnalysisRecord> findByExecutionId(Long executionId) {
         return findOne(Wrappers.<AiAnalysisRecord>lambdaQuery().eq(AiAnalysisRecord::getExecutionId, executionId));
     }
-
-    public void flush() {
-        // MyBatis writes are immediate; kept for compatibility with JPA-era call sites.
-    }
 }
