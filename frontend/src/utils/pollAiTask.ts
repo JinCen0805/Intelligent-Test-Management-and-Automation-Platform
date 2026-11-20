@@ -10,40 +10,50 @@ export interface PollAiTaskHandlers<T> {
 /**
  * 轮询一个 AI 异步任务直到终态。
  *
- * 提交 AI 生成/分析后，后端立即返回 taskId 并在后台线程执行；本工具每 intervalMs
- * 查询一次任务状态，`SUCCESS` 时把 result 交给 onSuccess，`FAILED` 时把错误信息交给
- * onFailure，到达终态即自清理。定时器生命周期独立于弹窗，只有走到终态才停止。
+ * 采用串行 setTimeout 链而非 setInterval：单次状态查询未返回前不会叠加下一次请求，
+ * 避免慢响应时并发请求与重复触发 onSuccess；回调异常也不会产生未处理的 Promise rejection。
  *
  * @returns 一个 stop 函数，可提前取消轮询。
  */
 export function pollAiTask<T>(taskId: string, handlers: PollAiTaskHandlers<T>): () => void {
   const { onSuccess, onFailure, intervalMs = 1000 } = handlers
   let stopped = false
+  let timer: number | undefined
 
-  const timer = window.setInterval(async () => {
+  const finish = () => {
+    stopped = true
+    if (timer !== undefined) {
+      window.clearTimeout(timer)
+      timer = undefined
+    }
+  }
+
+  const step = async () => {
     if (stopped) return
     let status: ApiAiTaskStatus
     try {
       status = await api.aiTasks.status(taskId)
     } catch (error) {
-      stopped = true
-      window.clearInterval(timer)
+      finish()
       onFailure(error instanceof Error ? error.message : 'AI 任务状态查询失败')
       return
     }
+    if (stopped) return
     if (status.status === 'SUCCESS') {
-      stopped = true
-      window.clearInterval(timer)
-      await onSuccess(status.result as T)
+      finish()
+      try {
+        await onSuccess(status.result as T)
+      } catch {
+        // onSuccess 的异常不应冒泡为未处理 rejection。
+      }
     } else if (status.status === 'FAILED') {
-      stopped = true
-      window.clearInterval(timer)
+      finish()
       onFailure(status.errorMessage || 'AI 任务执行失败')
+    } else {
+      timer = window.setTimeout(step, intervalMs)
     }
-  }, intervalMs)
-
-  return () => {
-    stopped = true
-    window.clearInterval(timer)
   }
+
+  timer = window.setTimeout(step, intervalMs)
+  return finish
 }

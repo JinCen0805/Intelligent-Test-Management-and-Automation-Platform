@@ -11,7 +11,6 @@ import type {
   ApiPipelineBinding,
   ApiTestTask
 } from '@/api'
-import type { Execution } from '@/types'
 import { useUiStore } from './ui'
 import { useProjectStore } from './project'
 import { useReportStore } from './report'
@@ -36,7 +35,6 @@ export const useAutomationStore = defineStore('automation', () => {
   const executableTasks = computed(() => automationTasks.value.filter((task) => task.status === 'ENABLED'))
   const executionRecords = ref<ApiExecution[]>([])
   const executionPagination = ref({ page: 0, size: 20, totalPages: 1, totalElements: 0 })
-  const executions = computed<Execution[]>(() => executionRecords.value.map(fromApiExecution))
 
   const runForm = ref({ taskId: null as number | null, parametersJson: '' })
   const automationProjectForm = ref({
@@ -153,30 +151,6 @@ export const useAutomationStore = defineStore('automation', () => {
     if (!step.startedAt || !step.finishedAt) return '--'
     const ms = new Date(step.finishedAt).getTime() - new Date(step.startedAt).getTime()
     return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
-  }
-
-  function fromApiExecution(execution: ApiExecution): Execution {
-    const total = execution.report?.totalCount || 0
-    const passed = execution.report?.passedCount || 0
-    const task = automationTasks.value.find((item) => item.id === execution.testTaskId)
-    const automationProject = automationProjects.value.find((item) => item.id === execution.automationProjectId)
-    return {
-      run: execution.buildNumber ? `Build ${execution.buildNumber}` : `Execution #${execution.id}`,
-      project: projectStore.currentProject.name,
-      task: task?.name || '测试任务',
-      type: task?.taskType || '自动化',
-      branch: automationProject?.branch || '--',
-      environment: automationProject?.environment || '--',
-      status: execution.status === 'PASSED'
-        ? 'PASSED'
-        : execution.status === 'FAILED'
-          ? 'FAILED'
-          : execution.status === 'TIMEOUT'
-            ? 'TIMEOUT'
-            : 'RUNNING',
-      passRate: total > 0 ? `${Math.round((passed / total) * 1000) / 10}%` : '--',
-      time: execution.startedAt ? new Date(execution.startedAt).toLocaleString('zh-CN') : '刚刚'
-    }
   }
 
   async function loadAutomationData() {
@@ -313,12 +287,16 @@ export const useAutomationStore = defineStore('automation', () => {
     ui.openModal('task')
   }
 
+  let savingTask = false
+
   async function saveTask() {
     const projectId = projectStore.currentProject.id
     if (!projectId || !taskForm.value.name.trim() || !taskForm.value.automationProjectId) {
       ui.showToast('请填写任务名称并选择自动化项目')
       return
     }
+    if (savingTask) return
+    savingTask = true
     const wasEditing = Boolean(editingTaskId.value)
     try {
       const payload = {
@@ -341,6 +319,8 @@ export const useAutomationStore = defineStore('automation', () => {
       ui.showToast(wasEditing ? '测试任务已更新' : '测试任务已创建')
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : '测试任务保存失败')
+    } finally {
+      savingTask = false
     }
   }
 
@@ -591,6 +571,8 @@ export const useAutomationStore = defineStore('automation', () => {
     ui.openModal('run')
   }
 
+  let runningTest = false
+
   async function runTest() {
     const projectId = projectStore.currentProject.id
     const task = executableTasks.value.find((item) => item.id === runForm.value.taskId) || executableTasks.value[0]
@@ -598,6 +580,8 @@ export const useAutomationStore = defineStore('automation', () => {
       ui.showToast('当前项目还没有可执行的自动化任务')
       return
     }
+    if (runningTest) return
+    runningTest = true
     try {
       const execution = await api.automation.execute(projectId, task.id, {
         parametersJson: runForm.value.parametersJson.trim() || undefined
@@ -607,6 +591,8 @@ export const useAutomationStore = defineStore('automation', () => {
       ui.showToast(`已触发 Jenkins Build ${execution.buildNumber || execution.id}`)
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : '执行任务失败')
+    } finally {
+      runningTest = false
     }
   }
 
@@ -899,7 +885,6 @@ export const useAutomationStore = defineStore('automation', () => {
     executableTasks,
     executionRecords,
     executionPagination,
-    executions,
     runForm,
     automationProjectForm,
     editingAutomationProjectId,

@@ -36,17 +36,6 @@ export const useTestcaseStore = defineStore('testcase', () => {
   const editingCaseId = ref<number | null>(null)
   let loadSequence = 0
 
-  const filteredCases = computed(() => {
-    const term = ui.search.trim().toLowerCase()
-    return testCases.value.filter((item) => {
-      const matchesSearch = !term || `${item.no}${item.title}${item.module}`.toLowerCase().includes(term)
-      const matchesStatus = !ui.caseStatusFilter || item.status === ui.caseStatusFilter
-      const matchesPriority = !ui.casePriorityFilter || item.priority === ui.casePriorityFilter
-      const matchesType = !ui.caseTypeFilter || item.type === ui.caseTypeFilter
-      return matchesSearch && matchesStatus && matchesPriority && matchesType
-    })
-  })
-
   function caseStatusLabel(status: TestCase['status']) {
     return {
       DRAFT: '草稿',
@@ -219,12 +208,16 @@ export const useTestcaseStore = defineStore('testcase', () => {
     ui.openModal('caseEdit')
   }
 
+  let savingCase = false
+
   async function saveCase() {
     const projectId = projectStore.currentProject.id
     if (!projectId || !caseForm.value.title.trim()) {
       ui.showToast('请填写测试用例标题')
       return
     }
+    if (savingCase) return
+    savingCase = true
     try {
       if (editingCaseId.value) {
         await api.testCases.update(projectId, editingCaseId.value, caseForm.value)
@@ -238,6 +231,8 @@ export const useTestcaseStore = defineStore('testcase', () => {
       ui.showToast(wasEditing ? '测试用例已更新' : '测试用例已创建')
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : '测试用例保存失败')
+    } finally {
+      savingCase = false
     }
   }
 
@@ -275,7 +270,6 @@ export const useTestcaseStore = defineStore('testcase', () => {
     casePagination,
     caseForm,
     editingCaseId,
-    filteredCases,
     caseStatusLabel,
     caseTypeLabel,
     loadTestCases,

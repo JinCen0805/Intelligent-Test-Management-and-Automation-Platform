@@ -92,11 +92,15 @@ export const useAdminStore = defineStore('admin', () => {
     ui.openModal('user')
   }
 
+  let savingUser = false
+
   async function saveUser() {
     if (auth.authState.role !== 'ADMIN' || !userForm.value.username.trim() || !userForm.value.displayName.trim()) {
       ui.showToast('请填写用户名和用户显示名称')
       return
     }
+    if (savingUser) return
+    savingUser = true
     try {
       if (editingUserId.value) {
         const saved = await api.users.update(editingUserId.value, {
@@ -123,6 +127,8 @@ export const useAdminStore = defineStore('admin', () => {
       ui.closeModal()
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : '用户保存失败')
+    } finally {
+      savingUser = false
     }
   }
 

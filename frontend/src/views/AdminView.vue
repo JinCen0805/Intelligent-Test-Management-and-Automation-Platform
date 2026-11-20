@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useProjectStore } from '@/stores/project'
@@ -33,6 +34,16 @@ const {
   editJenkinsInstance,
   deleteJenkinsInstance
 } = adminStore
+
+onMounted(() => {
+  void loadUsers()
+  void loadJenkinsInstances()
+  void loadCredentialGrants()
+})
+
+watch(() => currentProject.value?.id, () => {
+  void loadCredentialGrants()
+})
 
 </script>
 

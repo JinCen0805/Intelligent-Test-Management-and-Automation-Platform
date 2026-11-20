@@ -103,11 +103,15 @@ export const useProjectStore = defineStore('project', () => {
     if (project) project.members = members.length
   }
 
+  let creatingProject = false
+
   async function createProject() {
     if (!newProject.value.name.trim() || !newProject.value.code.trim()) {
       ui.showToast('请填写项目名称和项目标识')
       return
     }
+    if (creatingProject) return
+    creatingProject = true
     try {
       const created = await api.projects.create({
         name: newProject.value.name,
@@ -124,6 +128,8 @@ export const useProjectStore = defineStore('project', () => {
       ui.showToast('项目创建成功')
     } catch (error) {
       ui.showToast(error instanceof Error ? error.message : '项目创建失败')
+    } finally {
+      creatingProject = false
     }
   }
 
