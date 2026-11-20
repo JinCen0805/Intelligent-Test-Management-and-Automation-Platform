@@ -21,8 +21,8 @@ import java.time.LocalDateTime;
  * AI 生成/分析异步任务编排。
  *
  * <p>提交方法只做权限校验 + 落一条 RUNNING 任务并立即返回 taskId；真正的 AI 调用在
- * {@code aiTaskExecutor} 线程里执行（复用各 {@code *Service} 的既有 {@code @Transactional}
- * 方法），完成后回写结果或错误。前端轮询 {@link #status} 直到终态。
+ * {@code aiTaskExecutor} 线程里执行（各 {@code *Service} 只在落库阶段开短事务，外部 AI 调用
+ * 不占用数据库连接），完成后回写结果或错误。前端轮询 {@link #status} 直到终态。
  */
 @Service
 public class AiTaskService {

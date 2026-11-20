@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 import com.testpilot.platform.requirement.Requirement;
 import com.testpilot.platform.requirement.RequirementParser;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
@@ -44,6 +44,7 @@ public class AiCaseAssistantService {
     private final AiCallAuditService aiCallAuditService;
     private final AiCaseChatSessionService chatSessionService;
     private final RequirementParser requirementParser;
+    private final TransactionTemplate transactionTemplate;
 
     public AiCaseAssistantService(
             AiModelService aiModelService,
@@ -54,7 +55,8 @@ public class AiCaseAssistantService {
             AiProviderClient aiProviderClient,
             AiCallAuditService aiCallAuditService,
             AiCaseChatSessionService chatSessionService,
-            RequirementParser requirementParser
+            RequirementParser requirementParser,
+            TransactionTemplate transactionTemplate
     ) {
         this.aiModelService = aiModelService;
         this.projectAccessService = projectAccessService;
@@ -65,14 +67,13 @@ public class AiCaseAssistantService {
         this.aiCallAuditService = aiCallAuditService;
         this.chatSessionService = chatSessionService;
         this.requirementParser = requirementParser;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
     public AiDtos.CaseChatResponse chat(Long projectId, AiDtos.CaseChatRequest request, User currentUser) {
         return chatInternal(projectId, request, currentUser, null, null);
     }
 
-    @Transactional
     public AiDtos.CaseChatResponse chatWithFile(Long projectId, AiDtos.CaseChatRequest request, MultipartFile file, User currentUser) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(40003, "请选择要添加到对话的文件");
@@ -113,14 +114,32 @@ public class AiCaseAssistantService {
             if (hasGenerationIntent(message) && payload.generatedCases().isEmpty()) {
                 throw new BusinessException(50202, "AI 未返回可落库的测试用例");
             }
-            List<AiDtos.TestCaseView> generatedCases = saveGeneratedCases(
-                    projectId,
-                    request.requirementId(),
-                    normalizedSuiteType,
-                    request.selectedCaseId(),
-                    currentUser,
-                    payload.generatedCases()
-            );
+            // AI 调用结束后，用例落库 + 会话消息写库放在同一个短事务里。
+            AiDtos.CaseChatResponse response = transactionTemplate.execute(status -> {
+                List<AiDtos.TestCaseView> generatedCases = saveGeneratedCases(
+                        projectId,
+                        request.requirementId(),
+                        normalizedSuiteType,
+                        request.selectedCaseId(),
+                        currentUser,
+                        payload.generatedCases()
+                );
+                AiDtos.CaseChatSessionResponse session = chatSessionService.appendTurn(
+                        projectId,
+                        currentUser,
+                        normalizedSuiteType,
+                        request.sessionId(),
+                        message,
+                        payload.reply()
+                );
+                return new AiDtos.CaseChatResponse(
+                        session.sessionId(),
+                        model.getId(),
+                        model.getProvider(),
+                        payload.reply(),
+                        generatedCases
+                );
+            });
             aiCallAuditService.record(
                     projectId,
                     currentUser,
@@ -134,21 +153,7 @@ public class AiCaseAssistantService {
                     null,
                     elapsedMs(start)
             );
-            AiDtos.CaseChatSessionResponse session = chatSessionService.appendTurn(
-                    projectId,
-                    currentUser,
-                    normalizedSuiteType,
-                    request.sessionId(),
-                    message,
-                    payload.reply()
-            );
-            return new AiDtos.CaseChatResponse(
-                    session.sessionId(),
-                    model.getId(),
-                    model.getProvider(),
-                    payload.reply(),
-                    generatedCases
-            );
+            return response;
         } catch (BusinessException exception) {
             aiCallAuditService.record(
                     projectId,

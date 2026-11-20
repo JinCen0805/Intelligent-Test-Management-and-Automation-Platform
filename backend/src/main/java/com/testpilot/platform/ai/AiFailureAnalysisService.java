@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class AiFailureAnalysisService {
@@ -62,6 +62,7 @@ public class AiFailureAnalysisService {
     private final AiProviderClient aiProviderClient;
     private final AiCallAuditService aiCallAuditService;
     private final SensitiveDataSanitizer sensitiveDataSanitizer;
+    private final TransactionTemplate transactionTemplate;
 
     public AiFailureAnalysisService(
             AiModelService aiModelService,
@@ -77,7 +78,8 @@ public class AiFailureAnalysisService {
             ObjectMapper objectMapper,
             AiProviderClient aiProviderClient,
             AiCallAuditService aiCallAuditService,
-            SensitiveDataSanitizer sensitiveDataSanitizer
+            SensitiveDataSanitizer sensitiveDataSanitizer,
+            TransactionTemplate transactionTemplate
     ) {
         this.aiModelService = aiModelService;
         this.recordRepository = recordRepository;
@@ -93,9 +95,12 @@ public class AiFailureAnalysisService {
         this.aiProviderClient = aiProviderClient;
         this.aiCallAuditService = aiCallAuditService;
         this.sensitiveDataSanitizer = sensitiveDataSanitizer;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
+    /**
+     * Jenkins 日志读取与 AI 调用不占用数据库事务，只有分析结果落库阶段使用短事务。
+     */
     public AiAnalysisDtos.AnalysisResponse analyze(
             Long projectId,
             Long executionId,
@@ -130,39 +135,42 @@ public class AiFailureAnalysisService {
                     ? mockAnalysis(consoleLog, failureDetail)
                     : callModelWithRetry(model, prompt == null ? BUILT_IN_PROMPT : prompt.getContent(), context);
             AnalysisResult result = parseResult(resultJson, consoleLog, failureDetail);
+            AiAnalysisRecord record = transactionTemplate.execute(status -> {
+                clearExisting(executionId);
+                AiAnalysisRecord saved = recordRepository.save(new AiAnalysisRecord(
+                        executionId,
+                        projectId,
+                        task.getId(),
+                        model.getId(),
+                        model.getName(),
+                        model.getProvider(),
+                        prompt == null ? null : prompt.getId(),
+                        promptName,
+                        promptVersion,
+                        "SUCCESS",
+                        result.category(),
+                        serializeBody(result),
+                        null,
+                        currentUser.getId()
+                ));
+                if (report != null) {
+                    report.setAiAnalysis(buildSummary(result));
+                    testReportRepository.save(report);
+                }
+                return saved;
+            });
             aiCallAuditService.record(projectId, currentUser, "FAILURE_ANALYSIS", model,
                     prompt == null ? null : prompt.getId(), promptName, promptVersion,
                     true, null, null, elapsedMs(start));
-            clearExisting(executionId);
-            AiAnalysisRecord record = recordRepository.save(new AiAnalysisRecord(
-                    executionId,
-                    projectId,
-                    task.getId(),
-                    model.getId(),
-                    model.getName(),
-                    model.getProvider(),
-                    prompt == null ? null : prompt.getId(),
-                    promptName,
-                    promptVersion,
-                    "SUCCESS",
-                    result.category(),
-                    serializeBody(result),
-                    null,
-                    currentUser.getId()
-            ));
-            if (report != null) {
-                report.setAiAnalysis(buildSummary(result));
-                testReportRepository.save(report);
-            }
             return toResponse(project, task, automationProject, execution, record, result, model, promptName, promptVersion, null);
         } catch (BusinessException exception) {
             aiCallAuditService.record(projectId, currentUser, "FAILURE_ANALYSIS", model,
                     prompt == null ? null : prompt.getId(), promptName, promptVersion,
                     false, exception.getCode(), exception.getMessage(), elapsedMs(start));
-            AiAnalysisRecord failed = saveFailedRecord(
+            AiAnalysisRecord failed = transactionTemplate.execute(status -> saveFailedRecord(
                     executionId, projectId, task.getId(), model, promptName, promptVersion,
                     currentUser.getId(), exception.getMessage()
-            );
+            ));
             return toResponse(project, task, automationProject, execution, failed, emptyResult(), model,
                     promptName, promptVersion, exception.getMessage());
         }

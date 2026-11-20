@@ -23,7 +23,7 @@ import com.testpilot.platform.requirement.RequirementParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class AiGenerationService {
@@ -46,6 +46,7 @@ public class AiGenerationService {
     private final AiProviderClient aiProviderClient;
     private final AiCallAuditService aiCallAuditService;
     private final RequirementParser requirementParser;
+    private final TransactionTemplate transactionTemplate;
 
     public AiGenerationService(
             AiModelService aiModelService,
@@ -55,7 +56,8 @@ public class AiGenerationService {
             ObjectMapper objectMapper,
             AiProviderClient aiProviderClient,
             AiCallAuditService aiCallAuditService,
-            RequirementParser requirementParser
+            RequirementParser requirementParser,
+            TransactionTemplate transactionTemplate
     ) {
         this.aiModelService = aiModelService;
         this.requirementRepository = requirementRepository;
@@ -65,9 +67,12 @@ public class AiGenerationService {
         this.aiProviderClient = aiProviderClient;
         this.aiCallAuditService = aiCallAuditService;
         this.requirementParser = requirementParser;
+        this.transactionTemplate = transactionTemplate;
     }
 
-    @Transactional
+    /**
+     * 外部 AI 调用不占用数据库事务：只有用例落库阶段使用短事务。
+     */
     public AiDtos.GenerateResponse generate(
             Long projectId,
             Long requirementId,
@@ -101,43 +106,46 @@ public class AiGenerationService {
                     false, exception.getCode(), exception.getMessage(), elapsedMs(start));
             throw exception;
         }
-        List<AiDtos.TestCaseView> savedCases = new ArrayList<>();
-        Set<String> assignedCaseNos = new HashSet<>();
-        for (GeneratedCase generated : generatedCases) {
-            String caseNo = generated.caseNo();
-            if (caseNo == null || caseNo.isBlank()
-                    || assignedCaseNos.contains(caseNo)
-                    || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
-                caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos, generated.caseNo());
+        List<AiDtos.TestCaseView> savedCases = transactionTemplate.execute(status -> {
+            List<AiDtos.TestCaseView> result = new ArrayList<>();
+            Set<String> assignedCaseNos = new HashSet<>();
+            for (GeneratedCase generated : generatedCases) {
+                String caseNo = generated.caseNo();
+                if (caseNo == null || caseNo.isBlank()
+                        || assignedCaseNos.contains(caseNo)
+                        || testCaseRepository.existsByProjectIdAndSuiteTypeAndCaseNo(projectId, suiteType, caseNo)) {
+                    caseNo = nextCaseNo(projectId, suiteType, assignedCaseNos, generated.caseNo());
+                }
+                assignedCaseNos.add(caseNo);
+                TestCase testCase = new TestCase(
+                        projectId,
+                        requirementId,
+                        caseNo,
+                        generated.title(),
+                        generated.moduleName(),
+                        generated.precondition(),
+                        generated.steps(),
+                        generated.testData(),
+                        generated.expectedResult(),
+                        generated.priority(),
+                        generated.caseType(),
+                        suiteType,
+                        generated.tags(),
+                        "DRAFT",
+                        "AI",
+                        currentUser.getId(),
+                        generated.extraFieldsJson()
+                );
+                TestCase saved = testCaseRepository.save(testCase);
+                result.add(new AiDtos.TestCaseView(
+                        saved.getId(),
+                        saved.getCaseNo(),
+                        saved.getTitle(),
+                        saved.getStatus()
+                ));
             }
-            assignedCaseNos.add(caseNo);
-            TestCase testCase = new TestCase(
-                    projectId,
-                    requirementId,
-                    caseNo,
-                    generated.title(),
-                    generated.moduleName(),
-                    generated.precondition(),
-                    generated.steps(),
-                    generated.testData(),
-                    generated.expectedResult(),
-                    generated.priority(),
-                    generated.caseType(),
-                    suiteType,
-                    generated.tags(),
-                    "DRAFT",
-                    "AI",
-                    currentUser.getId(),
-                    generated.extraFieldsJson()
-            );
-            TestCase saved = testCaseRepository.save(testCase);
-            savedCases.add(new AiDtos.TestCaseView(
-                    saved.getId(),
-                    saved.getCaseNo(),
-                    saved.getTitle(),
-                    saved.getStatus()
-            ));
-        }
+            return result;
+        });
         return new AiDtos.GenerateResponse(
                 requirementId,
                 model.getId(),

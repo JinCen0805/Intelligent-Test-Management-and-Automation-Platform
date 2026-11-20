@@ -58,7 +58,6 @@ public class AiAutomationTaskService {
         this.aiCallAuditService = aiCallAuditService;
     }
 
-    @Transactional
     public AiAutomationDtos.DraftResponse generate(
             Long projectId,
             AiAutomationDtos.GenerateRequest request,
