@@ -16,13 +16,13 @@ public class RbacAuthorizationService {
 
     public boolean hasSystemPermission(Authentication authentication, String permissionCode) {
         User user = principal(authentication);
-        return user != null && rbacService.hasSystemPermission(user.getId(), permissionCode);
+        return user != null && rbacService.hasSystemPermission(user.getId(), user.getAuthVersion(), permissionCode);
     }
 
     public boolean hasProjectPermission(Authentication authentication, Long projectId, String permissionCode) {
         User user = principal(authentication);
         return user != null && projectId != null
-                && rbacService.hasProjectPermission(user.getId(), projectId, permissionCode);
+                && rbacService.hasProjectPermission(user.getId(), user.getAuthVersion(), projectId, permissionCode);
     }
 
     public boolean isAuthenticated(Authentication authentication) {

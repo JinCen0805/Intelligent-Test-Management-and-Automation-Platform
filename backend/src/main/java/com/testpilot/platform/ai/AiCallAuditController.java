@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import java.util.List;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,20 +19,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiCallAuditController {
 
     private final AiCallAuditService service;
-    private final AuthService authService;
 
-    public AiCallAuditController(AiCallAuditService service, AuthService authService) {
+    public AiCallAuditController(AiCallAuditService service) {
         this.service = service;
-        this.authService = authService;
     }
 
     @GetMapping("/audits")
     public ApiResponse<?> list(
-            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @AuthenticationPrincipal User user,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size
     ) {
-        var user = authService.currentUser(authorization);
         return page == null && size == null
                 ? ApiResponse.success(service.list(user))
                 : ApiResponse.success(service.page(user, page == null ? 0 : page, size == null ? 50 : size));

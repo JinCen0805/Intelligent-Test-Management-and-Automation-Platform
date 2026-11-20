@@ -163,25 +163,38 @@ public class RbacService {
 
     @Transactional(readOnly = true)
     public Set<String> systemPermissions(Long userId) {
-        Long authVersion = currentAuthVersion(userId);
-        Optional<Set<String>> cached = permissionCache.getSystem(userId, authVersion);
+        return systemPermissions(userId, currentAuthVersion(userId));
+    }
+
+    /**
+     * 使用调用方已加载的 authVersion 计算系统权限，避免每次鉴权都额外查一次 users 表。
+     */
+    @Transactional(readOnly = true)
+    public Set<String> systemPermissions(Long userId, Long authVersion) {
+        Long version = authVersion == null ? 1L : authVersion;
+        Optional<Set<String>> cached = permissionCache.getSystem(userId, version);
         if (cached.isPresent()) {
             return cached.get();
         }
         Set<String> permissions = resolvePermissions(userId, SYSTEM_SCOPE_TYPE, SYSTEM_SCOPE_ID, null);
-        permissionCache.putSystem(userId, authVersion, permissions);
+        permissionCache.putSystem(userId, version, permissions);
         return permissions;
     }
 
     @Transactional(readOnly = true)
     public Set<String> projectPermissions(Long userId, Long projectId) {
-        Long authVersion = currentAuthVersion(userId);
-        Optional<Set<String>> cached = permissionCache.getProject(userId, projectId, authVersion);
+        return projectPermissions(userId, currentAuthVersion(userId), projectId);
+    }
+
+    @Transactional(readOnly = true)
+    public Set<String> projectPermissions(Long userId, Long authVersion, Long projectId) {
+        Long version = authVersion == null ? 1L : authVersion;
+        Optional<Set<String>> cached = permissionCache.getProject(userId, projectId, version);
         if (cached.isPresent()) {
             return cached.get();
         }
         Set<String> permissions = resolvePermissions(userId, PROJECT_SCOPE_TYPE, projectId, projectId);
-        permissionCache.putProject(userId, projectId, authVersion, permissions);
+        permissionCache.putProject(userId, projectId, version, permissions);
         return permissions;
     }
 
@@ -191,8 +204,18 @@ public class RbacService {
     }
 
     @Transactional(readOnly = true)
+    public boolean hasSystemPermission(Long userId, Long authVersion, String permissionCode) {
+        return systemPermissions(userId, authVersion).contains(permissionCode);
+    }
+
+    @Transactional(readOnly = true)
     public boolean hasProjectPermission(Long userId, Long projectId, String permissionCode) {
         return projectPermissions(userId, projectId).contains(permissionCode);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasProjectPermission(Long userId, Long authVersion, Long projectId, String permissionCode) {
+        return projectPermissions(userId, authVersion, projectId).contains(permissionCode);
     }
 
     @Transactional

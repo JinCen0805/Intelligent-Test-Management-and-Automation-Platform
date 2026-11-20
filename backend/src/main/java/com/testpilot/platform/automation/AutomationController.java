@@ -1,6 +1,9 @@
 package com.testpilot.platform.automation;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -25,40 +28,37 @@ public class AutomationController {
     private final JenkinsAdminService jenkinsAdminService;
     private final AutomationOnboardingService onboardingService;
     private final JenkinsProtocolService protocolService;
-    private final AuthService authService;
 
     public AutomationController(
             AutomationService automationService,
             JenkinsAdminService jenkinsAdminService,
             AutomationOnboardingService onboardingService,
-            JenkinsProtocolService protocolService,
-            AuthService authService
+            JenkinsProtocolService protocolService
     ) {
         this.automationService = automationService;
         this.jenkinsAdminService = jenkinsAdminService;
         this.onboardingService = onboardingService;
         this.protocolService = protocolService;
-        this.authService = authService;
     }
 
     @GetMapping("/automation-projects")
     public ApiResponse<List<AutomationDtos.AutomationProjectResponse>> listAutomationProjects(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.listAutomationProjects(
                 projectId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
     @GetMapping("/jenkins-credential-grants")
     public ApiResponse<List<JenkinsAdminDtos.CredentialGrantResponse>> listCredentialGrants(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.listCredentialGrants(
-                projectId, authService.currentUser(authorization)
+                projectId, user
         ));
     }
 
@@ -66,10 +66,10 @@ public class AutomationController {
     public ApiResponse<JenkinsAdminDtos.CredentialGrantResponse> createCredentialGrant(
             @PathVariable Long projectId,
             @Valid @RequestBody JenkinsAdminDtos.CredentialGrantRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.createCredentialGrant(
-                projectId, request, authService.currentUser(authorization)
+                projectId, request, user
         ));
     }
 
@@ -77,10 +77,10 @@ public class AutomationController {
     public ApiResponse<Void> revokeCredentialGrant(
             @PathVariable Long projectId,
             @PathVariable Long grantId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         jenkinsAdminService.revokeCredentialGrant(
-                projectId, grantId, authService.currentUser(authorization)
+                projectId, grantId, user
         );
         return ApiResponse.success(null);
     }
@@ -89,12 +89,12 @@ public class AutomationController {
     public ApiResponse<AutomationDtos.AutomationProjectResponse> createAutomationProject(
             @PathVariable Long projectId,
             @Valid @RequestBody AutomationDtos.AutomationProjectRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.createAutomationProject(
                 projectId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -103,24 +103,24 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
             @Valid @RequestBody AutomationDtos.AutomationProjectRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.updateAutomationProject(
                 projectId,
                 automationProjectId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
     @GetMapping("/test-tasks")
     public ApiResponse<List<AutomationDtos.TestTaskResponse>> listTasks(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.listTasks(
                 projectId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -128,12 +128,12 @@ public class AutomationController {
     public ApiResponse<AutomationDtos.TestTaskResponse> createTask(
             @PathVariable Long projectId,
             @Valid @RequestBody AutomationDtos.TestTaskRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.createTask(
                 projectId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -142,13 +142,13 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @Valid @RequestBody AutomationDtos.TestTaskRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.updateTask(
                 projectId,
                 taskId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -156,9 +156,9 @@ public class AutomationController {
     public ApiResponse<Void> deleteTask(
             @PathVariable Long projectId,
             @PathVariable Long taskId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        automationService.deleteTask(projectId, taskId, authService.currentUser(authorization));
+        automationService.deleteTask(projectId, taskId, user);
         return ApiResponse.success(null);
     }
 
@@ -167,13 +167,13 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @Valid @RequestBody AutomationDtos.TestTaskStatusRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.updateTaskStatus(
                 projectId,
                 taskId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -181,23 +181,23 @@ public class AutomationController {
     public ApiResponse<AutomationDtos.TestExecutionResponse> stopTask(
             @PathVariable Long projectId,
             @PathVariable Long taskId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.stopTask(
                 projectId,
                 taskId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
     @GetMapping("/test-executions")
     public ApiResponse<List<AutomationDtos.TestExecutionResponse>> listExecutions(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.listExecutions(
                 projectId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -205,10 +205,10 @@ public class AutomationController {
     public ApiResponse<List<JenkinsAdminDtos.BindingResponse>> listBindings(
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.listBindings(
-                projectId, automationProjectId, authService.currentUser(authorization)
+                projectId, automationProjectId, user
         ));
     }
 
@@ -217,10 +217,10 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
             @RequestParam Long jenkinsInstanceId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.listJobs(
-                projectId, automationProjectId, jenkinsInstanceId, authService.currentUser(authorization)
+                projectId, automationProjectId, jenkinsInstanceId, user
         ));
     }
 
@@ -229,10 +229,10 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
             @Valid @RequestBody JenkinsAdminDtos.JobImportRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.importJob(
-                projectId, automationProjectId, request, authService.currentUser(authorization)
+                projectId, automationProjectId, request, user
         ));
     }
 
@@ -241,10 +241,10 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
             @Valid @RequestBody JenkinsAdminDtos.CreateJobRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.createJobAndBind(
-                projectId, automationProjectId, request, authService.currentUser(authorization)
+                projectId, automationProjectId, request, user
         ));
     }
 
@@ -253,10 +253,10 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
             @Valid @RequestBody JenkinsAdminDtos.BindingRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.createBinding(
-                projectId, automationProjectId, request, authService.currentUser(authorization)
+                projectId, automationProjectId, request, user
         ));
     }
 
@@ -265,10 +265,10 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long bindingId,
             @Valid @RequestBody JenkinsAdminDtos.BindingRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(jenkinsAdminService.updateBinding(
-                projectId, bindingId, request, authService.currentUser(authorization)
+                projectId, bindingId, request, user
         ));
     }
 
@@ -276,10 +276,10 @@ public class AutomationController {
     public ApiResponse<OnboardingDtos.StartResponse> initialize(
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(onboardingService.start(
-                projectId, automationProjectId, authService.currentUser(authorization)
+                projectId, automationProjectId, user
         ));
     }
 
@@ -288,10 +288,10 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
             @RequestParam String onboardingId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(onboardingService.status(
-                projectId, onboardingId, authService.currentUser(authorization)
+                projectId, onboardingId, user
         ));
     }
 
@@ -299,10 +299,10 @@ public class AutomationController {
     public ApiResponse<OnboardingDtos.StatusResponse> retryOnboarding(
             @PathVariable Long projectId,
             @PathVariable String onboardingId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(onboardingService.retry(
-                projectId, onboardingId, authService.currentUser(authorization)
+                projectId, onboardingId, user
         ));
     }
 
@@ -310,10 +310,10 @@ public class AutomationController {
     public ApiResponse<OnboardingDtos.StatusResponse> cancelOnboarding(
             @PathVariable Long projectId,
             @PathVariable String onboardingId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(onboardingService.cancel(
-                projectId, onboardingId, authService.currentUser(authorization)
+                projectId, onboardingId, user
         ));
     }
 
@@ -321,10 +321,10 @@ public class AutomationController {
     public ApiResponse<JenkinsProtocolDtos.ContractResponse> pipelineContract(
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(protocolService.contract(
-                projectId, automationProjectId, authService.currentUser(authorization)
+                projectId, automationProjectId, user
         ));
     }
 
@@ -332,10 +332,10 @@ public class AutomationController {
     public ApiResponse<JenkinsProtocolDtos.PrecheckResponse> agentPrecheck(
             @PathVariable Long projectId,
             @PathVariable Long automationProjectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(protocolService.precheck(
-                projectId, automationProjectId, authService.currentUser(authorization)
+                projectId, automationProjectId, user
         ));
     }
 
@@ -344,13 +344,13 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @RequestBody(required = false) AutomationDtos.ExecuteRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.execute(
                 projectId,
                 taskId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -359,13 +359,13 @@ public class AutomationController {
             @PathVariable Long projectId,
             @PathVariable Long executionId,
             @Valid @RequestBody AutomationDtos.ExecutionResultRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.updateResult(
                 projectId,
                 executionId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -373,12 +373,12 @@ public class AutomationController {
     public ApiResponse<AutomationDtos.TestExecutionResponse> sync(
             @PathVariable Long projectId,
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.sync(
                 projectId,
                 executionId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -386,12 +386,12 @@ public class AutomationController {
     public ApiResponse<AutomationDtos.TestExecutionResponse> retry(
             @PathVariable Long projectId,
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.retry(
                 projectId,
                 executionId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -399,10 +399,10 @@ public class AutomationController {
     public ApiResponse<AutomationDtos.TestExecutionResponse> cancel(
             @PathVariable Long projectId,
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.cancel(
-                projectId, executionId, authService.currentUser(authorization)
+                projectId, executionId, user
         ));
     }
 
@@ -410,9 +410,9 @@ public class AutomationController {
     public ApiResponse<Void> deleteExecution(
             @PathVariable Long projectId,
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        automationService.deleteExecution(projectId, executionId, authService.currentUser(authorization));
+        automationService.deleteExecution(projectId, executionId, user);
         return ApiResponse.success(null);
     }
 
@@ -420,10 +420,10 @@ public class AutomationController {
     public ApiResponse<String> consoleLog(
             @PathVariable Long projectId,
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.fetchConsoleLog(
-                projectId, executionId, authService.currentUser(authorization)
+                projectId, executionId, user
         ));
     }
 }

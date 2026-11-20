@@ -1,6 +1,7 @@
 package com.testpilot.platform.automation;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.testpilot.platform.common.ApiResponse;
 import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.project.ProjectAccessService;
@@ -25,20 +26,17 @@ public class AllureReportController {
 
     private final TestExecutionRepository executionRepository;
     private final ProjectAccessService projectAccessService;
-    private final AuthService authService;
     private final AllureReportStorage storage;
     private final AllureAccessTokenService tokenService;
 
     public AllureReportController(
             TestExecutionRepository executionRepository,
             ProjectAccessService projectAccessService,
-            AuthService authService,
             AllureReportStorage storage,
             AllureAccessTokenService tokenService
     ) {
         this.executionRepository = executionRepository;
         this.projectAccessService = projectAccessService;
-        this.authService = authService;
         this.storage = storage;
         this.tokenService = tokenService;
     }
@@ -46,9 +44,8 @@ public class AllureReportController {
     @PostMapping("/executions/{executionId}/allure-access")
     public ApiResponse<Map<String, String>> access(
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        User user = authService.currentUser(authorization);
         TestExecution execution = executionRepository.findById(executionId)
                 .orElseThrow(() -> new BusinessException(40412, "执行记录不存在"));
         projectAccessService.requirePermission(execution.getProjectId(), user, RbacPermissions.REPORT_READ);

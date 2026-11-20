@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,18 +16,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiTaskController {
 
     private final AiTaskService aiTaskService;
-    private final AuthService authService;
 
-    public AiTaskController(AiTaskService aiTaskService, AuthService authService) {
+    public AiTaskController(AiTaskService aiTaskService) {
         this.aiTaskService = aiTaskService;
-        this.authService = authService;
     }
 
     @GetMapping("/{taskId}")
     public ApiResponse<AiTaskDtos.StatusResponse> status(
             @PathVariable String taskId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(aiTaskService.status(taskId, authService.currentUser(authorization)));
+        return ApiResponse.success(aiTaskService.status(taskId, user));
     }
 }

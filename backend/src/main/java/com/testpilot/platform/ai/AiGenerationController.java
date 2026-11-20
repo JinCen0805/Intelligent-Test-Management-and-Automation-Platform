@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,11 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiGenerationController {
 
     private final AiTaskService aiTaskService;
-    private final AuthService authService;
 
-    public AiGenerationController(AiTaskService aiTaskService, AuthService authService) {
+    public AiGenerationController(AiTaskService aiTaskService) {
         this.aiTaskService = aiTaskService;
-        this.authService = authService;
     }
 
     @PostMapping("/generate")
@@ -32,7 +33,7 @@ public class AiGenerationController {
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
             @Valid @RequestBody(required = false) AiDtos.GenerateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         AiDtos.GenerateRequest effectiveRequest = request == null
                 ? new AiDtos.GenerateRequest(null, null, AiGenerationService.SUITE_FUNCTIONAL, null)
@@ -41,7 +42,7 @@ public class AiGenerationController {
                 projectId,
                 requirementId,
                 effectiveRequest,
-                authService.currentUser(authorization)
+                user
         ));
     }
 }

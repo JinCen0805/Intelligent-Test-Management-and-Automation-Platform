@@ -1,6 +1,9 @@
 package com.testpilot.platform.automation;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -20,28 +23,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class JenkinsAdminController {
 
     private final JenkinsAdminService service;
-    private final AuthService authService;
 
-    public JenkinsAdminController(JenkinsAdminService service, AuthService authService) {
+    public JenkinsAdminController(JenkinsAdminService service) {
         this.service = service;
-        this.authService = authService;
     }
 
     @GetMapping
     @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<List<JenkinsAdminDtos.InstanceResponse>> list(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.listInstances(authService.currentUser(authorization)));
+        return ApiResponse.success(service.listInstances(user));
     }
 
     @PostMapping
     @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> create(
             @Valid @RequestBody JenkinsAdminDtos.InstanceRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.createInstance(request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.createInstance(request, user));
     }
 
     @PutMapping("/{instanceId}")
@@ -49,10 +50,10 @@ public class JenkinsAdminController {
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> update(
             @PathVariable Long instanceId,
             @Valid @RequestBody JenkinsAdminDtos.InstanceRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.updateInstance(
-                instanceId, request, authService.currentUser(authorization)
+                instanceId, request, user
         ));
     }
 
@@ -61,10 +62,10 @@ public class JenkinsAdminController {
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> changeStatus(
             @PathVariable Long instanceId,
             @Valid @RequestBody JenkinsAdminDtos.StatusRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.changeStatus(
-                instanceId, request, authService.currentUser(authorization)
+                instanceId, request, user
         ));
     }
 
@@ -72,9 +73,9 @@ public class JenkinsAdminController {
     @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<Void> delete(
             @PathVariable Long instanceId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        service.deleteInstance(instanceId, authService.currentUser(authorization));
+        service.deleteInstance(instanceId, user);
         return ApiResponse.success(null);
     }
 
@@ -82,10 +83,10 @@ public class JenkinsAdminController {
     @PreAuthorize("@rbacAuthorizationService.hasSystemPermission(authentication, 'system:jenkins:manage')")
     public ApiResponse<JenkinsAdminDtos.InstanceResponse> testConnection(
             @PathVariable Long instanceId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.testConnection(
-                instanceId, authService.currentUser(authorization)
+                instanceId, user
         ));
     }
 

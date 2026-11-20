@@ -1,6 +1,9 @@
 package com.testpilot.platform.api;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -22,37 +25,35 @@ import org.springframework.web.bind.annotation.RestController;
 public class ApiWorkbenchController {
 
     private final ApiWorkbenchService service;
-    private final AuthService authService;
 
-    public ApiWorkbenchController(ApiWorkbenchService service, AuthService authService) {
+    public ApiWorkbenchController(ApiWorkbenchService service) {
         this.service = service;
-        this.authService = authService;
     }
 
     @GetMapping("/collections")
     public ApiResponse<List<ApiDtos.CollectionResponse>> collections(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.listCollections(projectId, authService.currentUser(authorization)));
+        return ApiResponse.success(service.listCollections(projectId, user));
     }
 
     @PostMapping("/collections")
     public ApiResponse<ApiDtos.CollectionResponse> createCollection(
             @PathVariable Long projectId,
             @Valid @RequestBody ApiDtos.CollectionRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.createCollection(projectId, request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.createCollection(projectId, request, user));
     }
 
     @DeleteMapping("/collections/{collectionId}")
     public ApiResponse<Void> deleteCollection(
             @PathVariable Long projectId,
             @PathVariable Long collectionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        service.deleteCollection(projectId, collectionId, authService.currentUser(authorization));
+        service.deleteCollection(projectId, collectionId, user);
         return ApiResponse.success(null);
     }
 
@@ -60,9 +61,9 @@ public class ApiWorkbenchController {
     public ApiResponse<List<ApiDtos.RequestResponse>> requests(
             @PathVariable Long projectId,
             @PathVariable Long collectionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.listRequests(projectId, collectionId, authService.currentUser(authorization)));
+        return ApiResponse.success(service.listRequests(projectId, collectionId, user));
     }
 
     @PostMapping("/collections/{collectionId}/execute")
@@ -70,13 +71,13 @@ public class ApiWorkbenchController {
             @PathVariable Long projectId,
             @PathVariable Long collectionId,
             @Valid @RequestBody ApiDtos.CollectionExecuteRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.executeCollection(
                 projectId,
                 collectionId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -84,9 +85,9 @@ public class ApiWorkbenchController {
     public ApiResponse<ApiDtos.RequestResponse> createRequest(
             @PathVariable Long projectId,
             @Valid @RequestBody ApiDtos.RequestUpsert request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.saveRequest(projectId, request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.saveRequest(projectId, request, user));
     }
 
     @PutMapping("/requests/{requestId}")
@@ -94,18 +95,18 @@ public class ApiWorkbenchController {
             @PathVariable Long projectId,
             @PathVariable Long requestId,
             @Valid @RequestBody ApiDtos.RequestUpsert request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.updateRequest(projectId, requestId, request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.updateRequest(projectId, requestId, request, user));
     }
 
     @DeleteMapping("/requests/{requestId}")
     public ApiResponse<Void> deleteRequest(
             @PathVariable Long projectId,
             @PathVariable Long requestId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        service.deleteRequest(projectId, requestId, authService.currentUser(authorization));
+        service.deleteRequest(projectId, requestId, user);
         return ApiResponse.success(null);
     }
 
@@ -114,36 +115,36 @@ public class ApiWorkbenchController {
             @PathVariable Long projectId,
             @PathVariable Long requestId,
             @Valid @RequestBody ApiDtos.ExecuteRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.execute(projectId, requestId, request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.execute(projectId, requestId, request, user));
     }
 
     @GetMapping("/variables")
     public ApiResponse<List<ApiDtos.VariableResponse>> variables(
             @PathVariable Long projectId,
             @RequestParam(defaultValue = "TEST") String environment,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.listVariables(projectId, environment, authService.currentUser(authorization)));
+        return ApiResponse.success(service.listVariables(projectId, environment, user));
     }
 
     @PostMapping("/variables")
     public ApiResponse<ApiDtos.VariableResponse> saveVariable(
             @PathVariable Long projectId,
             @Valid @RequestBody ApiDtos.VariableUpsert request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.saveVariable(projectId, request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.saveVariable(projectId, request, user));
     }
 
     @DeleteMapping("/variables/{variableId}")
     public ApiResponse<Void> deleteVariable(
             @PathVariable Long projectId,
             @PathVariable Long variableId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        service.deleteVariable(projectId, variableId, authService.currentUser(authorization));
+        service.deleteVariable(projectId, variableId, user);
         return ApiResponse.success(null);
     }
 
@@ -152,10 +153,10 @@ public class ApiWorkbenchController {
             @PathVariable Long projectId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(ApiDtos.HistoryPageResponse.from(service.listHistory(
-                projectId, page, size, authService.currentUser(authorization)
+                projectId, page, size, user
         )));
     }
 }

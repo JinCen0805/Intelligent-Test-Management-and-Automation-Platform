@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,11 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiFailureAnalysisController {
 
     private final AiTaskService aiTaskService;
-    private final AuthService authService;
 
-    public AiFailureAnalysisController(AiTaskService aiTaskService, AuthService authService) {
+    public AiFailureAnalysisController(AiTaskService aiTaskService) {
         this.aiTaskService = aiTaskService;
-        this.authService = authService;
     }
 
     @PostMapping
@@ -28,7 +29,7 @@ public class AiFailureAnalysisController {
             @PathVariable Long projectId,
             @PathVariable Long executionId,
             @RequestBody(required = false) AiAnalysisDtos.AnalyzeRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         AiAnalysisDtos.AnalyzeRequest effectiveRequest = request == null
                 ? new AiAnalysisDtos.AnalyzeRequest(null, null)
@@ -37,7 +38,7 @@ public class AiFailureAnalysisController {
                 projectId,
                 executionId,
                 effectiveRequest,
-                authService.currentUser(authorization)
+                user
         ));
     }
 }

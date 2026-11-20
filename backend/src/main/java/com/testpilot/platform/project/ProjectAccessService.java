@@ -51,7 +51,9 @@ public class ProjectAccessService {
     }
 
     public boolean isAdmin(User user) {
-        return user != null && rbacService.hasSystemPermission(user.getId(), RbacPermissions.SYSTEM_USER_MANAGE);
+        return user != null
+                && rbacService.hasSystemPermission(
+                        user.getId(), user.getAuthVersion(), RbacPermissions.SYSTEM_USER_MANAGE);
     }
 
     private Project requirePermission(Long projectId, User user, String permissionCode, String deniedMessage) {
@@ -68,6 +70,7 @@ public class ProjectAccessService {
         }
         return isAdmin(user)
                 || project.getOwnerId().equals(user.getId())
-                || rbacService.hasProjectPermission(user.getId(), project.getId(), permissionCode);
+                || rbacService.hasProjectPermission(
+                        user.getId(), user.getAuthVersion(), project.getId(), permissionCode);
     }
 }

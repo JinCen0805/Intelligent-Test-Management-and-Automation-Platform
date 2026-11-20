@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,28 +24,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiModelController {
 
     private final AiModelService aiModelService;
-    private final AuthService authService;
 
-    public AiModelController(AiModelService aiModelService, AuthService authService) {
+    public AiModelController(AiModelService aiModelService) {
         this.aiModelService = aiModelService;
-        this.authService = authService;
     }
 
     @GetMapping("/models")
     public ApiResponse<List<AiDtos.ModelResponse>> listModels(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(aiModelService.listModels(authService.currentUser(authorization)));
+        return ApiResponse.success(aiModelService.listModels(user));
     }
 
     @PostMapping("/models")
     public ApiResponse<AiDtos.ModelResponse> createModel(
             @Valid @RequestBody AiDtos.ModelRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.createModel(
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -50,12 +51,12 @@ public class AiModelController {
     public ApiResponse<AiDtos.ModelResponse> updateModel(
             @PathVariable Long id,
             @Valid @RequestBody AiDtos.ModelRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.updateModel(
                 id,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -63,48 +64,48 @@ public class AiModelController {
     public ApiResponse<AiDtos.ModelResponse> setModelEnabled(
             @PathVariable Long id,
             @Valid @RequestBody AiDtos.ModelEnabledRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.setModelEnabled(
                 id,
                 request.enabled(),
-                authService.currentUser(authorization)
+                user
         ));
     }
 
     @PostMapping("/models/{id}/test")
     public ApiResponse<Void> testConnection(
             @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        aiModelService.testConnection(id, authService.currentUser(authorization));
+        aiModelService.testConnection(id, user);
         return ApiResponse.success(null);
     }
 
     @DeleteMapping("/models/{id}")
     public ApiResponse<Void> deleteModel(
             @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        aiModelService.deleteModel(id, authService.currentUser(authorization));
+        aiModelService.deleteModel(id, user);
         return ApiResponse.success(null);
     }
 
     @GetMapping("/prompts")
     public ApiResponse<List<AiDtos.PromptResponse>> listPrompts(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(aiModelService.listPrompts(authService.currentUser(authorization)));
+        return ApiResponse.success(aiModelService.listPrompts(user));
     }
 
     @PostMapping("/prompts")
     public ApiResponse<AiDtos.PromptResponse> createPrompt(
             @Valid @RequestBody AiDtos.PromptRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.createPrompt(
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -112,12 +113,12 @@ public class AiModelController {
     public ApiResponse<AiDtos.PromptResponse> updatePrompt(
             @PathVariable Long id,
             @Valid @RequestBody AiDtos.PromptRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.updatePrompt(
                 id,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -125,12 +126,12 @@ public class AiModelController {
     public ApiResponse<AiDtos.PromptResponse> setPromptEnabled(
             @PathVariable Long id,
             @Valid @RequestBody AiDtos.PromptEnabledRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.setPromptEnabled(
                 id,
                 request.enabled(),
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -138,23 +139,23 @@ public class AiModelController {
     public ApiResponse<AiDtos.PromptResponse> publishPrompt(
             @PathVariable Long id,
             @RequestBody(required = false) AiDtos.PromptPublishRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.publishPrompt(
                 id,
                 request == null ? null : request.version(),
-                authService.currentUser(authorization)
+                user
         ));
     }
 
     @PostMapping("/prompts/{id}/activate")
     public ApiResponse<AiDtos.PromptResponse> activatePrompt(
             @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiModelService.activatePrompt(
                 id,
-                authService.currentUser(authorization)
+                user
         ));
     }
 }

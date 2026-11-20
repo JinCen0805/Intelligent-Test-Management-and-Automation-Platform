@@ -11,7 +11,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -64,9 +66,17 @@ public class RbacPermissionCache {
             return;
         }
         try {
-            Set<String> keys = redisTemplate.keys(keyPrefix.apply("rbac:project:*:user:" + userId));
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
+            // 用 SCAN 代替 KEYS：生产 Redis 上 KEYS 会阻塞整个实例。
+            String pattern = keyPrefix.apply("rbac:project:*:user:" + userId);
+            java.util.Set<String> projectKeys = new java.util.HashSet<>();
+            try (Cursor<String> cursor = redisTemplate.scan(
+                    ScanOptions.scanOptions().match(pattern).count(200).build())) {
+                while (cursor.hasNext()) {
+                    projectKeys.add(cursor.next());
+                }
+            }
+            if (!projectKeys.isEmpty()) {
+                redisTemplate.delete(projectKeys);
             }
         } catch (Exception exception) {
             if (redisRequired) {

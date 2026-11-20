@@ -1,6 +1,11 @@
 package com.testpilot.platform.auth;
 
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
+import com.testpilot.platform.common.BusinessException;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,9 +31,13 @@ public class AuthController {
 
     @GetMapping("/me")
     public ApiResponse<AuthDtos.UserResponse> me(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(AuthDtos.UserResponse.from(authService.currentUser(authorization)));
+        if (user == null) {
+            // 测试 profile 关闭 HTTP 状态码时不会走过滤器 401，这里保持同样的错误码契约。
+            throw new BusinessException(40100, "登录已失效");
+        }
+        return ApiResponse.success(AuthDtos.UserResponse.from(user));
     }
 
     @PostMapping("/logout")

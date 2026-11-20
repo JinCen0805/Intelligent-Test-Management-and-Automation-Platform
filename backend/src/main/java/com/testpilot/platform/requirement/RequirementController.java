@@ -1,6 +1,9 @@
 package com.testpilot.platform.requirement;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
@@ -21,22 +24,20 @@ import org.springframework.web.multipart.MultipartFile;
 public class RequirementController {
 
     private final RequirementService requirementService;
-    private final AuthService authService;
 
-    public RequirementController(RequirementService requirementService, AuthService authService) {
+    public RequirementController(RequirementService requirementService) {
         this.requirementService = requirementService;
-        this.authService = authService;
     }
 
     @GetMapping({"/projects/{projectId}/requirements", "/projects/{projectId}/files"})
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'requirement:read')")
     public ApiResponse<List<RequirementDtos.Response>> list(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(requirementService.list(
                 projectId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -45,12 +46,12 @@ public class RequirementController {
     public ApiResponse<RequirementDtos.DetailResponse> get(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(requirementService.get(
                 projectId,
                 requirementId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -60,13 +61,13 @@ public class RequirementController {
             @PathVariable Long projectId,
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "version", required = false, defaultValue = "V1.0") String version,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(requirementService.upload(
                 projectId,
                 file,
                 version,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -76,13 +77,13 @@ public class RequirementController {
             @PathVariable Long projectId,
             @RequestPart("file") MultipartFile file,
             @RequestParam(value = "version", required = false, defaultValue = "V1.0") String version,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(requirementService.upload(
                 projectId,
                 file,
                 version,
-                authService.currentUser(authorization),
+                user,
                 true
         ));
     }
@@ -92,12 +93,12 @@ public class RequirementController {
     public ApiResponse<RequirementDtos.Response> parse(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(requirementService.parse(
                 projectId,
                 requirementId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -106,9 +107,9 @@ public class RequirementController {
     public ApiResponse<Void> delete(
             @PathVariable Long projectId,
             @PathVariable Long requirementId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        requirementService.delete(projectId, requirementId, authService.currentUser(authorization));
+        requirementService.delete(projectId, requirementId, user);
         return ApiResponse.success(null);
     }
 }

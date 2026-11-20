@@ -1,6 +1,9 @@
 package com.testpilot.platform.automation;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import java.time.LocalDate;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -16,11 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class ReportController {
 
     private final ReportService reportService;
-    private final AuthService authService;
 
-    public ReportController(ReportService reportService, AuthService authService) {
+    public ReportController(ReportService reportService) {
         this.reportService = reportService;
-        this.authService = authService;
     }
 
     @GetMapping
@@ -31,7 +32,7 @@ public class ReportController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(reportService.center(
                 projectId,
@@ -40,18 +41,18 @@ public class ReportController {
                 to,
                 page,
                 size,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
     @GetMapping("/executions/{executionId}")
     public ApiResponse<ReportDtos.ExecutionDetail> detail(
             @PathVariable Long executionId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(reportService.detail(
                 executionId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 }

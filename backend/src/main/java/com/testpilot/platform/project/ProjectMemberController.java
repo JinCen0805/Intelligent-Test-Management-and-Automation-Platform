@@ -1,6 +1,9 @@
 package com.testpilot.platform.project;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import com.testpilot.platform.user.UserDtos;
 import jakarta.validation.Valid;
@@ -21,22 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectMemberController {
 
     private final ProjectMemberService projectMemberService;
-    private final AuthService authService;
 
-    public ProjectMemberController(ProjectMemberService projectMemberService, AuthService authService) {
+    public ProjectMemberController(ProjectMemberService projectMemberService) {
         this.projectMemberService = projectMemberService;
-        this.authService = authService;
     }
 
     @GetMapping
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:read')")
     public ApiResponse<List<ProjectMemberDtos.Response>> list(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(projectMemberService.list(
                 projectId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -44,11 +45,11 @@ public class ProjectMemberController {
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'project:member:manage')")
     public ApiResponse<List<UserDtos.Response>> candidates(
             @PathVariable Long projectId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(projectMemberService.candidates(
                 projectId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -57,12 +58,12 @@ public class ProjectMemberController {
     public ApiResponse<ProjectMemberDtos.Response> add(
             @PathVariable Long projectId,
             @Valid @RequestBody ProjectMemberDtos.UpsertRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(projectMemberService.add(
                 projectId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -72,13 +73,13 @@ public class ProjectMemberController {
             @PathVariable Long projectId,
             @PathVariable Long userId,
             @Valid @RequestBody ProjectMemberDtos.UpsertRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(projectMemberService.update(
                 projectId,
                 userId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -87,12 +88,12 @@ public class ProjectMemberController {
     public ApiResponse<Void> remove(
             @PathVariable Long projectId,
             @PathVariable Long userId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         projectMemberService.remove(
                 projectId,
                 userId,
-                authService.currentUser(authorization)
+                user
         );
         return ApiResponse.success();
     }

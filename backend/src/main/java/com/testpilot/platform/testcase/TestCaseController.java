@@ -1,6 +1,9 @@
 package com.testpilot.platform.testcase;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import java.util.List;
 import jakarta.validation.Valid;
@@ -26,11 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class TestCaseController {
 
     private final TestCaseService testCaseService;
-    private final AuthService authService;
 
-    public TestCaseController(TestCaseService testCaseService, AuthService authService) {
+    public TestCaseController(TestCaseService testCaseService) {
         this.testCaseService = testCaseService;
-        this.authService = authService;
     }
 
     @GetMapping
@@ -45,7 +46,7 @@ public class TestCaseController {
             @RequestParam(value = "suiteType", required = false) String suiteType,
             @RequestParam(value = "page", required = false, defaultValue = "0") int page,
             @RequestParam(value = "size", required = false, defaultValue = "50") int size,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(testCaseService.list(
                 projectId,
@@ -57,7 +58,7 @@ public class TestCaseController {
                 suiteType,
                 page,
                 size,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -71,7 +72,7 @@ public class TestCaseController {
             @RequestParam(value = "caseType", required = false) String caseType,
             @RequestParam(value = "source", required = false) String source,
             @RequestParam(value = "suiteType", required = false) String suiteType,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         List<TestCaseDtos.Response> rows = testCaseService.export(
                 projectId,
@@ -81,7 +82,7 @@ public class TestCaseController {
                 caseType,
                 source,
                 suiteType,
-                authService.currentUser(authorization)
+                user
         );
         byte[] content = testCaseService.exportToExcel(rows);
         return ResponseEntity.ok()
@@ -97,12 +98,12 @@ public class TestCaseController {
     public ApiResponse<TestCaseDtos.Response> get(
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(testCaseService.get(
                 projectId,
                 testCaseId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -111,12 +112,12 @@ public class TestCaseController {
     public ApiResponse<TestCaseDtos.Response> create(
             @PathVariable Long projectId,
             @Valid @RequestBody TestCaseDtos.UpsertRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(testCaseService.create(
                 projectId,
                 request,
-                authService.currentUser(authorization),
+                user,
                 "MANUAL"
         ));
     }
@@ -127,13 +128,13 @@ public class TestCaseController {
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
             @Valid @RequestBody TestCaseDtos.UpsertRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(testCaseService.update(
                 projectId,
                 testCaseId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -143,13 +144,13 @@ public class TestCaseController {
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
             @Valid @RequestBody TestCaseDtos.StatusRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(testCaseService.changeStatus(
                 projectId,
                 testCaseId,
                 request.status(),
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -158,9 +159,9 @@ public class TestCaseController {
     public ApiResponse<Void> delete(
             @PathVariable Long projectId,
             @PathVariable Long testCaseId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        testCaseService.delete(projectId, testCaseId, authService.currentUser(authorization));
+        testCaseService.delete(projectId, testCaseId, user);
         return ApiResponse.success();
     }
 }

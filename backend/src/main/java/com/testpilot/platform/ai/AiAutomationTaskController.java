@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,28 +23,25 @@ public class AiAutomationTaskController {
 
     private final AiAutomationTaskService service;
     private final AiTaskService aiTaskService;
-    private final AuthService authService;
 
     public AiAutomationTaskController(
             AiAutomationTaskService service,
-            AiTaskService aiTaskService,
-            AuthService authService
+            AiTaskService aiTaskService
     ) {
         this.service = service;
         this.aiTaskService = aiTaskService;
-        this.authService = authService;
     }
 
     @PostMapping("/ai-generate")
     public ApiResponse<AiTaskDtos.SubmitResponse> generate(
             @PathVariable Long projectId,
             @Valid @RequestBody AiAutomationDtos.GenerateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(aiTaskService.submitAutomationTask(
                 projectId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -49,12 +49,12 @@ public class AiAutomationTaskController {
     public ApiResponse<AiAutomationDtos.DraftResponse> get(
             @PathVariable Long projectId,
             @PathVariable Long draftId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.get(
                 projectId,
                 draftId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -63,13 +63,13 @@ public class AiAutomationTaskController {
             @PathVariable Long projectId,
             @PathVariable Long draftId,
             @Valid @RequestBody AiAutomationDtos.DraftUpdateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.update(
                 projectId,
                 draftId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -77,12 +77,12 @@ public class AiAutomationTaskController {
     public ApiResponse<AiAutomationDtos.ConfirmResponse> confirm(
             @PathVariable Long projectId,
             @PathVariable Long draftId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(service.confirm(
                 projectId,
                 draftId,
-                authService.currentUser(authorization)
+                user
         ));
     }
 }

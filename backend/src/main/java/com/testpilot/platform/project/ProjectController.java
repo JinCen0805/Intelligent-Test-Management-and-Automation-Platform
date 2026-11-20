@@ -1,6 +1,9 @@
 package com.testpilot.platform.project;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -20,37 +23,35 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProjectController {
 
     private final ProjectService projectService;
-    private final AuthService authService;
 
-    public ProjectController(ProjectService projectService, AuthService authService) {
+    public ProjectController(ProjectService projectService) {
         this.projectService = projectService;
-        this.authService = authService;
     }
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<List<ProjectDtos.Response>> list(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(projectService.list(authService.currentUser(authorization)));
+        return ApiResponse.success(projectService.list(user));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #id, 'project:read')")
     public ApiResponse<ProjectDtos.Response> get(
             @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(projectService.get(id, authService.currentUser(authorization)));
+        return ApiResponse.success(projectService.get(id, user));
     }
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public ApiResponse<ProjectDtos.Response> create(
             @Valid @RequestBody ProjectDtos.CreateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(projectService.create(request, authService.currentUser(authorization)));
+        return ApiResponse.success(projectService.create(request, user));
     }
 
     @PutMapping("/{id}")
@@ -58,12 +59,12 @@ public class ProjectController {
     public ApiResponse<ProjectDtos.Response> update(
             @PathVariable Long id,
             @Valid @RequestBody ProjectDtos.UpdateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(projectService.update(
                 id,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -71,9 +72,9 @@ public class ProjectController {
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #id, 'project:update')")
     public ApiResponse<Void> delete(
             @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        projectService.delete(id, authService.currentUser(authorization));
+        projectService.delete(id, user);
         return ApiResponse.success();
     }
 }

@@ -1,6 +1,9 @@
 package com.testpilot.platform.ai;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
+import com.testpilot.platform.user.User;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -24,21 +27,19 @@ public class AiCaseAssistantController {
 
     private final AiCaseAssistantService service;
     private final AiCaseChatSessionService sessionService;
-    private final AuthService authService;
 
-    public AiCaseAssistantController(AiCaseAssistantService service, AiCaseChatSessionService sessionService, AuthService authService) {
+    public AiCaseAssistantController(AiCaseAssistantService service, AiCaseChatSessionService sessionService) {
         this.service = service;
         this.sessionService = sessionService;
-        this.authService = authService;
     }
 
     @PostMapping("/chat")
     public ApiResponse<AiDtos.CaseChatResponse> chat(
             @PathVariable Long projectId,
             @Valid @RequestBody AiDtos.CaseChatRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(service.chat(projectId, request, authService.currentUser(authorization)));
+        return ApiResponse.success(service.chat(projectId, request, user));
     }
 
     @PostMapping(value = "/chat/file", consumes = "multipart/form-data")
@@ -50,21 +51,21 @@ public class AiCaseAssistantController {
             @RequestParam(value = "sessionId", required = false) Long sessionId,
             @RequestParam(value = "modelId", required = false) Long modelId,
             @RequestParam(value = "selectedCaseId", required = false) Long selectedCaseId,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         AiDtos.CaseChatRequest request = new AiDtos.CaseChatRequest(
                 sessionId, modelId, null, selectedCaseId, suiteType, message
         );
-        return ApiResponse.success(service.chatWithFile(projectId, request, file, authService.currentUser(authorization)));
+        return ApiResponse.success(service.chatWithFile(projectId, request, file, user));
     }
 
     @GetMapping("/chat/history")
     public ApiResponse<List<AiDtos.CaseChatSessionResponse>> history(
             @PathVariable Long projectId,
             @RequestParam(value = "suiteType", required = false) String suiteType,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(sessionService.list(projectId, suiteType, authService.currentUser(authorization)));
+        return ApiResponse.success(sessionService.list(projectId, suiteType, user));
     }
 
     @DeleteMapping("/chat/history/{sessionId}")
@@ -72,9 +73,9 @@ public class AiCaseAssistantController {
             @PathVariable Long projectId,
             @PathVariable Long sessionId,
             @RequestParam(value = "suiteType", required = false) String suiteType,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        sessionService.delete(projectId, suiteType, sessionId, authService.currentUser(authorization));
+        sessionService.delete(projectId, suiteType, sessionId, user);
         return ApiResponse.success();
     }
 
@@ -82,9 +83,9 @@ public class AiCaseAssistantController {
     public ApiResponse<Void> deleteAllHistory(
             @PathVariable Long projectId,
             @RequestParam(value = "suiteType", required = false) String suiteType,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        sessionService.deleteAll(projectId, suiteType, authService.currentUser(authorization));
+        sessionService.deleteAll(projectId, suiteType, user);
         return ApiResponse.success();
     }
 }

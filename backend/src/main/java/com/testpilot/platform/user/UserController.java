@@ -1,6 +1,7 @@
 package com.testpilot.platform.user;
 
-import com.testpilot.platform.auth.AuthService;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import com.testpilot.platform.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -21,28 +22,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserService userService;
-    private final AuthService authService;
 
-    public UserController(UserService userService, AuthService authService) {
+    public UserController(UserService userService) {
         this.userService = userService;
-        this.authService = authService;
     }
 
     @GetMapping
     public ApiResponse<List<UserDtos.Response>> list(
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(userService.list(authService.currentUser(authorization)));
+        return ApiResponse.success(userService.list(user));
     }
 
     @PostMapping
     public ApiResponse<UserDtos.Response> create(
             @Valid @RequestBody UserDtos.CreateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(userService.create(
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -50,12 +49,12 @@ public class UserController {
     public ApiResponse<UserDtos.Response> update(
             @PathVariable Long userId,
             @Valid @RequestBody UserDtos.UpdateRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(userService.update(
                 userId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -63,12 +62,12 @@ public class UserController {
     public ApiResponse<UserDtos.Response> changeStatus(
             @PathVariable Long userId,
             @Valid @RequestBody UserDtos.StatusRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(userService.changeStatus(
                 userId,
                 request,
-                authService.currentUser(authorization)
+                user
         ));
     }
 
@@ -76,12 +75,12 @@ public class UserController {
     public ApiResponse<Void> resetPassword(
             @PathVariable Long userId,
             @Valid @RequestBody UserDtos.PasswordRequest request,
-            @RequestHeader(value = "Authorization", required = false) String authorization
+            @AuthenticationPrincipal User user
     ) {
         userService.resetPassword(
                 userId,
                 request,
-                authService.currentUser(authorization)
+                user
         );
         return ApiResponse.success();
     }
