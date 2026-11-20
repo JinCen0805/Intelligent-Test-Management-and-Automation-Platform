@@ -47,6 +47,7 @@ public class AiGenerationService {
     private final AiCallAuditService aiCallAuditService;
     private final RequirementParser requirementParser;
     private final TransactionTemplate transactionTemplate;
+    private final int maxContextChars;
 
     public AiGenerationService(
             AiModelService aiModelService,
@@ -57,7 +58,9 @@ public class AiGenerationService {
             AiProviderClient aiProviderClient,
             AiCallAuditService aiCallAuditService,
             RequirementParser requirementParser,
-            TransactionTemplate transactionTemplate
+            TransactionTemplate transactionTemplate,
+            @org.springframework.beans.factory.annotation.Value("${testpilot.ai.max-context-chars:20000}")
+            int maxContextChars
     ) {
         this.aiModelService = aiModelService;
         this.requirementRepository = requirementRepository;
@@ -68,6 +71,7 @@ public class AiGenerationService {
         this.aiCallAuditService = aiCallAuditService;
         this.requirementParser = requirementParser;
         this.transactionTemplate = transactionTemplate;
+        this.maxContextChars = maxContextChars > 0 ? maxContextChars : AiTextLimits.DEFAULT_MAX_CONTEXT_CHARS;
     }
 
     /**
@@ -82,7 +86,7 @@ public class AiGenerationService {
         projectAccessService.requirePermission(projectId, currentUser, RbacPermissions.AI_GENERATE);
         Requirement requirement = requirementRepository.findByIdAndProjectId(requirementId, projectId)
                 .orElseThrow(() -> new BusinessException(40402, "项目文件不存在"));
-        String requirementText = readFileContent(requirement);
+        String requirementText = AiTextLimits.truncate(readFileContent(requirement), maxContextChars);
 
         AiModel model = aiModelService.findModel(request == null ? null : request.modelId());
         PromptTemplate prompt = findGenerationPrompt(request == null ? null : request.promptId());
@@ -215,17 +219,17 @@ public class AiGenerationService {
                 String priority = normalizePriority(text(item, "priority", "优先级"));
                 String caseType = normalizeType(text(item, "caseType", "type", "类型", "测试类型"));
                 result.add(new GeneratedCase(
-                        caseNo,
-                        title,
-                        module,
-                        precondition,
-                        steps,
-                        testData,
-                        expectedResult,
+                        AiTextLimits.truncateOrEmpty(caseNo, AiTextLimits.MAX_CASE_NO_CHARS),
+                        AiTextLimits.truncateOrEmpty(title, AiTextLimits.MAX_TITLE_CHARS),
+                        AiTextLimits.truncateOrEmpty(module, AiTextLimits.MAX_MODULE_CHARS),
+                        AiTextLimits.truncate(precondition, AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                        AiTextLimits.truncate(steps, AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                        AiTextLimits.truncate(testData, AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                        AiTextLimits.truncate(expectedResult, AiTextLimits.MAX_TEXT_FIELD_CHARS),
                         priority,
                         caseType,
-                        text(item, "tags", "标签"),
-                        extractExtraFieldsJson(item)
+                        AiTextLimits.truncateOrEmpty(text(item, "tags", "标签"), AiTextLimits.MAX_TAGS_CHARS),
+                        AiTextLimits.truncate(extractExtraFieldsJson(item), AiTextLimits.MAX_EXTRA_FIELDS_JSON_CHARS)
                 ));
                 if (result.size() >= 50) {
                     break;

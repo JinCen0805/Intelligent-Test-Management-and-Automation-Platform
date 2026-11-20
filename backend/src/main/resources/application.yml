@@ -71,6 +71,7 @@ testpilot:
   ai:
     connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:10000}
     read-timeout-ms: ${AI_READ_TIMEOUT_MS:120000}
+    max-context-chars: ${AI_MAX_CONTEXT_CHARS:20000}
     task-max-retries: ${AI_TASK_MAX_RETRIES:1}
     task-timeout-minutes: ${AI_TASK_TIMEOUT_MINUTES:15}
     task-timeout-scan-ms: ${AI_TASK_TIMEOUT_SCAN_MS:60000}

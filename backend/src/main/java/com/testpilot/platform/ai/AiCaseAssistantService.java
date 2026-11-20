@@ -45,6 +45,7 @@ public class AiCaseAssistantService {
     private final AiCaseChatSessionService chatSessionService;
     private final RequirementParser requirementParser;
     private final TransactionTemplate transactionTemplate;
+    private final int maxContextChars;
 
     public AiCaseAssistantService(
             AiModelService aiModelService,
@@ -56,7 +57,9 @@ public class AiCaseAssistantService {
             AiCallAuditService aiCallAuditService,
             AiCaseChatSessionService chatSessionService,
             RequirementParser requirementParser,
-            TransactionTemplate transactionTemplate
+            TransactionTemplate transactionTemplate,
+            @org.springframework.beans.factory.annotation.Value("${testpilot.ai.max-context-chars:20000}")
+            int maxContextChars
     ) {
         this.aiModelService = aiModelService;
         this.projectAccessService = projectAccessService;
@@ -68,6 +71,7 @@ public class AiCaseAssistantService {
         this.chatSessionService = chatSessionService;
         this.requirementParser = requirementParser;
         this.transactionTemplate = transactionTemplate;
+        this.maxContextChars = maxContextChars > 0 ? maxContextChars : AiTextLimits.DEFAULT_MAX_CONTEXT_CHARS;
     }
 
     public AiDtos.CaseChatResponse chat(Long projectId, AiDtos.CaseChatRequest request, User currentUser) {
@@ -81,14 +85,29 @@ public class AiCaseAssistantService {
         if (file.getSize() > 10 * 1024 * 1024) {
             throw new BusinessException(40002, "文件大小不能超过 10MB");
         }
-        String originalName = file.getOriginalFilename() == null ? "对话附件" : Path.of(file.getOriginalFilename()).getFileName().toString();
+        String message = request == null ? null : request.message();
+        if (message != null && message.length() > 2000) {
+            throw new BusinessException(40008, "对话内容长度不能超过 2000 个字符");
+        }
+        String originalName;
+        try {
+            String rawName = file.getOriginalFilename();
+            originalName = rawName == null || rawName.isBlank()
+                    ? "对话附件"
+                    : Path.of(rawName).getFileName().toString();
+        } catch (RuntimeException exception) {
+            originalName = "对话附件";
+        }
         String extension = extensionOf(originalName);
         try (var inputStream = file.getInputStream()) {
             String content = requirementParser.parse(extension, inputStream);
             if (content == null || content.isBlank()) {
                 throw new BusinessException(40004, "无法读取该文件内容，请更换文件后重试");
             }
-            return chatInternal(projectId, request, currentUser, content, originalName);
+            return chatInternal(projectId, request, currentUser,
+                    AiTextLimits.truncate(content, maxContextChars), originalName);
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (IOException | RuntimeException exception) {
             throw new BusinessException(40004, "无法读取该文件内容，请确认文件格式正确");
         }
@@ -227,14 +246,16 @@ public class AiCaseAssistantService {
 
     private String readRequirementContent(Requirement requirement) {
         if (requirement.getContentText() != null && !requirement.getContentText().isBlank()) {
-            return requirement.getContentText().trim();
+            return AiTextLimits.truncate(requirement.getContentText().trim(), maxContextChars);
         }
         if (requirement.getFilePath() == null || requirement.getFilePath().isBlank()) {
             return "（项目文件暂无可读取正文）";
         }
         try (var inputStream = Files.newInputStream(Path.of(requirement.getFilePath()))) {
             String content = requirementParser.parse(requirement.getFileType(), inputStream);
-            return content == null || content.isBlank() ? "（项目文件暂无可读取正文）" : content.trim();
+            return content == null || content.isBlank()
+                    ? "（项目文件暂无可读取正文）"
+                    : AiTextLimits.truncate(content.trim(), maxContextChars);
         } catch (IOException | RuntimeException exception) {
             return "（项目文件暂不支持读取正文）";
         }
@@ -375,7 +396,7 @@ public class AiCaseAssistantService {
         List<AiDtos.TestCaseView> savedCases = new ArrayList<>();
         Set<String> assignedCaseNos = new HashSet<>();
         for (int index = 0; index < generatedCases.size(); index++) {
-            GeneratedCase generated = generatedCases.get(index);
+            GeneratedCase generated = limitCase(generatedCases.get(index));
             if (index == 0 && selectedCaseId != null) {
                 TestCase selected = testCaseRepository.findByIdAndProjectId(selectedCaseId, projectId)
                         .orElseThrow(() -> new BusinessException(40403, "测试用例不存在"));
@@ -429,6 +450,22 @@ public class AiCaseAssistantService {
             savedCases.add(new AiDtos.TestCaseView(saved.getId(), saved.getCaseNo(), saved.getTitle(), saved.getStatus()));
         }
         return savedCases;
+    }
+
+    private GeneratedCase limitCase(GeneratedCase generated) {
+        return new GeneratedCase(
+                AiTextLimits.truncateOrEmpty(generated.caseNo(), AiTextLimits.MAX_CASE_NO_CHARS),
+                AiTextLimits.truncateOrEmpty(generated.title(), AiTextLimits.MAX_TITLE_CHARS),
+                AiTextLimits.truncateOrEmpty(generated.moduleName(), AiTextLimits.MAX_MODULE_CHARS),
+                AiTextLimits.truncate(generated.precondition(), AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                AiTextLimits.truncate(generated.steps(), AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                AiTextLimits.truncate(generated.testData(), AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                AiTextLimits.truncate(generated.expectedResult(), AiTextLimits.MAX_TEXT_FIELD_CHARS),
+                generated.priority(),
+                generated.caseType(),
+                AiTextLimits.truncateOrEmpty(generated.tags(), AiTextLimits.MAX_TAGS_CHARS),
+                AiTextLimits.truncate(generated.extraFieldsJson(), AiTextLimits.MAX_EXTRA_FIELDS_JSON_CHARS)
+        );
     }
 
     private boolean hasGenerationIntent(String message) {

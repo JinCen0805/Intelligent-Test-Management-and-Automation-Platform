@@ -18,20 +18,26 @@ public class SensitiveDataSanitizer {
         }
         String value = input;
 
-        // 认证头（Authorization / Proxy-Authorization，含 scheme 与凭据）
+        // 认证头（同时覆盖 Header 与 JSON 形式："Authorization": "Bearer xxx"）
         value = value.replaceAll(
-                "(?i)(\\b(?:authorization|proxy-authorization)\\b\\s*[:=])\\s*\\S+(?:\\s+\\S+)?",
+                "(?i)([\"']?(?:authorization|proxy-authorization)[\"']?\\s*[:=]\\s*)"
+                        + "(\"[^\"]*\"|'[^']*'|\\S+(?:\\s+\\S+)?)",
                 "$1***"
         );
         // 独立出现的 Bearer token
         value = value.replaceAll("(?i)\\bbearer\\s+[A-Za-z0-9._~+/=-]+", "Bearer ***");
-        // Cookie / Set-Cookie
-        value = value.replaceAll("(?i)\\b(set-?cookie|cookie)\\b\\s*[:=]\\s*[^\\r\\n;]+", "$1=***");
-        // 敏感键值对（密码、token、secret 等）
+        // Cookie / Set-Cookie（含 JSON 引号形式）
         value = value.replaceAll(
-                "(?i)\\b(api[_-]?key|apikey|passwd|passphrase|password|secret|client[_-]?secret"
-                        + "|access[_-]?token|refresh[_-]?token|token|private[_-]?key)\\b\\s*[:=]\\s*\\S+",
-                "$1=***"
+                "(?i)([\"']?(?:set-?cookie|cookie)[\"']?\\s*[:=]\\s*)"
+                        + "(\"[^\"]*\"|'[^']*'|[^\\r\\n;]+)",
+                "$1***"
+        );
+        // 敏感键值对（密码、token、secret 等，兼容 Form / JSON / 命令行三种写法）
+        value = value.replaceAll(
+                "(?i)([\"']?(?:api[_-]?key|apikey|passwd|passphrase|password|secret|client[_-]?secret"
+                        + "|access[_-]?token|refresh[_-]?token|token|private[_-]?key)[\"']?\\s*[:=]\\s*)"
+                        + "(\"[^\"]*\"|'[^']*'|\\S+)",
+                "$1***"
         );
         // URL 内嵌凭证 user:pass@
         value = value.replaceAll("(?i)(https?://)[^/@\\s]+:[^/@\\s]+@", "$1***:***@");

@@ -35,6 +35,16 @@ class SensitiveDataSanitizerTest {
     }
 
     @Test
+    void redactsJsonQuotedKeysAndValues() {
+        String out = sanitizer.sanitize(
+                "{\"password\":\"p@ssw0rd\",\"token\": \"abc123\",\"Authorization\": \"Bearer secret-token\"}");
+        assertFalse(out.contains("p@ssw0rd"));
+        assertFalse(out.contains("abc123"));
+        assertFalse(out.contains("secret-token"));
+        assertTrue(out.contains("***"));
+    }
+
+    @Test
     void preservesBenignContent() {
         String input = "hello world, test path tests/regression";
         assertEquals(input, sanitizer.sanitize(input));
