@@ -5,9 +5,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.testpilot.platform.user.User;
 
 import com.testpilot.platform.common.ApiResponse;
+import com.testpilot.platform.common.PageResponse;
 import java.util.List;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -36,7 +36,7 @@ public class TestCaseController {
 
     @GetMapping
     @PreAuthorize("@rbacAuthorizationService.hasProjectPermission(authentication, #projectId, 'testcase:read')")
-    public ApiResponse<Page<TestCaseDtos.Response>> list(
+    public ApiResponse<PageResponse<TestCaseDtos.Response>> list(
             @PathVariable Long projectId,
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "keyword", required = false) String keyword,
@@ -48,7 +48,7 @@ public class TestCaseController {
             @RequestParam(value = "size", required = false, defaultValue = "50") int size,
             @AuthenticationPrincipal User user
     ) {
-        return ApiResponse.success(testCaseService.list(
+        return ApiResponse.success(PageResponse.from(testCaseService.list(
                 projectId,
                 status,
                 keyword,
@@ -59,7 +59,7 @@ public class TestCaseController {
                 page,
                 size,
                 user
-        ));
+        )));
     }
 
     @GetMapping("/export")

@@ -117,7 +117,7 @@ export const useTestcaseStore = defineStore('testcase', () => {
     })
     if (sequence !== loadSequence) return
     casePagination.value = {
-      page: result.number,
+      page: result.page,
       size: result.size,
       totalPages: result.totalPages,
       totalElements: result.totalElements

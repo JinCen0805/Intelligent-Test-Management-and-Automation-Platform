@@ -27,7 +27,7 @@ export interface ApiTestCasePage {
   content: ApiTestCase[]
   totalElements: number
   totalPages: number
-  number: number
+  page: number
   size: number
 }
 
