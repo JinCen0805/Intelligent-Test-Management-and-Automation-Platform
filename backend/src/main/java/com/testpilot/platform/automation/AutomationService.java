@@ -34,9 +34,6 @@ public class AutomationService {
     private final OperationAuditService operationAuditService;
     private final TransactionTemplate transactionTemplate;
     private final ExecutionReportWriter reportWriter;
-    private final int pollBatchSize;
-    private final long defaultPollIntervalMs;
-    private final int syncFailureThreshold;
     private final int maxWaitMinutes;
 
     public AutomationService(
@@ -69,9 +66,9 @@ public class AutomationService {
         this.operationAuditService = operationAuditService;
         this.transactionTemplate = transactionTemplate;
         this.reportWriter = reportWriter;
-        this.pollBatchSize = Math.max(1, pollBatchSize);
-        this.defaultPollIntervalMs = Math.max(0L, defaultPollIntervalMs);
-        this.syncFailureThreshold = Math.max(1, syncFailureThreshold);
+
+
+
         this.maxWaitMinutes = maxWaitMinutes;
     }
 
@@ -500,34 +497,8 @@ public class AutomationService {
         return jenkinsClient.fetchConsoleLog(target, execution.getConsoleLogRef());
     }
 
-    @Scheduled(fixedDelayString = "${testpilot.jenkins.scheduler-delay-ms:1000}")
-    public void pollExecutions() {
-        List<TestExecution> activeExecutions = testExecutionRepository
-                .findTopNByStatusInOrderByUpdatedAtAsc(List.of("QUEUED", "RUNNING"), pollBatchSize);
-        for (TestExecution execution : activeExecutions) {
-            try {
-                TestTask task = testTaskRepository.findByIdAndProjectId(
-                        execution.getTestTaskId(), execution.getProjectId()
-                ).orElse(null);
-                AutomationProject automationProject = task == null ? null : automationProjectRepository
-                        .findByIdAndProjectId(execution.getAutomationProjectId(), execution.getProjectId())
-                        .orElse(null);
-                if (task == null || automationProject == null) {
-                    markPollingFailure(execution, "关联的测试任务或自动化项目不存在");
-                } else if (!isPollingDue(execution, task)) {
-                    continue;
-                } else {
-                    syncExecution(execution, task, automationProject);
-                }
-            } catch (RuntimeException exception) {
-                markPollingFailure(execution, exception.getMessage() == null
-                        ? "Jenkins 状态同步失败"
-                        : exception.getMessage());
-            }
-        }
-    }
 
-    private AutomationDtos.TestExecutionResponse syncExecution(
+    AutomationDtos.TestExecutionResponse syncExecution(
             TestExecution execution,
             TestTask task,
             AutomationProject automationProject
@@ -634,23 +605,6 @@ public class AutomationService {
         return reportWriter.toExecutionResponse(execution);
     }
 
-    private boolean isPollingDue(TestExecution execution, TestTask task) {
-        if (execution.getUpdatedAt() == null) {
-            return true;
-        }
-        JenkinsPipelineBinding binding = resolveBinding(task, execution.getProjectId());
-        long interval = defaultPollIntervalMs;
-        if (binding != null) {
-            try {
-                JenkinsInstance instance = jenkinsAdminService.requireEnabledInstance(binding.getJenkinsInstanceId());
-                interval = instance.getPollIntervalMs();
-            } catch (BusinessException exception) {
-                // 实例不可用：沿用默认间隔，避免退化成每秒轮询。
-            }
-        }
-        return Duration.between(execution.getUpdatedAt(), LocalDateTime.now()).toMillis()
-                >= interval * (1L << Math.min(execution.getSyncFailureCount(), 4));
-    }
 
     private int maxWaitMinutes(JenkinsPipelineBinding binding) {
         if (binding == null) {
@@ -664,45 +618,6 @@ public class AutomationService {
         }
     }
 
-    private void markPollingFailure(TestExecution execution, String message) {
-        message = message == null ? "Jenkins 状态同步失败" : message;
-        if (message.length() > 1000) {
-            message = message.substring(0, 1000);
-        }
-        execution.recordSyncFailure(message);
-        String failureMessage = message;
-        transactionTemplate.executeWithoutResult(status -> {
-            if (execution.getSyncFailureCount() >= syncFailureThreshold) {
-                execution.applyJenkinsSync(
-                        execution.getBuildNumber(),
-                        execution.getQueueUrl(),
-                        "FAILED",
-                        execution.getCommitSha(),
-                        execution.getConsoleLogRef(),
-                        execution.getStartedAt(),
-                        LocalDateTime.now()
-                );
-                reportWriter.saveReport(execution, new AutomationDtos.ExecutionResultRequest(
-                        "FAILED",
-                        execution.getCommitSha(),
-                        execution.getConsoleLogRef(),
-                        null,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        null,
-                        failureMessage,
-                        null,
-                        null,
-                        "基础分析：连续多次 Jenkins 状态同步失败，执行已终止。"
-                ), true);
-            } else {
-                reportWriter.persistActiveProgress(execution);
-            }
-        });
-    }
 
     @Transactional
     public AutomationDtos.TestExecutionResponse updateResultFromCallback(
@@ -735,7 +650,7 @@ public class AutomationService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private JenkinsPipelineBinding resolveBinding(TestTask task, Long projectId) {
+    JenkinsPipelineBinding resolveBinding(TestTask task, Long projectId) {
         if (task.getPipelineBindingId() != null) {
             return bindingRepository.findByIdAndProjectId(task.getPipelineBindingId(), projectId).orElse(null);
         }
