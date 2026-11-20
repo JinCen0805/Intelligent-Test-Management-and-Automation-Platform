@@ -128,6 +128,8 @@ export interface ApiTestTask {
   automationProjectId: number
   pipelineBindingId?: number
   jenkinsJob: string
+  environment: string
+  branch: string
   parametersJson?: string
   status: string
 }
@@ -278,6 +280,8 @@ export const automation = {
     taskType: string
     automationProjectId: number
     pipelineBindingId?: number
+    environment: string
+    branch: string
     parametersJson?: string
   }) => request<ApiTestTask>(`/projects/${projectId}/test-tasks`, {
     method: 'POST',
@@ -288,6 +292,8 @@ export const automation = {
     taskType: string
     automationProjectId: number
     pipelineBindingId?: number
+    environment: string
+    branch: string
     parametersJson?: string
   }) => request<ApiTestTask>(`/projects/${projectId}/test-tasks/${taskId}`, {
     method: 'PUT',

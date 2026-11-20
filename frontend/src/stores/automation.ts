@@ -56,6 +56,8 @@ export const useAutomationStore = defineStore('automation', () => {
     taskType: 'REGRESSION',
     automationProjectId: null as number | null,
     pipelineBindingId: null as number | null,
+    environment: 'TEST',
+    branch: 'main',
     parametersJson: ''
   })
   const editingTaskId = ref<number | null>(null)
@@ -270,6 +272,8 @@ export const useAutomationStore = defineStore('automation', () => {
       taskType: 'REGRESSION',
       automationProjectId: null,
       pipelineBindingId: null,
+      environment: 'TEST',
+      branch: 'main',
       parametersJson: ''
     })
     taskBindings.value.splice(0, taskBindings.value.length)
@@ -288,6 +292,8 @@ export const useAutomationStore = defineStore('automation', () => {
       taskType: task.taskType,
       automationProjectId: task.automationProjectId,
       pipelineBindingId: task.pipelineBindingId ?? null,
+      environment: task.environment || 'TEST',
+      branch: task.branch || 'main',
       parametersJson: task.parametersJson || ''
     })
     onTaskAutomationProjectChange()
