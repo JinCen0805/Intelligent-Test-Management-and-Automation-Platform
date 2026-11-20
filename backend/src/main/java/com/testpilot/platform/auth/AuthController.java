@@ -6,6 +6,7 @@ import com.testpilot.platform.user.User;
 
 import com.testpilot.platform.common.ApiResponse;
 import com.testpilot.platform.common.BusinessException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,8 +26,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<AuthDtos.LoginResponse> login(@Valid @RequestBody AuthDtos.LoginRequest request) {
-        return ApiResponse.success(authService.login(request));
+    public ApiResponse<AuthDtos.LoginResponse> login(
+            @Valid @RequestBody AuthDtos.LoginRequest request,
+            HttpServletRequest servletRequest
+    ) {
+        return ApiResponse.success(authService.login(request, servletRequest.getRemoteAddr()));
     }
 
     @GetMapping("/me")

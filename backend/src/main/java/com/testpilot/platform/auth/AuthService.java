@@ -18,6 +18,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final OperationAuditService operationAuditService;
     private final AuthSessionStore sessionStore;
+    private final LoginAttemptTracker loginAttemptTracker;
     private final long sessionTtlMinutes;
 
     public AuthService(
@@ -25,22 +26,36 @@ public class AuthService {
             PasswordEncoder passwordEncoder,
             OperationAuditService operationAuditService,
             AuthSessionStore sessionStore,
+            LoginAttemptTracker loginAttemptTracker,
             @Value("${testpilot.security.session-ttl-minutes:480}") long sessionTtlMinutes
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.operationAuditService = operationAuditService;
         this.sessionStore = sessionStore;
+        this.loginAttemptTracker = loginAttemptTracker;
         this.sessionTtlMinutes = sessionTtlMinutes;
     }
 
     public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request) {
-        User user = userRepository.findByUsernameAndStatus(request.username(), "ENABLED").orElse(null);
-        if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        return login(request, null);
+    }
+
+    public AuthDtos.LoginResponse login(AuthDtos.LoginRequest request, String clientIp) {
+        String username = request.username() == null ? "" : request.username().trim();
+        if (loginAttemptTracker.isLocked(username, clientIp)) {
             operationAuditService.record(null, null, "LOGIN", "USER", null,
-                    "登录失败：用户名 " + request.username(), false);
+                    "登录被限流：用户名 " + username, false);
+            throw new BusinessException(42901, "登录尝试过于频繁，请稍后再试");
+        }
+        User user = userRepository.findByUsernameAndStatus(username, "ENABLED").orElse(null);
+        if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            loginAttemptTracker.recordFailure(username, clientIp);
+            operationAuditService.record(null, null, "LOGIN", "USER", null,
+                    "登录失败：用户名 " + username, false);
             throw new BusinessException(40101, "用户名或密码错误");
         }
+        loginAttemptTracker.clear(username, clientIp);
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
         String token = UUID.randomUUID().toString();

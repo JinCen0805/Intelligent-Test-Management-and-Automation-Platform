@@ -57,6 +57,9 @@ testpilot:
     admin-initial-username: ${ADMIN_INITIAL_USERNAME:}
     admin-initial-password: ${ADMIN_INITIAL_PASSWORD:}
     session-ttl-minutes: ${TESTPILOT_SECURITY_SESSION_TTL_MINUTES:480}
+    login-max-attempts: ${TESTPILOT_LOGIN_MAX_ATTEMPTS:5}
+    login-fail-window-minutes: ${TESTPILOT_LOGIN_FAIL_WINDOW_MINUTES:5}
+    login-lock-minutes: ${TESTPILOT_LOGIN_LOCK_MINUTES:15}
     permission-cache-ttl-seconds: ${TESTPILOT_PERMISSION_CACHE_TTL_SECONDS:300}
     http-status-enforcement: ${TESTPILOT_SECURITY_HTTP_STATUS_ENFORCEMENT:true}
     # 出站地址安全白名单（逗号分隔），生产保持为空以严格拦截 SSRF。
@@ -82,6 +85,8 @@ testpilot:
     api-token: ${JENKINS_API_TOKEN:}
     callback-token: ${JENKINS_CALLBACK_TOKEN:}
     callback-strict-signature: ${JENKINS_CALLBACK_STRICT_SIGNATURE:true}
+    # Jenkins 流水线升级到签名覆盖请求体后，把该开关切为 true 即强制新格式。
+    callback-require-body-hash: ${JENKINS_CALLBACK_REQUIRE_BODY_HASH:false}
     connect-timeout-ms: ${JENKINS_CONNECT_TIMEOUT_MS:5000}
     read-timeout-ms: ${JENKINS_READ_TIMEOUT_MS:15000}
     poll-interval-ms: ${JENKINS_POLL_INTERVAL_MS:10000}
