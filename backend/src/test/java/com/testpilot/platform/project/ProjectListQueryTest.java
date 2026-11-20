@@ -51,7 +51,7 @@ class ProjectListQueryTest {
         Project first = project(1L, 10L, "项目A");
         Project second = project(2L, 20L, "项目B");
         when(projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc()).thenReturn(List.of(first, second));
-        when(projectAccessService.canRead(any(Project.class), any(User.class))).thenReturn(true);
+        when(projectAccessService.filterReadable(any(), any(User.class))).thenReturn(List.of(first, second));
         when(userRepository.findAllById(any())).thenReturn(List.of(user(10L, "林晓"), user(20L, "陈宇")));
         when(projectMemberRepository.findAllByProjectIdIn(any()))
                 .thenReturn(List.of(new ProjectMember(1L, 10L, "PROJECT_OWNER")));

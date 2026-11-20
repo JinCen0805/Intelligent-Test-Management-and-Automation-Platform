@@ -19,6 +19,8 @@ import com.testpilot.platform.rbac.mapper.RbacUserRoleAssignmentMapper;
 import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserRepository;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -216,6 +218,95 @@ public class RbacService {
     @Transactional(readOnly = true)
     public boolean hasProjectPermission(Long userId, Long authVersion, Long projectId, String permissionCode) {
         return projectPermissions(userId, authVersion, projectId).contains(permissionCode);
+    }
+
+    /**
+     * 批量计算多个项目的权限码：列表/报告中心一次取齐，避免逐项目查询或缓存穿透。
+     * 已命中缓存的直接返回，未命中的项目用一次批量查询解析并写回缓存。
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Set<String>> projectPermissionCodes(
+            Long userId, Long authVersion, Collection<Long> projectIds
+    ) {
+        if (projectIds == null || projectIds.isEmpty()) {
+            return Map.of();
+        }
+        Long version = authVersion == null ? 1L : authVersion;
+        Map<Long, Set<String>> result = new HashMap<>();
+        List<Long> missing = new ArrayList<>();
+        for (Long projectId : new LinkedHashSet<>(projectIds)) {
+            Optional<Set<String>> cached = permissionCache.getProject(userId, projectId, version);
+            if (cached.isPresent()) {
+                result.put(projectId, cached.get());
+            } else {
+                missing.add(projectId);
+            }
+        }
+        if (!missing.isEmpty()) {
+            Map<Long, Set<String>> resolved = resolveProjectPermissionsBatch(userId, missing);
+            for (Long projectId : missing) {
+                Set<String> codes = resolved.getOrDefault(projectId, Set.of());
+                result.put(projectId, codes);
+                permissionCache.putProject(userId, projectId, version, codes);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, Set<String>> resolveProjectPermissionsBatch(Long userId, List<Long> projectIds) {
+        List<RbacUserRoleAssignment> projectAssignments = assignmentMapper.selectList(
+                Wrappers.<RbacUserRoleAssignment>lambdaQuery()
+                        .eq(RbacUserRoleAssignment::getUserId, userId)
+                        .eq(RbacUserRoleAssignment::getScopeType, PROJECT_SCOPE_TYPE)
+                        .in(RbacUserRoleAssignment::getScopeId, projectIds));
+        List<RbacUserRoleAssignment> systemAssignments = assignmentMapper.selectList(
+                Wrappers.<RbacUserRoleAssignment>lambdaQuery()
+                        .eq(RbacUserRoleAssignment::getUserId, userId)
+                        .eq(RbacUserRoleAssignment::getScopeType, SYSTEM_SCOPE_TYPE)
+                        .eq(RbacUserRoleAssignment::getScopeId, SYSTEM_SCOPE_ID));
+        if (projectAssignments.isEmpty() && systemAssignments.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> roleIds = new LinkedHashSet<>();
+        projectAssignments.forEach(assignment -> roleIds.add(assignment.getRoleId()));
+        systemAssignments.forEach(assignment -> roleIds.add(assignment.getRoleId()));
+        List<RbacRolePermission> mappings = rolePermissionMapper.selectList(
+                Wrappers.<RbacRolePermission>lambdaQuery().in(RbacRolePermission::getRoleId, roleIds));
+        if (mappings.isEmpty()) {
+            return Map.of();
+        }
+        Set<Long> permissionIds = mappings.stream()
+                .map(RbacRolePermission::getPermissionId)
+                .collect(Collectors.toSet());
+        Map<Long, String> codeByPermissionId = permissionMapper.selectList(
+                        Wrappers.<RbacPermission>lambdaQuery()
+                                .in(RbacPermission::getId, permissionIds)
+                                .eq(RbacPermission::getEnabled, true))
+                .stream()
+                .collect(Collectors.toMap(RbacPermission::getId, RbacPermission::getCode));
+        Map<Long, Set<String>> codesByRoleId = new HashMap<>();
+        for (RbacRolePermission mapping : mappings) {
+            String code = codeByPermissionId.get(mapping.getPermissionId());
+            if (code != null) {
+                codesByRoleId.computeIfAbsent(mapping.getRoleId(), key -> new LinkedHashSet<>()).add(code);
+            }
+        }
+        Set<String> systemCodes = new LinkedHashSet<>();
+        systemAssignments.forEach(assignment ->
+                systemCodes.addAll(codesByRoleId.getOrDefault(assignment.getRoleId(), Set.of())));
+        Map<Long, Set<String>> result = new HashMap<>();
+        for (Long projectId : projectIds) {
+            result.put(projectId, new LinkedHashSet<>());
+        }
+        for (RbacUserRoleAssignment assignment : projectAssignments) {
+            result.computeIfAbsent(assignment.getScopeId(), key -> new LinkedHashSet<>())
+                    .addAll(codesByRoleId.getOrDefault(assignment.getRoleId(), Set.of()));
+        }
+        result.replaceAll((projectId, codes) -> {
+            codes.addAll(systemCodes);
+            return codes;
+        });
+        return result;
     }
 
     @Transactional

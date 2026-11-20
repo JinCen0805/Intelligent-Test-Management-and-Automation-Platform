@@ -4,6 +4,9 @@ import com.testpilot.platform.common.BusinessException;
 import com.testpilot.platform.rbac.RbacPermissions;
 import com.testpilot.platform.rbac.RbacService;
 import com.testpilot.platform.user.User;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
@@ -44,6 +47,29 @@ public class ProjectAccessService {
 
     public boolean canRead(Project project, User user) {
         return hasProjectPermission(project, user, RbacPermissions.PROJECT_READ);
+    }
+
+    /**
+     * 列表场景的批量鉴权：一次批量查询项目权限（命中缓存则不入库），避免逐项目查询。
+     */
+    public List<Project> filterReadable(List<Project> projects, User user) {
+        if (projects == null || projects.isEmpty() || user == null) {
+            return List.of();
+        }
+        if (isAdmin(user)) {
+            return projects;
+        }
+        List<Long> candidateIds = projects.stream()
+                .filter(project -> !project.getOwnerId().equals(user.getId()))
+                .map(Project::getId)
+                .toList();
+        Map<Long, Set<String>> permissions = rbacService.projectPermissionCodes(
+                user.getId(), user.getAuthVersion(), candidateIds);
+        return projects.stream()
+                .filter(project -> project.getOwnerId().equals(user.getId())
+                        || permissions.getOrDefault(project.getId(), Set.of())
+                                .contains(RbacPermissions.PROJECT_READ))
+                .toList();
     }
 
     public boolean canWrite(Project project, User user) {

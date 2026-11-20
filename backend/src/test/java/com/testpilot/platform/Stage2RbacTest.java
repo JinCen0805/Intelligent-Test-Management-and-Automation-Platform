@@ -22,6 +22,7 @@ import com.testpilot.platform.user.User;
 import com.testpilot.platform.user.UserDtos;
 import com.testpilot.platform.user.UserRepository;
 import com.testpilot.platform.user.UserService;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,23 @@ class Stage2RbacTest {
         assertTrue(projectPermissions.contains("project:update"));
         assertTrue(projectPermissions.contains("project:member:manage"));
         assertTrue(projectPermissions.contains("testcase:write"));
+    }
+
+    @Test
+    void batchProjectPermissionCodesMatchSingleProjectChecks() {
+        User admin = userRepository.findByUsername("chen.yu").orElseThrow();
+        User developer = userRepository.findByUsername("lin.xiao").orElseThrow();
+        Project first = projectRepository.findByCodeAndDeletedFalse("XH-MALL").orElseThrow();
+        Project second = projectRepository.findByCodeAndDeletedFalse("SC-CORE").orElseThrow();
+
+        var batch = rbacService.projectPermissionCodes(
+                developer.getId(), developer.getAuthVersion(), List.of(first.getId(), second.getId()));
+        assertEquals(rbacService.projectPermissions(developer.getId(), first.getId()), batch.get(first.getId()));
+        assertEquals(rbacService.projectPermissions(developer.getId(), second.getId()), batch.get(second.getId()));
+
+        var adminBatch = rbacService.projectPermissionCodes(
+                admin.getId(), admin.getAuthVersion(), List.of(first.getId()));
+        assertTrue(adminBatch.get(first.getId()).contains("project:update"));
     }
 
     @Test

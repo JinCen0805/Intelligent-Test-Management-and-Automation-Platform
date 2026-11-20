@@ -43,10 +43,8 @@ public class ProjectService {
     }
 
     public List<ProjectDtos.Response> list(User currentUser) {
-        List<Project> accessibleProjects = projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc()
-                .stream()
-                .filter(project -> projectAccessService.canRead(project, currentUser))
-                .toList();
+        List<Project> allProjects = projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc();
+        List<Project> accessibleProjects = projectAccessService.filterReadable(allProjects, currentUser);
         if (accessibleProjects.isEmpty()) {
             return List.of();
         }

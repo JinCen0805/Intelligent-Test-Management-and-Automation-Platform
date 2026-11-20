@@ -51,11 +51,11 @@ public class ReportService {
             int size,
             User user
     ) {
-        List<Project> accessibleProjects = projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc()
-                .stream()
+        List<Project> allProjects = projectRepository.findAllByDeletedFalseOrderByCreatedAtDesc();
+        List<Project> candidateProjects = allProjects.stream()
                 .filter(project -> projectId == null || project.getId().equals(projectId))
-                .filter(project -> projectAccessService.canRead(project, user))
                 .toList();
+        List<Project> accessibleProjects = projectAccessService.filterReadable(candidateProjects, user);
         if (projectId != null && accessibleProjects.isEmpty()) {
             throw new BusinessException(40301, "没有项目访问权限");
         }
