@@ -13,24 +13,15 @@ const testcaseStore = useTestcaseStore()
 
 const { currentProject } = storeToRefs(projectStore)
 const { casePriorityFilter, caseTypeFilter, search } = storeToRefs(ui)
-const { loadTestCases, loadAllTestCases, casesForSuite, caseStatusLabel, editCase } = testcaseStore
+const { loadTestCases, casesForSuite, caseStatusLabel, editCase } = testcaseStore
+const { casePagination } = storeToRefs(testcaseStore)
 const activeSuiteType = computed(() => ui.activeCaseSuiteType)
 const suiteLabel = computed(() => activeSuiteType.value === 'API' ? '接口测试' : '功能测试')
 const selectedCaseIds = ref<number[]>([])
 const batchWorking = ref(false)
+let filterTimer: number | undefined
 
-const libraryCases = computed(() => {
-  const term = search.value.trim().toLowerCase()
-  return casesForSuite(activeSuiteType.value).filter((item) => {
-    const matchesSource = item.source === 'AI'
-    const matchesStatus = item.status === 'APPROVED'
-    const matchesSuite = item.suiteType === suiteLabel.value
-    const matchesSearch = !term || `${item.no}${item.title}${item.module}`.toLowerCase().includes(term)
-    const matchesPriority = !casePriorityFilter.value || item.priority === casePriorityFilter.value
-    const matchesType = !caseTypeFilter.value || item.type === caseTypeFilter.value
-    return matchesSource && matchesStatus && matchesSuite && matchesSearch && matchesPriority && matchesType
-  })
-})
+const libraryCases = computed(() => casesForSuite(activeSuiteType.value))
 
 const extraFieldColumns = computed(() => {
   const names = new Set<string>()
@@ -76,15 +67,11 @@ async function deleteSelectedCases() {
   batchWorking.value = true
   try {
     const results = await Promise.allSettled(items.map((item) => api.testCases.remove(projectId, item.id)))
-    await loadTestCases({
-      source: 'AI',
-      status: 'APPROVED',
-      keyword: '',
-      priority: '',
-      caseType: '',
-      suiteType: activeSuiteType.value
-    })
-    await loadAllTestCases()
+    await loadPage()
+    // 当前页删空后回退一页，避免停在空页。
+    if (libraryCases.value.length === 0 && casePagination.value.page > 0) {
+      await loadPage(casePagination.value.page - 1)
+    }
     selectedCaseIds.value = []
     const successCount = results.filter((item) => item.status === 'fulfilled').length
     ui.showToast(successCount === items.length ? `已删除 ${successCount} 条用例` : `已删除 ${successCount} 条用例，${items.length - successCount} 条失败`)
@@ -95,18 +82,23 @@ async function deleteSelectedCases() {
   }
 }
 
+async function loadPage(page = casePagination.value.page) {
+  await loadTestCases({
+    source: 'AI',
+    status: 'APPROVED',
+    suiteType: activeSuiteType.value,
+    page,
+    size: casePagination.value.size
+  })
+}
+
+function goPage(page: number) {
+  selectedCaseIds.value = []
+  void loadPage(page)
+}
+
 function refreshPage() {
-  void Promise.all([
-    loadTestCases({
-      source: 'AI',
-      status: 'APPROVED',
-      keyword: '',
-      priority: '',
-      caseType: '',
-      suiteType: activeSuiteType.value
-    }),
-    loadAllTestCases()
-  ])
+  void loadPage()
 }
 
 function mapCaseType(value: string) {
@@ -130,13 +122,23 @@ async function exportExcel() {
   })
 }
 
-watch(activeSuiteType, refreshPage)
+watch(activeSuiteType, () => {
+  selectedCaseIds.value = []
+  void loadPage(0)
+})
+watch([search, casePriorityFilter, caseTypeFilter], () => {
+  window.clearTimeout(filterTimer)
+  filterTimer = window.setTimeout(() => {
+    selectedCaseIds.value = []
+    void loadPage(0)
+  }, 300)
+})
 watch(libraryCases, () => {
   selectedCaseIds.value = selectedCaseIds.value.filter((id) => libraryCases.value.some((item) => item.id === id))
 })
 
 onMounted(() => {
-  refreshPage()
+  void loadPage(0)
 })
 </script>
 
@@ -216,6 +218,11 @@ onMounted(() => {
             </tr>
           </tbody>
         </table>
+        <div v-if="casePagination.totalPages > 1" class="head-actions" style="justify-content: flex-end; padding-top: 10px">
+          <button class="btn" :disabled="casePagination.page <= 0" @click="goPage(casePagination.page - 1)">上一页</button>
+          <span class="muted">第 {{ casePagination.page + 1 }} / {{ casePagination.totalPages }} 页 · 共 {{ casePagination.totalElements }} 条</span>
+          <button class="btn" :disabled="casePagination.page + 1 >= casePagination.totalPages" @click="goPage(casePagination.page + 1)">下一页</button>
+        </div>
       </div>
     </div>
   </section>

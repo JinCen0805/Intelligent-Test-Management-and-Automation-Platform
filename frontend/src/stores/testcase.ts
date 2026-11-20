@@ -18,6 +18,7 @@ export const useTestcaseStore = defineStore('testcase', () => {
   })
   const testCases = computed(() => [...casesBySuite.FUNCTIONAL, ...casesBySuite.API])
   const allTestCases = ref<TestCase[]>([])
+  const casePagination = ref({ page: 0, size: 50, totalPages: 1, totalElements: 0 })
   const caseForm = ref({
     requirementId: null as number | null,
     caseNo: '',
@@ -126,6 +127,12 @@ export const useTestcaseStore = defineStore('testcase', () => {
       size: filters.size
     })
     if (sequence !== loadSequence) return
+    casePagination.value = {
+      page: result.number,
+      size: result.size,
+      totalPages: result.totalPages,
+      totalElements: result.totalElements
+    }
     const mappedCases = result.content.map(fromApiTestCase)
     const requestedSuiteType = Object.prototype.hasOwnProperty.call(filters, 'suiteType')
       ? filters.suiteType
@@ -265,6 +272,7 @@ export const useTestcaseStore = defineStore('testcase', () => {
     casesBySuite,
     casesForSuite,
     allTestCases,
+    casePagination,
     caseForm,
     editingCaseId,
     filteredCases,

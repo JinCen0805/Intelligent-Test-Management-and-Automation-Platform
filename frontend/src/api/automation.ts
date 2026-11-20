@@ -37,6 +37,14 @@ export interface ApiExecution {
   }
 }
 
+export interface ApiExecutionPage {
+  content: ApiExecution[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export interface ApiAnalysis {
   executionId: number
   projectId: number
@@ -341,7 +349,8 @@ export const automation = {
       `/projects/${projectId}/automation-tasks/ai-drafts/${draftId}/confirm`,
       { method: 'POST' }
     ),
-  executions: (projectId: number) => request<ApiExecution[]>(`/projects/${projectId}/test-executions`),
+  executions: (projectId: number, page = 0, size = 20) =>
+    request<ApiExecutionPage>(`/projects/${projectId}/test-executions?page=${page}&size=${size}`),
   deleteExecution: (projectId: number, executionId: number) => request<void>(
     `/projects/${projectId}/test-executions/${executionId}`,
     { method: 'DELETE' }

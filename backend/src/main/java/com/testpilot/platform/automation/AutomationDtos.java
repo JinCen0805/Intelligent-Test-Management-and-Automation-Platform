@@ -149,6 +149,15 @@ public final class AutomationDtos {
     ) {
     }
 
+    public record TestExecutionPage(
+            List<TestExecutionResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {
+    }
+
     public record TestExecutionResponse(
             Long id,
             Long projectId,

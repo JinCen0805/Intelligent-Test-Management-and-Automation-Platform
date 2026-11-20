@@ -35,6 +35,7 @@ export const useAutomationStore = defineStore('automation', () => {
   const automationTasks = ref<ApiTestTask[]>([])
   const executableTasks = computed(() => automationTasks.value.filter((task) => task.status === 'ENABLED'))
   const executionRecords = ref<ApiExecution[]>([])
+  const executionPagination = ref({ page: 0, size: 20, totalPages: 1, totalElements: 0 })
   const executions = computed<Execution[]>(() => executionRecords.value.map(fromApiExecution))
 
   const runForm = ref({ taskId: null as number | null, parametersJson: '' })
@@ -181,16 +182,28 @@ export const useAutomationStore = defineStore('automation', () => {
   async function loadAutomationData() {
     const projectId = projectStore.currentProject.id
     if (!projectId) return
-    const [projectsList, tasks, executionList] = await Promise.all([
+    const [projectsList, tasks] = await Promise.all([
       api.automation.projects(projectId),
-      api.automation.tasks(projectId),
-      api.automation.executions(projectId)
+      api.automation.tasks(projectId)
     ])
     automationProjects.value.splice(0, automationProjects.value.length, ...projectsList)
     automationTasks.value.splice(0, automationTasks.value.length, ...tasks)
-    executionRecords.value.splice(0, executionRecords.value.length, ...executionList)
+    await loadExecutions(0)
     if (runForm.value.taskId === null && executableTasks.value.length > 0) {
       runForm.value.taskId = executableTasks.value[0].id
+    }
+  }
+
+  async function loadExecutions(page = 0) {
+    const projectId = projectStore.currentProject.id
+    if (!projectId) return
+    const result = await api.automation.executions(projectId, page, executionPagination.value.size)
+    executionRecords.value.splice(0, executionRecords.value.length, ...result.content)
+    executionPagination.value = {
+      page: result.page,
+      size: result.size,
+      totalPages: result.totalPages,
+      totalElements: result.totalElements
     }
   }
 
@@ -885,6 +898,7 @@ export const useAutomationStore = defineStore('automation', () => {
     automationTasks,
     executableTasks,
     executionRecords,
+    executionPagination,
     executions,
     runForm,
     automationProjectForm,
@@ -915,6 +929,7 @@ export const useAutomationStore = defineStore('automation', () => {
     onboardingStepMeta,
     stepDuration,
     loadAutomationData,
+    loadExecutions,
     openNewAutomationProject,
     editAutomationProject,
     createAutomationProject,

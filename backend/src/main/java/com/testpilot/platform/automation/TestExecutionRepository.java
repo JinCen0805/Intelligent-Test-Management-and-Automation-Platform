@@ -22,6 +22,12 @@ public class TestExecutionRepository extends MybatisRepository<TestExecution, Lo
                 .orderByDesc(TestExecution::getCreatedAt));
     }
 
+    public Page<TestExecution> findPageByProjectIdOrderByCreatedAtDesc(Long projectId, Pageable pageable) {
+        return page(pageable, Wrappers.<TestExecution>lambdaQuery()
+                .eq(TestExecution::getProjectId, projectId)
+                .orderByDesc(TestExecution::getCreatedAt));
+    }
+
     public List<TestExecution> findAllByStatusIn(List<String> statuses) {
         return statuses == null || statuses.isEmpty()
                 ? List.of()

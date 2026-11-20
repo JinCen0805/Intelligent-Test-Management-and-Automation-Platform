@@ -272,12 +272,22 @@ public class AutomationService {
         return new TaskTarget(binding, jobName);
     }
 
-    public List<AutomationDtos.TestExecutionResponse> listExecutions(Long projectId, User user) {
+    public AutomationDtos.TestExecutionPage listExecutions(Long projectId, int page, int size, User user) {
         projectAccessService.requirePermission(projectId, user, RbacPermissions.AUTOMATION_EXECUTE);
-        return testExecutionRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)
-                .stream()
-                .map(this::toExecutionResponse)
-                .toList();
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        org.springframework.data.domain.Page<TestExecution> result =
+                testExecutionRepository.findPageByProjectIdOrderByCreatedAtDesc(
+                        projectId,
+                        org.springframework.data.domain.PageRequest.of(safePage, safeSize)
+                );
+        return new AutomationDtos.TestExecutionPage(
+                result.getContent().stream().map(this::toExecutionResponse).toList(),
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getTotalPages()
+        );
     }
 
     /**

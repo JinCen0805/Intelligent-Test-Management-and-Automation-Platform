@@ -191,12 +191,16 @@ public class AutomationController {
     }
 
     @GetMapping("/test-executions")
-    public ApiResponse<List<AutomationDtos.TestExecutionResponse>> listExecutions(
+    public ApiResponse<AutomationDtos.TestExecutionPage> listExecutions(
             @PathVariable Long projectId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal User user
     ) {
         return ApiResponse.success(automationService.listExecutions(
                 projectId,
+                page,
+                size,
                 user
         ));
     }
