@@ -28,3 +28,6 @@ testpilot:
     callback-token: test-callback-token
     callback-strict-signature: false
     poll-interval-ms: 3600000
+    # 测试中关闭后台轮询，避免与测试线程并发写报告造成偶发唯一键冲突；
+    # 需要验证轮询行为的用例应显式调用 pollExecutions。
+    scheduler-delay-ms: 3600000

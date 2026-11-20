@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class AutomationService {
@@ -37,6 +38,7 @@ public class AutomationService {
     private final JenkinsAdminService jenkinsAdminService;
     private final AllureReportStorage allureReportStorage;
     private final OperationAuditService operationAuditService;
+    private final TransactionTemplate transactionTemplate;
     private final int maxWaitMinutes;
 
     public AutomationService(
@@ -50,6 +52,7 @@ public class AutomationService {
             JenkinsAdminService jenkinsAdminService,
             AllureReportStorage allureReportStorage,
             OperationAuditService operationAuditService,
+            TransactionTemplate transactionTemplate,
             @Value("${testpilot.jenkins.max-wait-minutes:30}") int maxWaitMinutes
     ) {
         this.automationProjectRepository = automationProjectRepository;
@@ -62,6 +65,7 @@ public class AutomationService {
         this.jenkinsAdminService = jenkinsAdminService;
         this.allureReportStorage = allureReportStorage;
         this.operationAuditService = operationAuditService;
+        this.transactionTemplate = transactionTemplate;
         this.maxWaitMinutes = maxWaitMinutes;
     }
 
@@ -264,7 +268,9 @@ public class AutomationService {
                 .toList();
     }
 
-    @Transactional
+    /**
+     * Jenkins 触发是外部 HTTP 调用，不占用数据库事务；只有执行记录落库使用短事务。
+     */
     public AutomationDtos.TestExecutionResponse execute(
             Long projectId,
             Long taskId,
@@ -303,13 +309,15 @@ public class AutomationService {
                 LocalDateTime.now()
         );
         execution.recordTrigger(user.getUsername(), "MANUAL");
-        TestExecution saved = testExecutionRepository.save(execution);
-        operationAuditService.record(projectId, user, "EXECUTION_TRIGGER", "EXECUTION", saved.getId(),
-                "触发执行任务 " + task.getName(), true);
+        TestExecution saved = transactionTemplate.execute(status -> {
+            TestExecution persisted = testExecutionRepository.save(execution);
+            operationAuditService.record(projectId, user, "EXECUTION_TRIGGER", "EXECUTION", persisted.getId(),
+                    "触发执行任务 " + task.getName(), true);
+            return persisted;
+        });
         return toExecutionResponse(saved);
     }
 
-    @Transactional
     public AutomationDtos.TestExecutionResponse retry(
             Long projectId,
             Long executionId,
@@ -347,9 +355,12 @@ public class AutomationService {
                 LocalDateTime.now()
         );
         retry.recordTrigger(user.getUsername(), "RETRY");
-        TestExecution savedRetry = testExecutionRepository.save(retry);
-        operationAuditService.record(projectId, user, "EXECUTION_RETRY", "EXECUTION", savedRetry.getId(),
-                "重试执行任务 " + task.getName(), true);
+        TestExecution savedRetry = transactionTemplate.execute(status -> {
+            TestExecution persisted = testExecutionRepository.save(retry);
+            operationAuditService.record(projectId, user, "EXECUTION_RETRY", "EXECUTION", persisted.getId(),
+                    "重试执行任务 " + task.getName(), true);
+            return persisted;
+        });
         return toExecutionResponse(savedRetry);
     }
 
@@ -367,7 +378,6 @@ public class AutomationService {
         return saveReport(executionId, request, false);
     }
 
-    @Transactional
     public AutomationDtos.TestExecutionResponse sync(
             Long projectId,
             Long executionId,
@@ -384,7 +394,6 @@ public class AutomationService {
         return syncExecution(execution, task, automationProject);
     }
 
-    @Transactional
     public AutomationDtos.TestExecutionResponse cancel(
             Long projectId,
             Long executionId,
@@ -414,31 +423,33 @@ public class AutomationService {
                         jenkinsAdminService.requireEnabledInstance(binding.getJenkinsInstanceId())
                 )
         );
-        LocalDateTime finishedAt = LocalDateTime.now();
-        execution.applyJenkinsSync(
-                execution.getBuildNumber(),
-                execution.getQueueUrl(),
-                "ABORTED",
-                execution.getCommitSha(),
-                execution.getConsoleLogRef(),
-                execution.getStartedAt(),
-                finishedAt
-        );
-        testExecutionRepository.save(execution);
-        saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
-                "ABORTED",
-                execution.getCommitSha(),
-                execution.getConsoleLogRef(),
-                null,
-                0, 0, 0, 0, 0,
-                null,
-                "用户取消了 Jenkins 执行。",
-                null,
-                null,
-                null
-        ));
-        operationAuditService.record(projectId, currentUser, "EXECUTION_STOP", "EXECUTION", execution.getId(),
-                "取消执行任务 " + task.getName(), true);
+        transactionTemplate.executeWithoutResult(status -> {
+            LocalDateTime finishedAt = LocalDateTime.now();
+            execution.applyJenkinsSync(
+                    execution.getBuildNumber(),
+                    execution.getQueueUrl(),
+                    "ABORTED",
+                    execution.getCommitSha(),
+                    execution.getConsoleLogRef(),
+                    execution.getStartedAt(),
+                    finishedAt
+            );
+            testExecutionRepository.save(execution);
+            saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
+                    "ABORTED",
+                    execution.getCommitSha(),
+                    execution.getConsoleLogRef(),
+                    null,
+                    0, 0, 0, 0, 0,
+                    null,
+                    "用户取消了 Jenkins 执行。",
+                    null,
+                    null,
+                    null
+            ));
+            operationAuditService.record(projectId, currentUser, "EXECUTION_STOP", "EXECUTION", execution.getId(),
+                    "取消执行任务 " + task.getName(), true);
+        });
         return toExecutionResponse(execution);
     }
 
@@ -511,32 +522,34 @@ public class AutomationService {
                 && Duration.between(execution.getCreatedAt(), LocalDateTime.now()).toMinutes()
                 >= maxWaitMinutes(binding)) {
             LocalDateTime finishedAt = LocalDateTime.now();
-            execution.applyJenkinsSync(
-                    execution.getBuildNumber(),
-                    execution.getQueueUrl(),
-                    "TIMEOUT",
-                    execution.getCommitSha(),
-                    execution.getConsoleLogRef(),
-                    execution.getStartedAt(),
-                    finishedAt
-            );
-            testExecutionRepository.save(execution);
-            saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
-                    "TIMEOUT",
-                    execution.getCommitSha(),
-                    execution.getConsoleLogRef(),
-                    null,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    null,
-                    "Jenkins 在 " + maxWaitMinutes(binding) + " 分钟内未返回完成结果。",
-                    null,
-                    null,
-                    "超时分析：Jenkins 构建未在最大等待时间内完成，请检查队列、Agent 和构建日志。"
-            ));
+            transactionTemplate.executeWithoutResult(status -> {
+                execution.applyJenkinsSync(
+                        execution.getBuildNumber(),
+                        execution.getQueueUrl(),
+                        "TIMEOUT",
+                        execution.getCommitSha(),
+                        execution.getConsoleLogRef(),
+                        execution.getStartedAt(),
+                        finishedAt
+                );
+                testExecutionRepository.save(execution);
+                saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
+                        "TIMEOUT",
+                        execution.getCommitSha(),
+                        execution.getConsoleLogRef(),
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        null,
+                        "Jenkins 在 " + maxWaitMinutes(binding) + " 分钟内未返回完成结果。",
+                        null,
+                        null,
+                        "超时分析：Jenkins 构建未在最大等待时间内完成，请检查队列、Agent 和构建日志。"
+                ));
+            });
             return toExecutionResponse(execution);
         }
         JenkinsClient.JenkinsTarget target = binding == null ? null : jenkinsAdminService.toTarget(
@@ -568,36 +581,40 @@ public class AutomationService {
                 // A legacy Job may not archive allure-report.zip; keep its Jenkins URL as fallback.
             }
         }
-        execution.applyJenkinsSync(
-                result.buildNumber(),
-                result.queueUrl(),
-                result.status(),
-                result.commitSha(),
-                result.consoleLogRef(),
-                result.startedAt(),
-                result.finishedAt()
-        );
-        testExecutionRepository.save(execution);
-        if (List.of("PASSED", "FAILED", "ABORTED").contains(result.status())) {
-            saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
+        JenkinsClient.AllureSummary finalSummary = allureSummary;
+        String finalArtifactRef = artifactRef;
+        transactionTemplate.executeWithoutResult(status -> {
+            execution.applyJenkinsSync(
+                    result.buildNumber(),
+                    result.queueUrl(),
                     result.status(),
                     result.commitSha(),
                     result.consoleLogRef(),
-                    result.allureUrl(),
-                    allureSummary == null ? result.totalCount() : allureSummary.totalCount(),
-                    allureSummary == null ? result.passedCount() : allureSummary.passedCount(),
-                    allureSummary == null ? result.failedCount() : allureSummary.failedCount(),
-                    allureSummary == null ? result.brokenCount() : allureSummary.brokenCount(),
-                    allureSummary == null ? result.skippedCount() : allureSummary.skippedCount(),
-                    artifactRef,
-                    null,
-                    null,
-                    null,
-                    result.status().equals("FAILED")
-                            ? "基础失败分析：执行结果为失败，请结合 Jenkins 日志和 Allure 失败用例定位。"
-                            : null
-            ));
-        }
+                    result.startedAt(),
+                    result.finishedAt()
+            );
+            testExecutionRepository.save(execution);
+            if (List.of("PASSED", "FAILED", "ABORTED").contains(result.status())) {
+                saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
+                        result.status(),
+                        result.commitSha(),
+                        result.consoleLogRef(),
+                        result.allureUrl(),
+                        finalSummary == null ? result.totalCount() : finalSummary.totalCount(),
+                        finalSummary == null ? result.passedCount() : finalSummary.passedCount(),
+                        finalSummary == null ? result.failedCount() : finalSummary.failedCount(),
+                        finalSummary == null ? result.brokenCount() : finalSummary.brokenCount(),
+                        finalSummary == null ? result.skippedCount() : finalSummary.skippedCount(),
+                        finalArtifactRef,
+                        null,
+                        null,
+                        null,
+                        result.status().equals("FAILED")
+                                ? "基础失败分析：执行结果为失败，请结合 Jenkins 日志和 Allure 失败用例定位。"
+                                : null
+                ));
+            }
+        });
         return toExecutionResponse(execution);
     }
 
@@ -634,34 +651,37 @@ public class AutomationService {
             message = message.substring(0, 1000);
         }
         execution.recordSyncFailure(message);
-        if (execution.getSyncFailureCount() >= 3) {
-            execution.applyJenkinsSync(
-                    execution.getBuildNumber(),
-                    execution.getQueueUrl(),
-                    "FAILED",
-                    execution.getCommitSha(),
-                    execution.getConsoleLogRef(),
-                    execution.getStartedAt(),
-                    LocalDateTime.now()
-            );
-            saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
-                    "FAILED",
-                    execution.getCommitSha(),
-                    execution.getConsoleLogRef(),
-                    null,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    null,
-                    message,
-                    null,
-                    null,
-                    "基础分析：连续多次 Jenkins 状态同步失败，执行已终止。"
-            ));
-        }
-        testExecutionRepository.save(execution);
+        String failureMessage = message;
+        transactionTemplate.executeWithoutResult(status -> {
+            if (execution.getSyncFailureCount() >= 3) {
+                execution.applyJenkinsSync(
+                        execution.getBuildNumber(),
+                        execution.getQueueUrl(),
+                        "FAILED",
+                        execution.getCommitSha(),
+                        execution.getConsoleLogRef(),
+                        execution.getStartedAt(),
+                        LocalDateTime.now()
+                );
+                saveReport(execution.getId(), new AutomationDtos.ExecutionResultRequest(
+                        "FAILED",
+                        execution.getCommitSha(),
+                        execution.getConsoleLogRef(),
+                        null,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        null,
+                        failureMessage,
+                        null,
+                        null,
+                        "基础分析：连续多次 Jenkins 状态同步失败，执行已终止。"
+                ));
+            }
+            testExecutionRepository.save(execution);
+        });
     }
 
     @Transactional
