@@ -106,5 +106,5 @@ if ($failures.Count -gt 0) {
 }
 
 Write-Host ''
-Write-Host 'TestPilot local services stopped.'
+Write-Host 'ITMAP local services stopped.'
 exit 0

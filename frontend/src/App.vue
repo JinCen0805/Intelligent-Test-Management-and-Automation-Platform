@@ -62,11 +62,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="!authState.ready" class="app-loading">正在连接 TestPilot 服务...</div>
+  <div v-if="!authState.ready" class="app-loading">正在连接 ITMAP 服务...</div>
 
   <div v-else-if="!authState.authenticated" class="auth-screen">
     <div class="auth-panel">
-      <div class="brand-mark auth-brand"><span class="brand-dot">T</span> TestPilot AI</div>
+      <div class="brand-mark auth-brand"><span class="brand-dot">I</span> ITMAP</div>
       <p class="auth-kicker">智能测试管理与自动化平台</p>
       <h1>登录工作台</h1>
       <p class="auth-copy">登录后管理项目文件、测试用例和自动化执行。</p>
@@ -82,7 +82,7 @@ onUnmounted(() => {
   <div v-else class="app-shell" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark"><span class="brand-dot">T</span> TestPilot AI</div>
+        <div class="brand-mark"><span class="brand-dot">I</span> ITMAP</div>
         <small>智能测试管理与自动化平台</small>
         <button
           class="sidebar-collapse-toggle"
@@ -118,7 +118,7 @@ onUnmounted(() => {
 
     <main class="main">
       <header class="topbar">
-        <div class="crumb"><span>TestPilot AI</span><b>/</b><strong>{{ activeViewName }}</strong></div>
+        <div class="crumb"><span>ITMAP</span><b>/</b><strong>{{ activeViewName }}</strong></div>
         <div class="top-actions">
           <label v-if="route.name === 'projects' || route.name === 'project'" class="search"><span>⌕</span><input v-model="search" placeholder="搜索项目或用例" /></label>
           <span class="top-status"><i></i> DEV 环境正常</span>

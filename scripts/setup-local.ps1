@@ -18,7 +18,7 @@ if ([string]::IsNullOrWhiteSpace($dbPassword)) {
     throw 'MySQL password cannot be empty.'
 }
 
-$encryptionKey = Read-Host 'TestPilot encryption key [generate local key]'
+$encryptionKey = Read-Host 'ITMAP encryption key [generate local key]'
 if ([string]::IsNullOrWhiteSpace($encryptionKey)) {
     $encryptionKey = 'local-' + ([guid]::NewGuid().ToString('N'))
 }

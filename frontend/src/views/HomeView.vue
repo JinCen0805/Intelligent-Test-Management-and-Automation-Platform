@@ -67,7 +67,7 @@ onMounted(() => { void refreshHomeData() })
   <section class="view home-view">
     <div class="home-hero">
       <div>
-        <span class="eyebrow">TESTPILOT / QUALITY CONTROL</span>
+        <span class="eyebrow">ITMAP / QUALITY CONTROL</span>
         <h1>质量总览</h1>
         <p>今天是 {{ todayLabel }}，查看项目质量、自动化执行和 AI 工作流的最新状态。</p>
       </div>

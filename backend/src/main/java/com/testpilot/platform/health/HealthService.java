@@ -44,7 +44,7 @@ public class HealthService {
         boolean redisAcceptable = !redisRequired || "UP".equals(redis.get("status"));
         String status = databaseUp && redisAcceptable ? "UP" : "DOWN";
         return Map.of(
-                "service", "testpilot-platform",
+                "service", "itmap-platform",
                 "status", status,
                 "timestamp", Instant.now().toString(),
                 "durationMs", Duration.between(startedAt, Instant.now()).toMillis(),

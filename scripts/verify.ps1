@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    TestPilot unified verification entry (used by local dev and CI).
+    ITMAP unified verification entry (used by local dev and CI).
 
 .DESCRIPTION
     Runs backend tests and frontend build in order. Fails with a non-zero exit

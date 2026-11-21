@@ -144,7 +144,7 @@ $backendPid = Get-ListeningProcess $backendPort
 if ($backendPid) {
     if (-not (Test-HttpEndpoint "$backendUrl/api/health")) {
         $owners = $backendPid -join ', '
-        throw "Port $backendPort is already in use by process $owners, but the TestPilot backend is not healthy."
+        throw "Port $backendPort is already in use by process $owners, but the ITMAP backend is not healthy."
     }
     Write-Host "Backend is already running: $backendUrl"
 } else {
@@ -163,7 +163,7 @@ $frontendPid = Get-ListeningProcess $frontendPort
 if ($frontendPid) {
     if (-not (Test-HttpEndpoint $frontendUrl)) {
         $owners = $frontendPid -join ', '
-        throw "Port $frontendPort is already in use by process $owners, but the TestPilot frontend is not reachable."
+        throw "Port $frontendPort is already in use by process $owners, but the ITMAP frontend is not reachable."
     }
     Write-Host "Frontend is already running: $frontendUrl"
 } else {
@@ -179,6 +179,6 @@ if ($frontendPid) {
 }
 
 Write-Host ''
-Write-Host 'TestPilot local services are ready.'
+Write-Host 'ITMAP local services are ready.'
 Write-Host "Open: $frontendUrl/"
 Write-Host "Logs: $logDir"
